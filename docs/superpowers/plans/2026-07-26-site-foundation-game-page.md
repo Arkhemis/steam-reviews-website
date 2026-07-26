@@ -841,7 +841,8 @@ const languages: GameLanguageDistribution[] = [
 describe("LanguageDistribution", () => {
   it("renders a bar and legend entry per language", () => {
     render(<LanguageDistribution languages={languages} />);
-    expect(screen.getByText("english")).toBeInTheDocument();
+    // "english" appears twice by design (legend swatch + bar row label).
+    expect(screen.getAllByText("english").length).toBeGreaterThan(0);
     expect(screen.getByText("50%")).toBeInTheDocument();
   });
 
@@ -853,7 +854,8 @@ describe("LanguageDistribution", () => {
       pctOfTotal: (10 - i) / 55,
     }));
     render(<LanguageDistribution languages={many} />);
-    expect(screen.getByText("Autres")).toBeInTheDocument();
+    // "Autres" also appears twice (legend swatch + bar row label).
+    expect(screen.getAllByText("Autres").length).toBeGreaterThan(0);
   });
 });
 ```
