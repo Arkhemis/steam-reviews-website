@@ -919,7 +919,7 @@ export function LanguageDistribution({ languages }: LanguageDistributionProps) {
           <span key={row.language} className="flex items-center gap-1.5">
             <span
               className="inline-block h-2.5 w-2.5 rounded-sm"
-              style={{ backgroundColor: row.language === "Autres" ? "var(--series-fallback)" : colorForLanguage(row.language) }}
+              style={{ backgroundColor: colorForLanguage(row.language) }}
             />
             {row.language}
           </span>
@@ -937,13 +937,12 @@ export function LanguageDistribution({ languages }: LanguageDistributionProps) {
             aria-label={`${row.language}: ${Math.round(row.pctOfTotal * 100)}%`}
           >
             <span className="w-24 truncate text-neutral-300">{row.language}</span>
-            <div className="h-[10px] flex-1 overflow-hidden rounded-full bg-white/5">
+            <div className="h-[10px] flex-1 overflow-hidden rounded-[4px] bg-white/5">
               <div
-                className="h-full rounded-full"
+                className="h-full rounded-r-[4px]"
                 style={{
                   width: `${row.pctOfTotal * 100}%`,
-                  maxHeight: 24,
-                  backgroundColor: row.language === "Autres" ? "var(--series-fallback)" : colorForLanguage(row.language),
+                  backgroundColor: colorForLanguage(row.language),
                 }}
               />
             </div>
