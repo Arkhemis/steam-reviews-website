@@ -1055,7 +1055,7 @@ export function TopReviews({ reviews }: TopReviewsProps) {
               className="font-bold"
               style={{ color: review.votedUp ? "var(--status-good)" : "var(--status-critical)" }}
             >
-              {review.votedUp ? "▲ Recommandé" : "▼ Non recommandé"}
+              <span aria-hidden="true">{review.votedUp ? "▲" : "▼"}</span> {review.votedUp ? "Recommandé" : "Non recommandé"}
             </span>
             <span>{review.votesUp.toLocaleString("fr-FR")} personnes ont trouvé cette review utile</span>
           </div>
