@@ -1,36 +1,80 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# steam-reviews-website
 
-## Getting Started
+Public website for `steam.reviews` — presenting statistics and analysis built from Steam review data.
 
-First, run the development server:
+## Overview
+
+This is a Next.js-based presentation layer that reads data from the `steam-reviews-analysis` pipeline (a Dagster + dbt project in the sibling directory). The site provides interactive visualizations and insights into Steam game reviews and user sentiment.
+
+## Data Source
+
+The site reads from a PostgreSQL database populated by `steam-reviews-analysis` (`../steam-reviews-analysis`):
+
+- `raw.steam_reviews` — raw review data
+- `raw.steam_review_counts` — aggregated counts by game
+- `raw.igdb_games` — IGDB game metadata
+- `stg_steam_review` — dbt staging model with flattened review data
+- `marts.*` — future reporting models (pending upstream development)
+
+## Development
+
+### Prerequisites
+
+- Node.js 20+
+- npm
+
+### Getting Started
 
 ```bash
+# Install dependencies
+npm install
+
+# Run the development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+
+# Open http://localhost:3000 in your browser
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Testing
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+# Run tests with Vitest
+npm test
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+# Build for production
+npm run build
 
-## Learn More
+# Run production server
+npm start
+```
 
-To learn more about Next.js, take a look at the following resources:
+### Linting
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm run lint
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Project Structure
 
-## Deploy on Vercel
+- `src/app/` — Next.js App Router pages and layouts
+- `src/lib/` — Shared utilities and data access functions
+- `src/components/` — Reusable React components
+- `public/` — Static assets
+- `vitest.config.ts` — Test runner configuration
+- `tailwind.config.ts` — Tailwind CSS configuration
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Technology Stack
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Framework:** Next.js 16 with App Router
+- **Language:** TypeScript
+- **Styling:** Tailwind CSS
+- **Testing:** Vitest + React Testing Library
+- **Linting:** ESLint
+
+## Deployment
+
+Deployment target and process TBD.
+
+## License
+
+See LICENSE file (if applicable).
