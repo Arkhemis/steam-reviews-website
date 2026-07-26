@@ -32,6 +32,14 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* Brand UI chrome colors — generates Tailwind utilities (e.g. bg-brand-cyan, text-brand-purple) */
+@theme {
+  --color-brand-bg: #05050a;
+  --color-brand-glow: #1a0b2e;
+  --color-brand-cyan: #7dffea;
+  --color-brand-purple: #b16dff;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
