@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>steam.reviews — direction visuelle</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #0b0c0f;
+    color: #eaeaec;
+    padding: 2rem;
+  }
+  h2 { font-size: 1.4rem; font-weight: 700; margin-bottom: 0.4rem; }
+  .subtitle { color: #9a9aa2; margin-bottom: 1.75rem; font-size: 0.95rem; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem; }
+  @media (max-width: 1100px) { .grid { grid-template-columns: 1fr; } }
+
+  .card {
+    border-radius: 14px;
+    overflow: hidden;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: transform .15s ease, border-color .15s ease;
+    background: #14151a;
+  }
+  .card:hover { transform: translateY(-3px); }
+  .card.selected { border-color: #ffffff; }
+  .card-label { padding: 0.85rem 1rem 0.6rem; }
+  .card-label h3 { font-size: 0.95rem; font-weight: 700; margin-bottom: 0.2rem; }
+  .card-label p { font-size: 0.78rem; color: #9a9aa2; line-height: 1.35; }
+  .mock { height: 340px; overflow: hidden; position: relative; }
+
+  /* ============ A: DARK NEON GAMER ============ */
+  .mock-a {
+    background: radial-gradient(circle at 20% 0%, #1a0b2e 0%, #05050a 55%);
+    padding: 1rem;
+    font-family: "Segoe UI", sans-serif;
+  }
+  .mock-a .nav { display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; }
+  .mock-a .logo { font-weight:900; font-size:1rem; letter-spacing:.03em; background:linear-gradient(90deg,#7dffea,#b16dff); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .mock-a .navlinks { display:flex; gap:.7rem; font-size:.65rem; color:#8a8a9a; }
+  .mock-a .hero-stat { text-align:center; margin: .6rem 0 1rem; }
+  .mock-a .hero-stat .num { font-size:2.1rem; font-weight:900; background:linear-gradient(90deg,#7dffea,#b16dff); -webkit-background-clip:text; background-clip:text; color:transparent; text-shadow:0 0 20px rgba(123,110,255,.5); }
+  .mock-a .hero-stat .lbl { font-size:.62rem; color:#8a8a9a; text-transform:uppercase; letter-spacing:.08em; }
+  .mock-a .row { display:flex; align-items:center; gap:.6rem; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.06); border-radius:8px; padding:.5rem .6rem; margin-bottom:.4rem; }
+  .mock-a .cover { width:28px; height:28px; border-radius:5px; flex-shrink:0; }
+  .mock-a .row .name { font-size:.72rem; font-weight:600; flex:1; }
+  .mock-a .row .score { font-size:.68rem; font-weight:800; padding:.15rem .4rem; border-radius:4px; }
+  .mock-a .up { color:#7dffb0; background:rgba(125,255,176,.12); }
+  .mock-a .down { color:#ff7d9e; background:rgba(255,125,158,.12); }
+  .mock-a .glow-line { height:2px; background:linear-gradient(90deg,transparent,#b16dff,#7dffea,transparent); margin: 0.9rem 0; opacity:.6; }
+
+  /* ============ B: EDITORIAL DATA-JOURNALISM ============ */
+  .mock-b {
+    background: #f4f1ea;
+    color: #1c1c1c;
+    padding: 1.1rem 1.2rem;
+    font-family: Georgia, "Times New Roman", serif;
+  }
+  .mock-b .nav { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:1rem; border-bottom:1px solid #1c1c1c; padding-bottom:.5rem; }
+  .mock-b .logo { font-weight:700; font-size:1rem; letter-spacing:.01em; }
+  .mock-b .navlinks { font-family: -apple-system, sans-serif; display:flex; gap:.7rem; font-size:.62rem; color:#6b6b63; text-transform:uppercase; letter-spacing:.05em; }
+  .mock-b h4 { font-size:1.15rem; line-height:1.25; margin-bottom:.5rem; }
+  .mock-b .deck { font-family: -apple-system, sans-serif; font-size:.72rem; color:#5b5b53; margin-bottom:.9rem; line-height:1.4; }
+  .mock-b .chart { display:flex; align-items:flex-end; gap:4px; height:70px; margin-bottom:.9rem; }
+  .mock-b .bar { flex:1; background:#b5451b; opacity:.85; }
+  .mock-b .bar:nth-child(3n) { background:#1c1c1c; opacity:.7; }
+  .mock-b .stat-row { font-family: -apple-system, sans-serif; display:flex; justify-content:space-between; font-size:.68rem; border-top:1px solid #d8d4c8; padding:.4rem 0; }
+  .mock-b .stat-row b { font-family: Georgia, serif; }
+
+  /* ============ C: BOLD MAXIMALIST DASHBOARD ============ */
+  .mock-c {
+    background: #14161f;
+    padding: .9rem;
+    font-family: "Segoe UI", sans-serif;
+  }
+  .mock-c .nav { display:flex; justify-content:space-between; align-items:center; margin-bottom:.7rem; }
+  .mock-c .logo { font-weight:900; font-size:.95rem; color:#fff; }
+  .mock-c .navlinks { display:flex; gap:.5rem; }
+  .mock-c .navlinks span { font-size:.6rem; background:#22243a; padding:.2rem .45rem; border-radius:20px; color:#c7c9e8; }
+  .mock-c .kpis { display:grid; grid-template-columns:repeat(3,1fr); gap:.4rem; margin-bottom:.5rem; }
+  .mock-c .kpi { border-radius:9px; padding:.5rem; }
+  .mock-c .kpi .n { font-size:1.05rem; font-weight:800; color:#fff; }
+  .mock-c .kpi .l { font-size:.55rem; color:rgba(255,255,255,.75); text-transform:uppercase; }
+  .mock-c .kpi1 { background:linear-gradient(135deg,#ff5f6d,#ffc371); }
+  .mock-c .kpi2 { background:linear-gradient(135deg,#36d1dc,#5b86e5); }
+  .mock-c .kpi3 { background:linear-gradient(135deg,#7f00ff,#e100ff); }
+  .mock-c .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:.4rem; }
+  .mock-c .tile { background:#1e2030; border-radius:9px; padding:.5rem; }
+  .mock-c .tile .t { font-size:.6rem; color:#8b8dae; margin-bottom:.3rem; text-transform:uppercase; }
+  .mock-c .cover { width:100%; height:20px; border-radius:4px; margin-bottom:.25rem; }
+  .mock-c .barmini { height:5px; border-radius:3px; background:#2a2c42; overflow:hidden; margin-top:.2rem; }
+  .mock-c .barmini i { display:block; height:100%; background:linear-gradient(90deg,#36d1dc,#5b86e5); }
+</style>
+</head>
+<body>
+  <h2>Quelle direction visuelle pour steam.reviews ?</h2>
+  <p class="subtitle">Trois pistes de style pour la home page — clique celle qui "claque" le plus pour toi. On pourra ensuite l'affiner ou en combiner deux.</p>
+
+  <div class="grid">
+
+    <div class="card" data-choice="dark-neon" onclick="toggleSelect(this)">
+      <div class="mock mock-a">
+        <div class="nav"><div class="logo">steam.reviews</div><div class="navlinks"><span>Jeux</span><span>Battle</span><span>Carte</span></div></div>
+        <div class="hero-stat"><div class="num">4 049 767</div><div class="lbl">reviews analysées</div></div>
+        <div class="glow-line"></div>
+        <div class="row"><div class="cover" style="background:linear-gradient(135deg,#ff5f6d,#7f00ff)"></div><div class="name">Baldur's Gate 3</div><div class="score up">▲ 97%</div></div>
+        <div class="row"><div class="cover" style="background:linear-gradient(135deg,#36d1dc,#5b86e5)"></div><div class="name">Helldivers 2</div><div class="score up">▲ 88%</div></div>
+        <div class="row"><div class="cover" style="background:linear-gradient(135deg,#ffb347,#ff5f6d)"></div><div class="name">Concord</div><div class="score down">▼ 12%</div></div>
+      </div>
+      <div class="card-label"><h3>A — Dark neon gamer</h3><p>Fond noir, gradients néon violet/cyan, chiffres qui brillent. Ambiance "cockpit gaming", très Steam/Discord.</p></div>
+    </div>
+
+    <div class="card" data-choice="editorial" onclick="toggleSelect(this)">
+      <div class="mock mock-b">
+        <div class="nav"><div class="logo">steam.reviews</div><div class="navlinks"><span>Jeux</span><span>Battle</span><span>Carte</span></div></div>
+        <h4>Comment Baldur's Gate 3 a dominé 2023</h4>
+        <div class="deck">Analyse de 87 000 reviews : playtime, langues, et le pic d'avis positifs après le patch 5.</div>
+        <div class="chart">
+          <div class="bar" style="height:30%"></div><div class="bar" style="height:45%"></div><div class="bar" style="height:38%"></div>
+          <div class="bar" style="height:60%"></div><div class="bar" style="height:80%"></div><div class="bar" style="height:95%"></div>
+          <div class="bar" style="height:70%"></div><div class="bar" style="height:55%"></div><div class="bar" style="height:65%"></div>
+        </div>
+        <div class="stat-row"><span>Score global</span><b>97% positif</b></div>
+        <div class="stat-row"><span>Playtime médian</span><b>62h</b></div>
+      </div>
+      <div class="card-label"><h3>B — Éditorial data-journalism</h3><p>Fond clair chaleureux, sérif, graphiques sobres. Ambiance "The Pudding"/presse, orienté récit et analyse.</p></div>
+    </div>
+
+    <div class="card" data-choice="maximalist" onclick="toggleSelect(this)">
+      <div class="mock mock-c">
+        <div class="nav"><div class="logo">steam.reviews</div><div class="navlinks"><span>Jeux</span><span>Battle</span><span>Carte</span></div></div>
+        <div class="kpis">
+          <div class="kpi kpi1"><div class="n">53.8k</div><div class="l">Jeux</div></div>
+          <div class="kpi kpi2"><div class="n">4.0M</div><div class="l">Reviews</div></div>
+          <div class="kpi kpi3"><div class="n">170k</div><div class="l">Catalogués</div></div>
+        </div>
+        <div class="grid2">
+          <div class="tile"><div class="t">▲ En hausse</div><div class="cover" style="background:linear-gradient(135deg,#ff5f6d,#7f00ff)"></div><div class="barmini"><i style="width:88%"></i></div></div>
+          <div class="tile"><div class="t">▼ Review bombing</div><div class="cover" style="background:linear-gradient(135deg,#36d1dc,#5b86e5)"></div><div class="barmini"><i style="width:22%"></i></div></div>
+        </div>
+      </div>
+      <div class="card-label"><h3>C — Dashboard maximaliste</h3><p>Cartes colorées denses, gros chiffres, style tableau de bord sportif/ESPN. Beaucoup d'info visible d'un coup d'œil.</p></div>
+    </div>
+
+  </div>
+</body>
+</html>

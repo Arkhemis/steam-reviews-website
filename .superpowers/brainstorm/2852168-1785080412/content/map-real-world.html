@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>steam.reviews — vraie carte du monde</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #05050a;
+    color: #eaeaec;
+    padding: 1.5rem 2rem 3rem;
+  }
+  h2 { font-size: 1.4rem; font-weight: 700; margin-bottom: 0.4rem; }
+  .subtitle { color: #9a9aa2; margin-bottom: 1.5rem; font-size: 0.95rem; }
+  .grad { background:linear-gradient(90deg,#7dffea,#b16dff); -webkit-background-clip:text; background-clip:text; color:transparent; }
+
+  .page {
+    max-width: 1020px;
+    margin: 0 auto;
+    background: radial-gradient(circle at 15% 0%, #1a0b2e 0%, #05050a 45%);
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,.06);
+    padding: 1.5rem 1.75rem 2rem;
+  }
+  .nav { display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; }
+  .logo { font-weight:900; font-size:1.1rem; letter-spacing:.02em; }
+  .navlinks { display:flex; gap:1.2rem; font-size:.78rem; color:#c3c3cc; }
+  .navlinks span.active { color:#7dffea; }
+  .navlinks span.cta { background:linear-gradient(90deg,#7dffea,#b16dff); color:#05050a; padding:.35rem .8rem; border-radius:20px; font-weight:700; }
+
+  .disclaimer { font-size:.68rem; color:#7c7c8a; background:rgba(255,255,255,.03); border-left:2px solid #b16dff; padding:.5rem .75rem; border-radius:0 6px 6px 0; margin-bottom:1.2rem; max-width: 680px; line-height:1.5; }
+
+  .map-svg-wrap { position:relative; background: radial-gradient(ellipse at center, rgba(177,109,255,.08), transparent 70%); border-radius: 12px; margin-bottom: .5rem; padding: 1rem 0; }
+  .map-svg-wrap svg { width:100%; height:auto; display:block; }
+  .continent { transition: opacity .15s; }
+  .country-dot { filter: drop-shadow(0 0 4px currentColor); }
+
+  .note-under-map { font-size:.65rem; color:#7c7c8a; text-align:center; margin: .3rem 0 1.3rem; }
+
+  .legend { display:flex; gap:1.1rem; flex-wrap:wrap; font-size:.7rem; color:#c3c3cc; margin-bottom:1.6rem; }
+  .legend .item { display:flex; align-items:center; gap:.4rem; }
+  .legend .sw { width:10px; height:10px; border-radius:50%; }
+
+  .section-title { font-size:.85rem; text-transform:uppercase; letter-spacing:.06em; color:#c3c3cc; margin-bottom:.8rem; }
+
+  .insets { display:grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+  .inset-card { background: rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:.85rem; }
+  .inset-card h5 { font-size:.8rem; margin-bottom:.6rem; }
+  .inset-svg { width:100%; height:110px; }
+  .inset-legend { margin-top:.5rem; display:flex; flex-direction:column; gap:.25rem; font-size:.65rem; color:#c3c3cc; }
+  .inset-legend .item { display:flex; align-items:center; gap:.35rem; }
+  .inset-legend .sw { width:8px; height:8px; border-radius:2px; }
+</style>
+</head>
+<body>
+  <h2>Vraie carte du monde, zones linguistiques infranationales</h2>
+  <p class="subtitle">Contours de pays réels (silhouette simplifiée), avec un zoom sur 3 pays multilingues pour montrer le découpage par région. Le reste du monde reste coloré au niveau pays.</p>
+
+  <div class="page">
+    <div class="nav">
+      <div class="logo"><span class="grad">steam.reviews</span></div>
+      <div class="navlinks"><span>Jeux</span><span>Classements</span><span class="active">Carte</span><span class="cta">Battle</span></div>
+    </div>
+
+    <div class="disclaimer">
+      ⚠️ Basé sur la langue déclarée de chaque review. Le zoom infranational (Québec, Wallonie/Flandre, Romandie/Suisse alémanique) est limité à quelques pays connus pour être multilingues — pas de couverture mondiale à ce niveau de détail.
+    </div>
+
+    <div class="map-svg-wrap">
+      <svg viewBox="0 0 1000 480" xmlns="http://www.w3.org/2000/svg">
+        <!-- North America -->
+        <path class="continent" d="M60,90 C40,120 50,160 70,190 C60,220 90,250 120,240 C150,260 180,230 190,200 C220,190 230,150 210,120 C220,90 190,60 150,70 C120,50 80,60 60,90 Z" fill="#5b86e5" opacity="0.55"/>
+        <!-- Central America sliver -->
+        <path class="continent" d="M150,240 C160,255 180,260 190,250 C185,265 165,270 155,258 Z" fill="#5b86e5" opacity="0.55"/>
+        <!-- South America -->
+        <path class="continent" d="M210,270 C230,260 260,270 265,300 C280,330 275,380 255,410 C245,440 220,445 205,420 C190,390 195,340 200,310 C195,290 200,275 210,270 Z" fill="#7dffb0" opacity="0.5"/>
+        <!-- Europe -->
+        <path class="continent" d="M470,80 C460,100 470,120 490,125 C500,140 520,135 530,120 C545,125 555,105 545,90 C555,75 540,60 520,65 C505,55 480,60 470,80 Z" fill="#b16dff" opacity="0.55"/>
+        <!-- Africa -->
+        <path class="continent" d="M470,140 C450,160 445,200 460,240 C455,280 470,330 495,360 C505,390 530,385 535,355 C550,320 545,270 530,230 C540,190 525,150 500,140 C490,130 480,132 470,140 Z" fill="#ffb347" opacity="0.5"/>
+        <!-- Middle East / Russia / Asia -->
+        <path class="continent" d="M550,60 C600,50 680,55 750,75 C820,80 880,100 900,130 C880,150 830,140 790,150 C740,145 680,150 630,140 C590,150 550,130 545,100 C540,80 545,65 550,60 Z" fill="#7dffb0" opacity="0.4"/>
+        <!-- South/East Asia -->
+        <path class="continent" d="M630,150 C670,160 720,165 760,185 C790,200 795,230 770,245 C740,260 700,250 670,230 C645,220 625,195 620,175 C615,160 620,152 630,150 Z" fill="#ff7d9e" opacity="0.55"/>
+        <!-- Australia -->
+        <path class="continent" d="M800,320 C830,310 870,315 890,335 C900,350 890,370 865,375 C835,380 805,370 795,350 C790,338 793,326 800,320 Z" fill="#5b86e5" opacity="0.4"/>
+
+        <!-- markers -->
+        <circle class="country-dot" cx="130" cy="150" r="5" fill="#5b86e5"/>
+        <text x="140" y="153" font-size="13" fill="#eaeaec">USA · English</text>
+
+        <circle class="country-dot" cx="235" cy="340" r="5" fill="#7dffb0"/>
+        <text x="245" y="343" font-size="13" fill="#eaeaec">Brésil · Português</text>
+
+        <circle class="country-dot" cx="500" cy="100" r="5" fill="#b16dff"/>
+        <text x="510" y="103" font-size="13" fill="#eaeaec">France · Français</text>
+
+        <circle class="country-dot" cx="700" cy="90" r="5" fill="#7dffb0"/>
+        <text x="710" y="93" font-size="13" fill="#eaeaec">Russie · Русский</text>
+
+        <circle class="country-dot" cx="710" cy="205" r="5" fill="#ff7d9e"/>
+        <text x="720" y="208" font-size="13" fill="#eaeaec">Chine · 简体中文</text>
+
+        <!-- callout boxes pointing to zoomed countries -->
+        <rect x="95" y="95" width="26" height="18" rx="3" fill="none" stroke="#ffb347" stroke-width="2"/>
+        <text x="60" y="70" font-size="12" fill="#ffb347">↓ Canada (zoom)</text>
+
+        <rect x="480" y="95" width="16" height="14" rx="2" fill="none" stroke="#ffb347" stroke-width="2"/>
+        <text x="440" y="45" font-size="12" fill="#ffb347">Belgique / Suisse (zoom) ↓</text>
+      </svg>
+    </div>
+    <div class="note-under-map">Silhouettes simplifiées à titre d'illustration — pas les tracés géographiques finaux.</div>
+
+    <div class="legend">
+      <div class="item"><div class="sw" style="background:#5b86e5"></div> Anglophone</div>
+      <div class="item"><div class="sw" style="background:#b16dff"></div> Francophone</div>
+      <div class="item"><div class="sw" style="background:#ff7d9e"></div> Sinophone</div>
+      <div class="item"><div class="sw" style="background:#7dffb0"></div> Slave / Lusophone</div>
+      <div class="item"><div class="sw" style="background:#ffb347"></div> Germanique</div>
+    </div>
+
+    <div class="section-title">Zoom : pays multilingues (découpage infranational)</div>
+    <div class="insets">
+      <div class="inset-card">
+        <h5>🇨🇦 Canada</h5>
+        <svg class="inset-svg" viewBox="0 0 200 110">
+          <path d="M20,30 C40,15 90,10 140,20 C165,25 185,35 190,50 C160,45 120,40 90,45 C60,42 35,45 20,55 Z" fill="#5b86e5" opacity="0.6"/>
+          <path d="M120,25 C145,25 165,30 175,42 C165,50 145,50 130,45 C118,40 112,32 120,25 Z" fill="#b16dff" opacity="0.75"/>
+        </svg>
+        <div class="inset-legend">
+          <div class="item"><div class="sw" style="background:#5b86e5"></div> Reste du Canada — English</div>
+          <div class="item"><div class="sw" style="background:#b16dff"></div> Québec — Français</div>
+        </div>
+      </div>
+
+      <div class="inset-card">
+        <h5>🇧🇪 Belgique</h5>
+        <svg class="inset-svg" viewBox="0 0 200 110">
+          <path d="M40,30 C70,20 120,20 150,35 C155,45 145,55 120,58 C90,60 60,58 45,48 C38,42 36,35 40,30 Z" fill="#5b86e5" opacity="0.55"/>
+          <path d="M45,48 C60,58 90,60 120,58 C130,62 130,75 110,78 C80,82 55,75 45,62 C40,55 42,50 45,48 Z" fill="#b16dff" opacity="0.75"/>
+          <circle cx="105" cy="52" r="6" fill="#ffb347"/>
+        </svg>
+        <div class="inset-legend">
+          <div class="item"><div class="sw" style="background:#5b86e5"></div> Flandre — Nederlands</div>
+          <div class="item"><div class="sw" style="background:#b16dff"></div> Wallonie — Français</div>
+          <div class="item"><div class="sw" style="background:#ffb347"></div> Bruxelles — mixte</div>
+        </div>
+      </div>
+
+      <div class="inset-card">
+        <h5>🇨🇭 Suisse</h5>
+        <svg class="inset-svg" viewBox="0 0 200 110">
+          <path d="M30,50 C50,35 80,30 100,40 C95,55 80,65 60,68 C45,70 32,62 30,50 Z" fill="#b16dff" opacity="0.75"/>
+          <path d="M100,40 C130,30 165,35 175,50 C170,65 140,70 110,65 C100,58 97,48 100,40 Z" fill="#ffb347" opacity="0.6"/>
+          <circle cx="140" cy="70" r="7" fill="#7dffb0"/>
+        </svg>
+        <div class="inset-legend">
+          <div class="item"><div class="sw" style="background:#b16dff"></div> Romandie — Français</div>
+          <div class="item"><div class="sw" style="background:#ffb347"></div> Deutschschweiz — Deutsch</div>
+          <div class="item"><div class="sw" style="background:#7dffb0"></div> Ticino — Italiano</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="options" style="max-width:1020px;margin:1.5rem auto 0;">
+    <div class="option" data-choice="valider-vraie-carte" onclick="toggleSelect(this)">
+      <div class="letter">✓</div>
+      <div class="content"><h3>Valider cette direction</h3><p>Vraie carte du monde au niveau pays, avec zoom infranational limité à quelques pays multilingues (Canada, Belgique, Suisse pour commencer).</p></div>
+    </div>
+    <div class="option" data-choice="pays-only" onclick="toggleSelect(this)">
+      <div class="letter">🌐</div>
+      <div class="content"><h3>Simplifier : niveau pays partout</h3><p>Pas de zoom infranational pour l'instant — un pays = une couleur dominante, pour limiter la dette de données géographiques.</p></div>
+    </div>
+  </div>
+</body>
+</html>

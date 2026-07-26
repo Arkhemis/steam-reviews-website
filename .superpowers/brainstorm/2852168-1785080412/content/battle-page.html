@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>steam.reviews — battle</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #05050a;
+    color: #eaeaec;
+    padding: 1.5rem 2rem 3rem;
+  }
+  h2 { font-size: 1.4rem; font-weight: 700; margin-bottom: 0.4rem; }
+  .subtitle { color: #9a9aa2; margin-bottom: 1.5rem; font-size: 0.95rem; }
+  .grad { background:linear-gradient(90deg,#7dffea,#b16dff); -webkit-background-clip:text; background-clip:text; color:transparent; }
+
+  .page {
+    max-width: 1020px;
+    margin: 0 auto;
+    background: radial-gradient(circle at 50% 0%, #2a0a45 0%, #05050a 55%);
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,.06);
+    padding: 1.5rem 1.75rem 2rem;
+  }
+  .nav { display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; }
+  .logo { font-weight:900; font-size:1.1rem; letter-spacing:.02em; }
+  .navlinks { display:flex; gap:1.2rem; font-size:.78rem; color:#c3c3cc; }
+  .navlinks span.cta { background:linear-gradient(90deg,#7dffea,#b16dff); color:#05050a; padding:.35rem .8rem; border-radius:20px; font-weight:700; }
+
+  .vs-header { text-align:center; margin-bottom:1.6rem; }
+  .vs-picker { display:flex; align-items:center; justify-content:center; gap:1.5rem; }
+  .side { display:flex; flex-direction:column; align-items:center; gap:.5rem; width:220px; }
+  .cover-lg { width:96px; height:96px; border-radius:14px; box-shadow:0 0 30px rgba(177,109,255,.3); }
+  .side h3 { font-size:1.05rem; }
+  .side .score { font-size:1.7rem; font-weight:900; }
+  .vs-mid { font-size:1.6rem; font-weight:900; color:#8a8a9a; padding-top:2.4rem; }
+
+  .stat-block { margin-bottom:.6rem; }
+  .stat-label { text-align:center; font-size:.68rem; color:#9a9aa2; text-transform:uppercase; letter-spacing:.05em; margin-bottom:.35rem; }
+  .stat-bar-row { display:flex; align-items:center; gap:.6rem; }
+  .stat-val { width:70px; font-size:.78rem; font-weight:800; text-align:right; }
+  .stat-val.right { text-align:left; }
+  .stat-track { flex:1; height:10px; border-radius:5px; background:rgba(255,255,255,.06); display:flex; overflow:hidden; }
+  .stat-fill-l { background:linear-gradient(90deg,#5b86e5,#7dffea); height:100%; }
+  .stat-fill-r { background:linear-gradient(270deg,#b16dff,#ff5f6d); height:100%; }
+
+  .winner-banner { text-align:center; background:linear-gradient(90deg,rgba(125,255,176,.12),transparent); border:1px solid rgba(125,255,176,.25); border-radius:10px; padding:.6rem; margin: 1.4rem 0; font-size:.85rem; }
+  .winner-banner b { color:#7dffb0; }
+
+  .section-title { font-size:.85rem; text-transform:uppercase; letter-spacing:.06em; color:#c3c3cc; margin:1.4rem 0 .8rem; }
+
+  .quotes { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
+  .quote-card { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.06); border-radius:12px; padding:.8rem .9rem; }
+  .quote-card .who { font-size:.65rem; color:#9a9aa2; margin-bottom:.3rem; }
+  .quote-card p { font-size:.76rem; color:#d8d8dc; line-height:1.45; }
+
+  .share-row { display:flex; justify-content:center; align-items:center; gap:.6rem; margin-top:1.5rem; }
+  .share-input { background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); border-radius:20px; padding:.5rem 1rem; font-size:.72rem; color:#9a9aa2; width:340px; }
+  .share-btn { background:linear-gradient(90deg,#7dffea,#b16dff); color:#05050a; border:none; padding:.5rem 1rem; border-radius:20px; font-weight:700; font-size:.72rem; }
+</style>
+</head>
+<body>
+  <h2>Page "Battle"</h2>
+  <p class="subtitle">Face-à-face 100% calculé à partir des données existantes — pas de vote, pas de compte. Partageable via une URL directe.</p>
+
+  <div class="page">
+    <div class="nav">
+      <div class="logo"><span class="grad">steam.reviews</span></div>
+      <div class="navlinks"><span>Jeux</span><span>Classements</span><span>Carte</span><span class="cta">Battle</span></div>
+    </div>
+
+    <div class="vs-header">
+      <div class="vs-picker">
+        <div class="side">
+          <div class="cover-lg" style="background:linear-gradient(135deg,#ff5f6d,#7f00ff)"></div>
+          <h3>Baldur's Gate 3</h3>
+          <div class="score grad">97%</div>
+        </div>
+        <div class="vs-mid">VS</div>
+        <div class="side">
+          <div class="cover-lg" style="background:linear-gradient(135deg,#36d1dc,#5b86e5)"></div>
+          <h3>Starfield</h3>
+          <div class="score" style="color:#c3c3cc">72%</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="winner-banner">🏆 <b>Baldur's Gate 3</b> l'emporte sur 4 critères sur 5</div>
+
+    <div class="stat-block">
+      <div class="stat-label">Score positif</div>
+      <div class="stat-bar-row">
+        <div class="stat-val">97%</div>
+        <div class="stat-track"><div class="stat-fill-l" style="width:57%"></div><div class="stat-fill-r" style="width:43%"></div></div>
+        <div class="stat-val right">72%</div>
+      </div>
+    </div>
+    <div class="stat-block">
+      <div class="stat-label">Playtime médian</div>
+      <div class="stat-bar-row">
+        <div class="stat-val">62h</div>
+        <div class="stat-track"><div class="stat-fill-l" style="width:60%"></div><div class="stat-fill-r" style="width:40%"></div></div>
+        <div class="stat-val right">41h</div>
+      </div>
+    </div>
+    <div class="stat-block">
+      <div class="stat-label">Volume de reviews</div>
+      <div class="stat-bar-row">
+        <div class="stat-val">87.4k</div>
+        <div class="stat-track"><div class="stat-fill-l" style="width:53%"></div><div class="stat-fill-r" style="width:47%"></div></div>
+        <div class="stat-val right">78.1k</div>
+      </div>
+    </div>
+    <div class="stat-block">
+      <div class="stat-label">Taux de remboursement</div>
+      <div class="stat-bar-row">
+        <div class="stat-val">3.1%</div>
+        <div class="stat-track"><div class="stat-fill-l" style="width:30%"></div><div class="stat-fill-r" style="width:70%"></div></div>
+        <div class="stat-val right">8.4%</div>
+      </div>
+    </div>
+
+    <div class="section-title">Meilleure review de chaque côté</div>
+    <div class="quotes">
+      <div class="quote-card"><div class="who">Baldur's Gate 3 · 2 481 votes utiles</div><p>"Chaque quête a l'air d'avoir été écrite par quelqu'un qui l'aime vraiment."</p></div>
+      <div class="quote-card"><div class="who">Starfield · 1 052 votes utiles</div><p>"1000 planètes, mais j'ai l'impression d'en avoir visité une seule 1000 fois."</p></div>
+    </div>
+
+    <div class="share-row">
+      <div class="share-input">steam.reviews/battle/baldurs-gate-3-vs-starfield</div>
+      <button class="share-btn">Copier le lien</button>
+    </div>
+  </div>
+
+  <div class="options" style="max-width:1020px;margin:1.5rem auto 0;">
+    <div class="option" data-choice="valider-battle" onclick="toggleSelect(this)">
+      <div class="letter">✓</div>
+      <div class="content"><h3>Valider cette structure</h3><p>VS visuel + banderole vainqueur + barres comparatives par critère + meilleures reviews de chaque côté + lien partageable.</p></div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>steam.reviews — carte des langues</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #05050a;
+    color: #eaeaec;
+    padding: 1.5rem 2rem 3rem;
+  }
+  h2 { font-size: 1.4rem; font-weight: 700; margin-bottom: 0.4rem; }
+  .subtitle { color: #9a9aa2; margin-bottom: 1.5rem; font-size: 0.95rem; }
+  .grad { background:linear-gradient(90deg,#7dffea,#b16dff); -webkit-background-clip:text; background-clip:text; color:transparent; }
+
+  .page {
+    max-width: 980px;
+    margin: 0 auto;
+    background: radial-gradient(circle at 15% 0%, #1a0b2e 0%, #05050a 45%);
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,.06);
+    padding: 1.5rem 1.75rem 2rem;
+  }
+  .nav { display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; }
+  .logo { font-weight:900; font-size:1.1rem; letter-spacing:.02em; }
+  .navlinks { display:flex; gap:1.2rem; font-size:.78rem; color:#c3c3cc; }
+  .navlinks span.active { color:#7dffea; }
+  .navlinks span.cta { background:linear-gradient(90deg,#7dffea,#b16dff); color:#05050a; padding:.35rem .8rem; border-radius:20px; font-weight:700; }
+
+  .head-row { display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:1.1rem; flex-wrap:wrap; gap:.75rem; }
+  .head-row h3 { font-size:1.15rem; }
+  .scope { display:flex; gap:.4rem; }
+  .chip { font-size:.7rem; padding:.35rem .75rem; border-radius:16px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1); color:#c3c3cc; }
+  .chip.on { background:linear-gradient(90deg,#7dffea,#b16dff); color:#05050a; font-weight:700; border-color:transparent; }
+  .game-chip { font-size:.7rem; padding:.35rem .7rem; border-radius:16px; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.12); display:flex; align-items:center; gap:.4rem; }
+  .game-chip .dot { width:8px; height:8px; border-radius:50%; background:linear-gradient(135deg,#ff5f6d,#7f00ff); }
+
+  .disclaimer { font-size:.68rem; color:#7c7c8a; background:rgba(255,255,255,.03); border-left:2px solid #b16dff; padding:.5rem .75rem; border-radius:0 6px 6px 0; margin-bottom:1.3rem; max-width: 640px; line-height:1.5; }
+
+  .map-wrap { position:relative; aspect-ratio: 2/1; background: radial-gradient(ellipse at center, rgba(177,109,255,.06), transparent 70%); border-radius: 12px; margin-bottom: 1.2rem; overflow:hidden; }
+  .blob { position:absolute; border-radius: 45% 55% 60% 40% / 50% 45% 55% 50%; filter: blur(0.3px); }
+  .marker { position:absolute; width:9px; height:9px; border-radius:50%; box-shadow: 0 0 12px 3px currentColor; }
+  .marker::after {
+    content: attr(data-label);
+    position:absolute; top:14px; left:50%; transform:translateX(-50%);
+    font-size:.62rem; white-space:nowrap; color:#eaeaec; background:rgba(10,10,16,.85);
+    padding:.15rem .45rem; border-radius:5px; border:1px solid rgba(255,255,255,.1);
+  }
+
+  .legend { display:flex; gap:1.1rem; flex-wrap:wrap; font-size:.7rem; color:#c3c3cc; margin-bottom:1.5rem; }
+  .legend .item { display:flex; align-items:center; gap:.4rem; }
+  .legend .sw { width:10px; height:10px; border-radius:50%; }
+
+  .section-title { font-size:.85rem; text-transform:uppercase; letter-spacing:.06em; color:#c3c3cc; margin-bottom:.7rem; }
+  .lang-list { display:grid; grid-template-columns: 1fr 1fr; gap:.4rem; }
+  .lang-row { display:flex; align-items:center; gap:.6rem; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.06); border-radius:9px; padding:.5rem .7rem; }
+  .lang-row .sw { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+  .lang-row .name { font-size:.75rem; flex:1; }
+  .lang-row .pct { font-size:.72rem; font-weight:800; }
+</style>
+</head>
+<body>
+  <h2>Page "Carte" — empreinte linguistique</h2>
+  <p class="subtitle">Vue globale (tous jeux confondus). On pourra basculer sur un jeu précis via le chip en haut à droite. Le style reste cohérent avec la home.</p>
+
+  <div class="page">
+    <div class="nav">
+      <div class="logo"><span class="grad">steam.reviews</span></div>
+      <div class="navlinks"><span>Jeux</span><span>Classements</span><span class="active">Carte</span><span class="cta">Battle</span></div>
+    </div>
+
+    <div class="head-row">
+      <div>
+        <h3>🌍 Empreinte linguistique <span class="grad">des reviews</span></h3>
+      </div>
+      <div class="scope">
+        <div class="chip on">Global</div>
+        <div class="chip">Par jeu</div>
+        <div class="game-chip"><div class="dot"></div> Baldur's Gate 3 ▾</div>
+      </div>
+    </div>
+
+    <div class="disclaimer">
+      ⚠️ Basé sur la <b>langue déclarée</b> de chaque review (champ Steam), pas sur une géolocalisation réelle. Une langue comme le français est parlée dans plusieurs pays — cette carte montre une empreinte linguistique, pas la position exacte des joueurs.
+    </div>
+
+    <div class="map-wrap">
+      <!-- stylized continent blobs, intensity = review volume for a dominant language -->
+      <div class="blob" style="left:6%; top:18%; width:20%; height:32%; background:radial-gradient(circle,#5b86e5,transparent 75%); opacity:.55;"></div>
+      <div class="blob" style="left:18%; top:46%; width:14%; height:34%; background:radial-gradient(circle,#5b86e5,transparent 75%); opacity:.4;"></div>
+      <div class="blob" style="left:43%; top:10%; width:13%; height:20%; background:radial-gradient(circle,#b16dff,transparent 75%); opacity:.6;"></div>
+      <div class="blob" style="left:43%; top:30%; width:14%; height:38%; background:radial-gradient(circle,#ffb347,transparent 75%); opacity:.4;"></div>
+      <div class="blob" style="left:57%; top:8%; width:26%; height:34%; background:radial-gradient(circle,#7dffb0,transparent 75%); opacity:.35;"></div>
+      <div class="blob" style="left:66%; top:38%; width:20%; height:24%; background:radial-gradient(circle,#ff7d9e,transparent 75%); opacity:.55;"></div>
+      <div class="blob" style="left:78%; top:64%; width:13%; height:16%; background:radial-gradient(circle,#5b86e5,transparent 75%); opacity:.35;"></div>
+
+      <div class="marker" data-label="English · 41%" style="left:16%; top:32%; color:#5b86e5;"></div>
+      <div class="marker" data-label="Português-BR · 9%" style="left:26%; top:60%; color:#7dffb0;"></div>
+      <div class="marker" data-label="Français · 6%" style="left:47%; top:20%; color:#b16dff;"></div>
+      <div class="marker" data-label="Русский · 8%" style="left:58%; top:18%; color:#7dffb0;"></div>
+      <div class="marker" data-label="简体中文 · 24%" style="left:74%; top:46%; color:#ff7d9e;"></div>
+      <div class="marker" data-label="日本語 · 4%" style="left:84%; top:42%; color:#ff7d9e;"></div>
+    </div>
+
+    <div class="legend">
+      <div class="item"><div class="sw" style="background:#5b86e5"></div> Anglophone</div>
+      <div class="item"><div class="sw" style="background:#b16dff"></div> Francophone</div>
+      <div class="item"><div class="sw" style="background:#ff7d9e"></div> Sinophone / Japonophone</div>
+      <div class="item"><div class="sw" style="background:#7dffb0"></div> Slave</div>
+      <div class="item"><div class="sw" style="background:#ffb347"></div> Germanique</div>
+    </div>
+
+    <div class="section-title">Répartition détaillée (top langues, global)</div>
+    <div class="lang-list">
+      <div class="lang-row"><div class="sw" style="background:#5b86e5"></div><div class="name">English</div><div class="pct" style="color:#5b86e5">41%</div></div>
+      <div class="lang-row"><div class="sw" style="background:#ff7d9e"></div><div class="name">Simplified Chinese</div><div class="pct" style="color:#ff7d9e">24%</div></div>
+      <div class="lang-row"><div class="sw" style="background:#5b86e5"></div><div class="name">Russian</div><div class="pct" style="color:#7dffb0">8%</div></div>
+      <div class="lang-row"><div class="sw" style="background:#7dffb0"></div><div class="name">Portuguese-Brazilian</div><div class="pct" style="color:#7dffb0">9%</div></div>
+      <div class="lang-row"><div class="sw" style="background:#b16dff"></div><div class="name">French</div><div class="pct" style="color:#b16dff">6%</div></div>
+      <div class="lang-row"><div class="sw" style="background:#ffb347"></div><div class="name">German</div><div class="pct" style="color:#ffb347">5%</div></div>
+    </div>
+  </div>
+
+  <div class="options" style="max-width:980px;margin:1.5rem auto 0;">
+    <div class="option" data-choice="valider-carte" onclick="toggleSelect(this)">
+      <div class="letter">✓</div>
+      <div class="content"><h3>Valider cette approche</h3><p>Carte stylisée (empreinte, pas géolocalisation réelle) + toggle Global/Par jeu + classement des langues en dessous.</p></div>
+    </div>
+    <div class="option" data-choice="vraie-carte" onclick="toggleSelect(this)">
+      <div class="letter">🗺</div>
+      <div class="content"><h3>Je préfère une vraie carte du monde</h3><p>Un fond de carte géographique réel (SVG monde) avec un pays "principal" assigné par langue, plutôt que ces blobs abstraits.</p></div>
+    </div>
+  </div>
+</body>
+</html>
