@@ -21,8 +21,9 @@
   --gridline: #2c2c2a;
   --chart-surface: #05050a;
 
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #05050a;
+  --foreground: #ededed;
+  color-scheme: dark;
 }
 
 @theme inline {
@@ -38,13 +39,6 @@
   --color-brand-glow: #1a0b2e;
   --color-brand-cyan: #7dffea;
   --color-brand-purple: #b16dff;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
