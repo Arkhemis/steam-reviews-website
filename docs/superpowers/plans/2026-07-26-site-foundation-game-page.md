@@ -6,7 +6,7 @@
 
 **Architecture:** Next.js (App Router, TypeScript, Tailwind). A small data-access module (`src/lib/data/gameData.ts`) exposes four async functions mirroring the four marts; today they read from in-memory fixtures, later they'll run SQL against `marts.*`. Components are split by responsibility: layout/nav, stat tiles, the score-evolution chart, the language distribution panel, and the top-reviews list. Chart components follow the `dataviz` skill's method (form → validated color → mark specs → hover layer), not ad-hoc styling.
 
-**Tech Stack:** Next.js (App Router), TypeScript, Tailwind CSS, pnpm, Vitest + React Testing Library for component tests.
+**Tech Stack:** Next.js (App Router), TypeScript, Tailwind CSS, npm, Vitest + React Testing Library for component tests. (Originally planned as pnpm; switched to npm during Task 1 because the installed pnpm requires Node ≥22.13 and this machine runs Node v20.20.2 — confirmed by running `pnpm create next-app` directly, which fails with `ERR_UNKNOWN_BUILTIN_MODULE`.)
 
 ## Global Constraints
 
@@ -33,9 +33,9 @@
 
 ```bash
 cd /mnt/storage/steam-reviews-website
-pnpm create next-app@latest .tmp-scaffold \
+npx create-next-app@latest .tmp-scaffold \
   --typescript --tailwind --eslint --app --src-dir \
-  --import-alias "@/*" --use-pnpm
+  --import-alias "@/*" --use-npm
 ```
 
 - [ ] **Step 2: Merge the scaffold into the repo root**
@@ -50,8 +50,8 @@ rmdir .tmp-scaffold
 - [ ] **Step 3: Verify the dev server runs**
 
 ```bash
-pnpm install
-pnpm dev &
+npm install
+npm run dev &
 sleep 3
 curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3000
 kill %1
@@ -62,7 +62,7 @@ Expected: `200`.
 - [ ] **Step 4: Add Vitest + React Testing Library**
 
 ```bash
-pnpm add -D vitest @vitejs/plugin-react jsdom @testing-library/react @testing-library/jest-dom @testing-library/user-event
+npm install -D vitest @vitejs/plugin-react jsdom @testing-library/react @testing-library/jest-dom @testing-library/user-event
 ```
 
 Create `vitest.config.ts`:
@@ -111,7 +111,7 @@ describe("smoke", () => {
 });
 ```
 
-Run: `pnpm test`
+Run: `npm test`
 Expected: PASS (1 test). Then delete `src/lib/__smoke__.test.ts` — it was only to confirm the runner works.
 
 - [ ] **Step 6: Commit**
@@ -175,7 +175,7 @@ In `tailwind.config.ts`, inside `theme.extend.colors`, add:
 
 - [ ] **Step 3: Verify the build still compiles**
 
-Run: `pnpm build`
+Run: `npm run build`
 Expected: build succeeds with no type/lint errors.
 
 - [ ] **Step 4: Commit**
@@ -253,7 +253,7 @@ describe("gameData", () => {
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `pnpm test src/lib/data/gameData.test.ts`
+Run: `npm test src/lib/data/gameData.test.ts`
 Expected: FAIL — `Cannot find module '@/lib/data/gameData'`.
 
 - [ ] **Step 3: Write the types**
@@ -464,7 +464,7 @@ export async function getGameTopReviews(appId: number): Promise<GameTopReview[]>
 
 - [ ] **Step 6: Run the test to verify it passes**
 
-Run: `pnpm test src/lib/data/gameData.test.ts`
+Run: `npm test src/lib/data/gameData.test.ts`
 Expected: PASS (5 tests).
 
 - [ ] **Step 7: Commit**
@@ -505,7 +505,7 @@ describe("Nav", () => {
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `pnpm test src/components/Nav.test.tsx`
+Run: `npm test src/components/Nav.test.tsx`
 Expected: FAIL — `Cannot find module '@/components/Nav'`.
 
 - [ ] **Step 3: Write the component**
@@ -539,7 +539,7 @@ export function Nav() {
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `pnpm test src/components/Nav.test.tsx`
+Run: `npm test src/components/Nav.test.tsx`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -580,7 +580,7 @@ describe("StatTile", () => {
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `pnpm test src/components/StatTile.test.tsx`
+Run: `npm test src/components/StatTile.test.tsx`
 Expected: FAIL — `Cannot find module '@/components/StatTile'`.
 
 - [ ] **Step 3: Write the component**
@@ -605,7 +605,7 @@ export function StatTile({ label, value }: StatTileProps) {
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `pnpm test src/components/StatTile.test.tsx`
+Run: `npm test src/components/StatTile.test.tsx`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -662,7 +662,7 @@ describe("ScoreEvolutionChart", () => {
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `pnpm test src/components/ScoreEvolutionChart.test.tsx`
+Run: `npm test src/components/ScoreEvolutionChart.test.tsx`
 Expected: FAIL — `Cannot find module '@/components/ScoreEvolutionChart'`.
 
 - [ ] **Step 3: Write the component**
@@ -798,7 +798,7 @@ export function ScoreEvolutionChart({ trends }: ScoreEvolutionChartProps) {
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `pnpm test src/components/ScoreEvolutionChart.test.tsx`
+Run: `npm test src/components/ScoreEvolutionChart.test.tsx`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -860,7 +860,7 @@ describe("LanguageDistribution", () => {
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `pnpm test src/components/LanguageDistribution.test.tsx`
+Run: `npm test src/components/LanguageDistribution.test.tsx`
 Expected: FAIL — `Cannot find module '@/components/LanguageDistribution'`.
 
 - [ ] **Step 3: Write the component**
@@ -959,7 +959,7 @@ export function LanguageDistribution({ languages }: LanguageDistributionProps) {
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `pnpm test src/components/LanguageDistribution.test.tsx`
+Run: `npm test src/components/LanguageDistribution.test.tsx`
 Expected: PASS (2 tests).
 
 - [ ] **Step 5: Commit**
@@ -1030,7 +1030,7 @@ describe("TopReviews", () => {
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `pnpm test src/components/TopReviews.test.tsx`
+Run: `npm test src/components/TopReviews.test.tsx`
 Expected: FAIL — `Cannot find module '@/components/TopReviews'`.
 
 - [ ] **Step 3: Write the component**
@@ -1071,7 +1071,7 @@ export function TopReviews({ reviews }: TopReviewsProps) {
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `pnpm test src/components/TopReviews.test.tsx`
+Run: `npm test src/components/TopReviews.test.tsx`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -1124,7 +1124,7 @@ describe("GamePage", () => {
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `pnpm test src/app/games/[appId]/page.test.tsx`
+Run: `npm test src/app/games/[appId]/page.test.tsx`
 Expected: FAIL — `Cannot find module '@/app/games/[appId]/page'`.
 
 - [ ] **Step 3: Write the page**
@@ -1237,14 +1237,14 @@ export default async function GamePage({ params }: GamePageProps) {
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `pnpm test src/app/games/[appId]/page.test.tsx`
+Run: `npm test src/app/games/[appId]/page.test.tsx`
 Expected: PASS (2 tests).
 
 - [ ] **Step 5: Run the full test suite and the dev server as a final sanity check**
 
 ```bash
-pnpm test
-pnpm dev &
+npm test
+npm run dev &
 sleep 3
 curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3000/games/1086940
 kill %1
