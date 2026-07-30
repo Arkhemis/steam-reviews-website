@@ -109,6 +109,15 @@ export default async function BattlePage({ searchParams }: BattlePageProps) {
           <Link key={game.appId} href={`/games/${game.appId}`} className="flex flex-col items-center gap-2">
             <div className="relative h-24 w-24 overflow-hidden rounded-2xl bg-white/10">
               {game.coverUrl && <Image src={game.coverUrl} alt="" fill sizes="96px" className="object-cover" />}
+              {winner?.appId === game.appId && (
+                <Image
+                  src="/chad.png"
+                  alt=""
+                  fill
+                  sizes="96px"
+                  className="animate-chad-blink object-cover"
+                />
+              )}
             </div>
             <h2 className="text-lg font-bold text-white">{game.name}</h2>
             <div

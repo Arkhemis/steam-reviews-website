@@ -1,11 +1,9 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { BBCodeText } from "@/components/BBCodeText";
 import type { GameTopReview } from "@/lib/data/types";
-
-const COLLAPSE_THRESHOLD = 500;
 
 export function ThumbIcon({ up, className }: { up: boolean; className?: string }) {
   return (
@@ -23,8 +21,15 @@ export function ThumbIcon({ up, className }: { up: boolean; className?: string }
 
 export function ReviewCard({ review }: { review: GameTopReview }) {
   const [expanded, setExpanded] = useState(false);
+  const [isOverflowing, setIsOverflowing] = useState(false);
+  const textRef = useRef<HTMLDivElement>(null);
   const color = review.votedUp ? "var(--status-good)" : "var(--status-critical)";
-  const isLong = review.reviewText.length > COLLAPSE_THRESHOLD;
+
+  useLayoutEffect(() => {
+    const el = textRef.current;
+    if (!el) return;
+    setIsOverflowing(el.scrollHeight > el.clientHeight + 1);
+  }, [review.reviewText]);
 
   return (
     <div className="rounded-xl border border-white/10 bg-white/5 p-4">
@@ -45,10 +50,13 @@ export function ReviewCard({ review }: { review: GameTopReview }) {
         />
         <span className="text-sm font-medium text-neutral-200">{review.authorPersonaname}</span>
       </div>
-      <div className={`text-sm text-neutral-200 ${!expanded && isLong ? "line-clamp-16" : ""}`}>
+      <div
+        ref={textRef}
+        className={`text-sm text-neutral-200 ${!expanded ? "line-clamp-16" : ""}`}
+      >
         <BBCodeText text={review.reviewText} />
       </div>
-      {isLong && (
+      {isOverflowing && (
         <button
           type="button"
           onClick={() => setExpanded((value) => !value)}
