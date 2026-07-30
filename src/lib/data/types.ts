@@ -37,7 +37,12 @@ export type GameTopReview = {
   language: string;
   votedUp: boolean;
   votesUp: number;
+  votesFunny: number;
   weightedVoteScore: number;
+  authorPersonaname: string;
+  authorAvatarUrl: string;
   authorPlaytimeAtReviewMinutes: number;
+  authorLastPlayedAt: string | null;
+  reviewUrl: string;
   rankInGame: number;
 };

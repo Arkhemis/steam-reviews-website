@@ -3,9 +3,12 @@ import Link from "next/link";
 export function Nav() {
   return (
     <nav className="flex items-center justify-between py-3">
-      <span className="bg-gradient-to-r from-brand-cyan to-brand-purple bg-clip-text text-lg font-black text-transparent">
+      <Link
+        href="/"
+        className="bg-gradient-to-r from-brand-cyan to-brand-purple bg-clip-text text-lg font-black text-transparent"
+      >
         steam.reviews
-      </span>
+      </Link>
       <div className="flex items-center gap-5 text-sm text-neutral-300">
         <Link href="/games">Jeux</Link>
         <Link href="/classements">Classements</Link>

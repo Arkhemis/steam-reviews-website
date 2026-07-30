@@ -2,7 +2,6 @@ import { pool } from "@/lib/db";
 import {
   BALDURS_GATE_3_APP_ID,
   baldursGate3LanguageDistribution,
-  baldursGate3ReviewTrends,
 } from "@/lib/data/fixtures/baldursGate3";
 import type {
   GameLanguageDistribution,
@@ -14,10 +13,6 @@ import type {
 // TODO(future plan): once les marts trends/languages existent, remplacer ces
 // lookups en mémoire par des requêtes SQL contre Postgres. Les signatures
 // ci-dessous sont le contrat dont dépend le reste de l'app.
-
-const TRENDS_BY_APP_ID: Record<number, GameReviewTrend[]> = {
-  [BALDURS_GATE_3_APP_ID]: baldursGate3ReviewTrends,
-};
 
 const LANGUAGES_BY_APP_ID: Record<number, GameLanguageDistribution[]> = {
   [BALDURS_GATE_3_APP_ID]: baldursGate3LanguageDistribution,
@@ -98,8 +93,34 @@ export async function getTopGames(limit: number, search?: string): Promise<GameS
   return rows.map(mapGameStatsRow);
 }
 
+type GameReviewTrendRow = {
+  period_month: string;
+  reviews_in_period: string;
+  positive_in_period: string;
+  pct_positive_period: string;
+};
+
 export async function getGameReviewTrends(appId: number): Promise<GameReviewTrend[]> {
-  return TRENDS_BY_APP_ID[appId] ?? [];
+  const { rows } = await pool.query<GameReviewTrendRow>(
+    `SELECT
+       TO_CHAR(DATE_TRUNC('month', review_date), 'YYYY-MM-DD') AS period_month,
+       SUM(total_reviews) AS reviews_in_period,
+       SUM(total_positive) AS positive_in_period,
+       ROUND(SUM(total_positive)::numeric / NULLIF(SUM(total_reviews), 0), 4) AS pct_positive_period
+     FROM marts.game_review_trend_daily
+     WHERE app_id = $1
+     GROUP BY 1
+     ORDER BY 1`,
+    [appId],
+  );
+
+  return rows.map((row) => ({
+    appId,
+    periodMonth: row.period_month,
+    reviewsInPeriod: Number(row.reviews_in_period),
+    positiveInPeriod: Number(row.positive_in_period),
+    pctPositivePeriod: Number(row.pct_positive_period),
+  }));
 }
 
 export async function getGameLanguageDistribution(appId: number): Promise<GameLanguageDistribution[]> {
@@ -115,8 +136,13 @@ export async function getGameTopReviews(appId: number): Promise<GameTopReview[]>
        language,
        voted_up,
        votes_up,
+       votes_funny,
        weighted_vote_score,
+       author_personaname,
+       author_avatar,
+       author_profile_url,
        author_playtime_at_review_minutes,
+       author_last_played_at,
        rank_in_game
      FROM marts.review_highlight
      WHERE app_id = $1
@@ -131,8 +157,15 @@ export async function getGameTopReviews(appId: number): Promise<GameTopReview[]>
     language: row.language,
     votedUp: row.voted_up,
     votesUp: row.votes_up,
+    votesFunny: row.votes_funny,
     weightedVoteScore: Number(row.weighted_vote_score),
+    authorPersonaname: row.author_personaname,
+    authorAvatarUrl: `https://avatars.steamstatic.com/${row.author_avatar}_full.jpg`,
     authorPlaytimeAtReviewMinutes: row.author_playtime_at_review_minutes,
+    authorLastPlayedAt: row.author_last_played_at
+      ? (row.author_last_played_at as Date).toISOString()
+      : null,
+    reviewUrl: `${row.author_profile_url}recommended/${row.app_id}`,
     rankInGame: Number(row.rank_in_game),
   }));
 }

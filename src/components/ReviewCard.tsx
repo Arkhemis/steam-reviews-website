@@ -1,10 +1,11 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import { BBCodeText } from "@/components/BBCodeText";
 import type { GameTopReview } from "@/lib/data/types";
 
-const COLLAPSE_THRESHOLD = 240;
+const COLLAPSE_THRESHOLD = 500;
 
 export function ThumbIcon({ up, className }: { up: boolean; className?: string }) {
   return (
@@ -34,6 +35,16 @@ export function ReviewCard({ review }: { review: GameTopReview }) {
         </span>
         <span>{review.votesUp.toLocaleString("fr-FR")} votes utiles</span>
       </div>
+      <div className="mb-2 flex items-center gap-2">
+        <Image
+          src={review.authorAvatarUrl}
+          alt=""
+          width={32}
+          height={32}
+          className="h-8 w-8 rounded-full object-cover"
+        />
+        <span className="text-sm font-medium text-neutral-200">{review.authorPersonaname}</span>
+      </div>
       <div className={`text-sm text-neutral-200 ${!expanded && isLong ? "line-clamp-3" : ""}`}>
         <BBCodeText text={review.reviewText} />
       </div>
@@ -46,8 +57,32 @@ export function ReviewCard({ review }: { review: GameTopReview }) {
           {expanded ? "Lire moins" : "Lire plus"}
         </button>
       )}
-      <div className="mt-2 text-xs text-neutral-500">
-        {Math.round(review.authorPlaytimeAtReviewMinutes / 60)}h jouées · {review.language}
+      <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-neutral-500">
+        <span>{Math.round(review.authorPlaytimeAtReviewMinutes / 60)}h jouées</span>
+        {review.votesFunny > 0 && (
+          <>
+            <span>·</span>
+            <span>{review.votesFunny.toLocaleString("fr-FR")} votes drôles</span>
+          </>
+        )}
+        {review.authorLastPlayedAt && (
+          <>
+            <span>·</span>
+            <span>
+              Dernière session le{" "}
+              {new Date(review.authorLastPlayedAt).toLocaleDateString("fr-FR")}
+            </span>
+          </>
+        )}
+        <span>·</span>
+        <a
+          href={review.reviewUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-brand-cyan hover:underline"
+        >
+          Voir sur Steam
+        </a>
       </div>
     </div>
   );

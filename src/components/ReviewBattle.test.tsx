@@ -11,8 +11,13 @@ function makeReview(overrides: Partial<GameTopReview>): GameTopReview {
     language: "french",
     votedUp: true,
     votesUp: 10,
+    votesFunny: 0,
     weightedVoteScore: 0.9,
+    authorPersonaname: "Joueur",
+    authorAvatarUrl: "https://avatars.steamstatic.com/placeholder_full.jpg",
     authorPlaytimeAtReviewMinutes: 600,
+    authorLastPlayedAt: null,
+    reviewUrl: "https://steamcommunity.com/profiles/1/recommended/1",
     rankInGame: 1,
     ...overrides,
   };

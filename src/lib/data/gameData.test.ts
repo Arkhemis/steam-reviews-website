@@ -4,6 +4,7 @@ import {
   getGameReviewTrends,
   getGameStats,
   getGameTopReviews,
+  getTopGames,
 } from "@/lib/data/gameData";
 
 const BALDURS_GATE_3_APP_ID = 1086940;
@@ -40,5 +41,18 @@ describe("gameData", () => {
     const negativeCount = reviews.filter((r) => !r.votedUp).length;
     expect(positiveCount).toBeLessThanOrEqual(5);
     expect(negativeCount).toBeLessThanOrEqual(5);
+  });
+
+  it("returns top games sorted by total reviews descending, excluding games without review data", async () => {
+    const games = await getTopGames(10);
+    const totals = games.map((g) => g.totalReviews);
+    expect(totals).toEqual([...totals].sort((a, b) => b - a));
+    expect(totals.every((t) => t > 0)).toBe(true);
+  });
+
+  it("filters top games by name when a search query is given", async () => {
+    const games = await getTopGames(10, "baldur");
+    expect(games.length).toBeGreaterThan(0);
+    expect(games.every((g) => g.name.toLowerCase().includes("baldur"))).toBe(true);
   });
 });

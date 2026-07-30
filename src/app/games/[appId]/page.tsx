@@ -15,6 +15,22 @@ type GamePageProps = {
   params: Promise<{ appId: string }>;
 };
 
+function getSteamRating(pctPositive: number, totalReviews: number): { label: string; color: string } {
+  const pct = pctPositive * 100;
+
+  if (pct < 20) {
+    if (totalReviews >= 500) return { label: "Extrêmement négatif", color: "var(--status-critical)" };
+    if (totalReviews >= 50) return { label: "Très négatif", color: "var(--status-critical)" };
+    return { label: "Négatif", color: "var(--status-critical)" };
+  }
+  if (pct < 40) return { label: "Plutôt négatif", color: "var(--status-critical)" };
+  if (pct < 70) return { label: "Moyenne", color: "var(--status-warning)" };
+  if (pct < 80) return { label: "Plutôt positif", color: "var(--status-good)" };
+  if (totalReviews >= 500) return { label: "Extrêmement positif", color: "var(--status-good)" };
+  if (totalReviews >= 50) return { label: "Très positif", color: "var(--status-good)" };
+  return { label: "Positif", color: "var(--status-good)" };
+}
+
 export default async function GamePage({ params }: GamePageProps) {
   const { appId } = await params;
   const numericAppId = Number(appId);
@@ -35,6 +51,8 @@ export default async function GamePage({ params }: GamePageProps) {
     getGameLanguageDistribution(numericAppId),
     getGameTopReviews(numericAppId),
   ]);
+
+  const rating = getSteamRating(stats.pctPositive, stats.totalReviews);
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-8">
@@ -63,8 +81,13 @@ export default async function GamePage({ params }: GamePageProps) {
             {stats.totalReviews.toLocaleString("fr-FR")} reviews analysées
           </p>
           <div className="mt-2 flex gap-2">
-            <span className="rounded-full px-2.5 py-1 text-xs font-bold" style={{ color: "var(--status-good)", backgroundColor: "rgba(12,163,12,0.12)" }}>
-              {Math.round(stats.pctPositive * 100)}% positif — score Steam {stats.reviewScore}/9
+            <span
+              className="rounded-full px-2.5 py-1 text-xs font-bold text-white"
+              style={{
+                background: `linear-gradient(135deg, color-mix(in srgb, ${rating.color} 65%, black), color-mix(in srgb, ${rating.color} 85%, white))`,
+              }}
+            >
+              {Math.round(stats.pctPositive * 100)}% positif ({rating.label})
             </span>
             {stats.genres[0] && (
               <span className="rounded-full bg-white/10 px-2.5 py-1 text-xs text-neutral-300">{stats.genres[0]}</span>

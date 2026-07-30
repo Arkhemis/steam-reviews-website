@@ -34,15 +34,24 @@ export function ScoreEvolutionChart({ trends }: ScoreEvolutionChartProps) {
 
   const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"}${p.x},${p.y}`).join(" ");
   const annotationIndex = trends.findIndex((t) => t.annotation);
+  const lastIndex = points.length - 1;
 
   function handlePointerMove(event: React.PointerEvent<SVGRectElement>) {
-    const bounds = event.currentTarget.getBoundingClientRect();
-    const relativeX = event.clientX - bounds.left - PADDING;
-    const index = Math.round(relativeX / stepX);
-    setHoverIndex(Math.min(Math.max(index, 0), trends.length - 1));
+    const svg = event.currentTarget.ownerSVGElement;
+    if (!svg) return;
+    const svgBounds = svg.getBoundingClientRect();
+    const xInViewBox = ((event.clientX - svgBounds.left) / svgBounds.width) * WIDTH;
+    const index = Math.round((xInViewBox - PADDING) / stepX);
+    setHoverIndex(Math.min(Math.max(index, 0), lastIndex));
   }
 
   const hovered = hoverIndex !== null ? points[hoverIndex] : null;
+
+  // Dots are reserved for the current point, the annotated event, and the hovered
+  // point — not every point, or 70 monthly dots read as noise instead of a trend.
+  const markedIndices = new Set(
+    [lastIndex, annotationIndex, hoverIndex].filter((i): i is number => i !== null && i >= 0),
+  );
 
   return (
     <div className="relative">
@@ -66,17 +75,19 @@ export function ScoreEvolutionChart({ trends }: ScoreEvolutionChartProps) {
 
         <path d={linePath} fill="none" stroke="var(--series-1)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
 
-        {points.map((p, i) => (
-          <circle
-            key={p.trend.periodMonth}
-            cx={p.x}
-            cy={p.y}
-            r={i === annotationIndex ? 6 : 5}
-            fill={i === annotationIndex ? "var(--status-critical)" : "var(--series-1)"}
-            stroke="var(--chart-surface)"
-            strokeWidth={2}
-          />
-        ))}
+        {points.map((p, i) =>
+          markedIndices.has(i) ? (
+            <circle
+              key={p.trend.periodMonth}
+              cx={p.x}
+              cy={p.y}
+              r={i === annotationIndex ? 6 : 5}
+              fill={i === annotationIndex ? "var(--status-critical)" : "var(--series-1)"}
+              stroke="var(--chart-surface)"
+              strokeWidth={2}
+            />
+          ) : null,
+        )}
 
         {hovered && (
           <line

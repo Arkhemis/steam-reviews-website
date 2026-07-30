@@ -16,7 +16,8 @@ type BattleStat = {
   label: string;
   left: string;
   right: string;
-  leftPct: number;
+  leftFillPct: number;
+  rightFillPct: number;
   leftWins: boolean;
   rightWins: boolean;
 };
@@ -24,18 +25,44 @@ type BattleStat = {
 const compactNumber = new Intl.NumberFormat("fr-FR", { notation: "compact", maximumFractionDigits: 1 });
 
 function buildStats(left: GameStats, right: GameStats): BattleStat[] {
-  function stat(label: string, leftValue: number, rightValue: number, format: (n: number) => string, higherIsBetter: boolean): BattleStat {
-    const total = leftValue + rightValue;
-    const leftPct = total > 0 ? (leftValue / total) * 100 : 50;
+  function stat(
+    label: string,
+    leftValue: number,
+    rightValue: number,
+    format: (n: number) => string,
+    higherIsBetter: boolean,
+    // Percentage-type stats already live on a fixed 0-100 scale, so each side's bar
+    // length should reflect its own value directly. Count-type stats have no fixed
+    // max, so they're scaled against whichever side is larger — the leader's bar
+    // reaches the edge, the other is proportionally shorter. Either way the two
+    // bars encode true magnitude, not an arbitrary share of their combined total.
+    scaleMax: number = 100,
+  ): BattleStat {
+    const leftFillPct = scaleMax > 0 ? Math.min(100, (leftValue / scaleMax) * 100) : 0;
+    const rightFillPct = scaleMax > 0 ? Math.min(100, (rightValue / scaleMax) * 100) : 0;
     const leftWins = higherIsBetter ? leftValue > rightValue : leftValue < rightValue;
     const rightWins = higherIsBetter ? rightValue > leftValue : rightValue < leftValue;
-    return { label, left: format(leftValue), right: format(rightValue), leftPct, leftWins, rightWins };
+    return { label, left: format(leftValue), right: format(rightValue), leftFillPct, rightFillPct, leftWins, rightWins };
   }
 
   return [
     stat("Score positif", left.pctPositive * 100, right.pctPositive * 100, (n) => `${Math.round(n)}%`, true),
-    stat("Playtime médian", left.playtimeMedianMinutes, right.playtimeMedianMinutes, (n) => `${Math.round(n / 60)}h`, true),
-    stat("Volume de reviews", left.totalReviews, right.totalReviews, (n) => compactNumber.format(n), true),
+    stat(
+      "Playtime médian",
+      left.playtimeMedianMinutes,
+      right.playtimeMedianMinutes,
+      (n) => `${Math.round(n / 60)}h`,
+      true,
+      Math.max(left.playtimeMedianMinutes, right.playtimeMedianMinutes),
+    ),
+    stat(
+      "Volume de reviews",
+      left.totalReviews,
+      right.totalReviews,
+      (n) => compactNumber.format(n),
+      true,
+      Math.max(left.totalReviews, right.totalReviews),
+    ),
     stat("Taux de remboursement", left.pctRefunded * 100, right.pctRefunded * 100, (n) => `${n.toFixed(1)}%`, false),
   ];
 }
@@ -112,9 +139,19 @@ export default async function BattlePage({ searchParams }: BattlePageProps) {
             <div className="mb-1 text-center text-xs uppercase tracking-wide text-neutral-400">{stat.label}</div>
             <div className="flex items-center gap-3">
               <span className="w-16 text-right text-sm font-bold text-white">{stat.left}</span>
-              <div className="flex h-2.5 flex-1 overflow-hidden rounded-[4px] bg-white/5">
-                <div className="h-full" style={{ width: `${stat.leftPct}%`, backgroundColor: "var(--series-1)" }} />
-                <div className="h-full flex-1" style={{ backgroundColor: "var(--series-5)" }} />
+              <div className="flex h-2.5 flex-1 items-stretch gap-[2px]">
+                <div className="flex h-full flex-1 justify-end">
+                  <div
+                    className="h-full rounded-l-[4px]"
+                    style={{ width: `${stat.leftFillPct}%`, backgroundColor: "var(--series-1)" }}
+                  />
+                </div>
+                <div className="flex h-full flex-1 justify-start">
+                  <div
+                    className="h-full rounded-r-[4px]"
+                    style={{ width: `${stat.rightFillPct}%`, backgroundColor: "var(--series-2)" }}
+                  />
+                </div>
               </div>
               <span className="w-16 text-sm font-bold text-white">{stat.right}</span>
             </div>
