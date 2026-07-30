@@ -70,7 +70,7 @@ export default async function GamePage({ params }: GamePageProps) {
               href={`https://store.steampowered.com/app/${stats.appId}/`}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs text-brand-cyan underline"
+              className="text-xs text-brand-blue underline"
             >
               Voir sur Steam ↗
             </a>
@@ -111,7 +111,7 @@ export default async function GamePage({ params }: GamePageProps) {
         <div className="rounded-xl border border-white/10 bg-white/5 p-4">
           <h2 className="mb-2 text-xs uppercase tracking-wide text-neutral-400">Langues</h2>
           <LanguageDistribution languages={languages} />
-          <Link href={`/carte?game=${stats.appId}`} className="mt-2 block text-center text-xs text-brand-cyan">
+          <Link href={`/carte?game=${stats.appId}`} className="mt-2 block text-center text-xs text-brand-blue">
             Voir sur la carte →
           </Link>
         </div>
@@ -120,7 +120,7 @@ export default async function GamePage({ params }: GamePageProps) {
       <h2 className="mt-8 mb-3 text-xs uppercase tracking-wide text-neutral-400">Reviews les plus votées</h2>
       <ReviewBattle reviews={reviews} />
 
-      <div className="mt-8 flex items-center justify-between rounded-xl bg-gradient-to-r from-brand-glow via-brand-purple to-brand-cyan p-5">
+      <div className="mt-8 flex items-center justify-between rounded-xl bg-gradient-to-r from-brand-blue via-brand-glow to-brand-red p-5">
         <div>
           <h3 className="font-bold text-white">⚔️ Comparer ce jeu</h3>
           <p className="text-xs text-white/80">Voir {stats.name} face à un autre jeu, stat contre stat.</p>

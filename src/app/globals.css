@@ -34,16 +34,16 @@
   --font-mono: var(--font-geist-mono);
 }
 
-/* Brand UI chrome colors — generates Tailwind utilities (e.g. bg-brand-cyan, text-brand-purple) */
+/* Brand UI chrome colors — generates Tailwind utilities (e.g. bg-brand-blue, text-brand-red) */
 @theme {
   --color-brand-bg: #05050a;
-  --color-brand-glow: #1a0b2e;
-  --color-brand-cyan: #7dffea;
-  --color-brand-purple: #b16dff;
+  --color-brand-glow: #2e0b18;
+  --color-brand-blue: #3fa9f5;
+  --color-brand-red: #ef4a5a;
 }
 
 body {
-  background: linear-gradient(160deg, var(--bg-glow) 0%, var(--background) 60%) fixed;
+  background: linear-gradient(180deg, var(--bg-glow) 0%, var(--background) 60%) fixed;
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }

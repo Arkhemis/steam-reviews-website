@@ -38,7 +38,7 @@ export default function ClassementsPage() {
             key={filter}
             className={
               i === 0
-                ? "rounded-full bg-gradient-to-r from-brand-cyan to-brand-purple px-3 py-1 text-xs font-bold text-black"
+                ? "rounded-full bg-gradient-to-r from-brand-blue to-brand-red px-3 py-1 text-xs font-bold text-black"
                 : "rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-300"
             }
           >

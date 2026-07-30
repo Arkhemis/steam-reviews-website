@@ -5,7 +5,7 @@ export function Nav() {
     <nav className="flex items-center justify-between py-3">
       <Link
         href="/"
-        className="bg-gradient-to-r from-brand-cyan to-brand-purple bg-clip-text text-lg font-black text-transparent"
+        className="bg-gradient-to-r from-brand-blue to-brand-red bg-clip-text text-lg font-black text-transparent"
       >
         steam.reviews
       </Link>
@@ -15,7 +15,7 @@ export function Nav() {
         <Link href="/carte">Carte</Link>
         <Link
           href="/battle"
-          className="rounded-full bg-gradient-to-r from-brand-cyan to-brand-purple px-3 py-1 font-bold text-black"
+          className="rounded-full bg-gradient-to-r from-brand-blue to-brand-red px-3 py-1 font-bold text-black"
         >
           Battle
         </Link>

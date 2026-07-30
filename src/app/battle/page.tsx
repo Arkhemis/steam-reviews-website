@@ -114,7 +114,7 @@ export default async function BattlePage({ searchParams }: BattlePageProps) {
             <div
               className={
                 i === 0
-                  ? "bg-gradient-to-r from-brand-cyan to-brand-purple bg-clip-text text-2xl font-black text-transparent"
+                  ? "bg-gradient-to-r from-brand-blue to-brand-red bg-clip-text text-2xl font-black text-transparent"
                   : "text-2xl font-black text-neutral-300"
               }
             >
@@ -178,7 +178,7 @@ export default async function BattlePage({ searchParams }: BattlePageProps) {
         <div className="w-full max-w-sm truncate rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs text-neutral-400">
           steam.reviews/battle?game={left.appId}&vs={right.appId}
         </div>
-        <button className="rounded-full bg-gradient-to-r from-brand-cyan to-brand-purple px-4 py-2 text-xs font-bold text-black">
+        <button className="rounded-full bg-gradient-to-r from-brand-blue to-brand-red px-4 py-2 text-xs font-bold text-black">
           Copier le lien
         </button>
       </div>

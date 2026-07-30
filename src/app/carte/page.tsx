@@ -27,14 +27,14 @@ export default function CartePage() {
           🌍 Empreinte linguistique <span className="text-neutral-400">des reviews</span>
         </h1>
         <div className="flex gap-2">
-          <span className="rounded-full bg-gradient-to-r from-brand-cyan to-brand-purple px-3 py-1 text-xs font-bold text-black">
+          <span className="rounded-full bg-gradient-to-r from-brand-blue to-brand-red px-3 py-1 text-xs font-bold text-black">
             Global
           </span>
           <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-300">Par jeu</span>
         </div>
       </div>
 
-      <p className="mt-4 max-w-2xl rounded-r-md border-l-2 border-brand-purple bg-white/5 px-3 py-2 text-xs text-neutral-400">
+      <p className="mt-4 max-w-2xl rounded-r-md border-l-2 border-brand-red bg-white/5 px-3 py-2 text-xs text-neutral-400">
         ⚠️ Basé sur la langue déclarée de chaque review (champ Steam), pas sur une géolocalisation réelle. Le zoom
         infranational (Québec, Wallonie/Flandre, Romandie/Deutschschweiz) est limité à quelques pays connus pour être
         multilingues — données factices en attendant les marts dbt.

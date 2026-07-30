@@ -58,7 +58,7 @@ export function ReviewBattle({ reviews }: ReviewBattleProps) {
           type="button"
           onClick={randomizeBoth}
           disabled={positives.length <= 1 && negatives.length <= 1}
-          className="rounded-full bg-gradient-to-r from-brand-cyan to-brand-purple px-3 py-1 text-xs font-bold text-black disabled:opacity-40"
+          className="rounded-full bg-gradient-to-r from-brand-blue to-brand-red px-3 py-1 text-xs font-bold text-black disabled:opacity-40"
         >
           🎲 Les deux
         </button>

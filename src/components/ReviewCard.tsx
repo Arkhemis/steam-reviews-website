@@ -45,14 +45,14 @@ export function ReviewCard({ review }: { review: GameTopReview }) {
         />
         <span className="text-sm font-medium text-neutral-200">{review.authorPersonaname}</span>
       </div>
-      <div className={`text-sm text-neutral-200 ${!expanded && isLong ? "line-clamp-3" : ""}`}>
+      <div className={`text-sm text-neutral-200 ${!expanded && isLong ? "line-clamp-16" : ""}`}>
         <BBCodeText text={review.reviewText} />
       </div>
       {isLong && (
         <button
           type="button"
           onClick={() => setExpanded((value) => !value)}
-          className="mt-1 text-xs text-brand-cyan hover:underline"
+          className="mt-1 text-xs text-brand-blue hover:underline"
         >
           {expanded ? "Lire moins" : "Lire plus"}
         </button>
@@ -79,7 +79,7 @@ export function ReviewCard({ review }: { review: GameTopReview }) {
           href={review.reviewUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-brand-cyan hover:underline"
+          className="text-brand-blue hover:underline"
         >
           Voir sur Steam
         </a>

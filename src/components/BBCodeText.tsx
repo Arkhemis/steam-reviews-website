@@ -129,7 +129,7 @@ function renderNode(node: BBNode, key: string): ReactNode {
           href={node.attr ?? "#"}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-brand-cyan underline"
+          className="text-brand-blue underline"
         >
           {renderNodes(node.children, key)}
         </a>

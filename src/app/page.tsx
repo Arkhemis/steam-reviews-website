@@ -49,7 +49,7 @@ export default function HomePage() {
         <div className="text-xs uppercase tracking-wide text-neutral-400">
           4 049 767 reviews · 53 858 jeux analysés
         </div>
-        <h1 className="mx-auto mt-3 max-w-2xl bg-gradient-to-r from-brand-cyan to-brand-purple bg-clip-text text-3xl font-black text-transparent">
+        <h1 className="mx-auto mt-3 max-w-2xl bg-gradient-to-r from-brand-blue to-brand-red bg-clip-text text-3xl font-black text-transparent">
           Qu&apos;est-ce que les joueurs pensent vraiment ?
         </h1>
         <input
@@ -79,7 +79,7 @@ export default function HomePage() {
       </div>
 
       <div className="mt-4 text-center">
-        <Link href="/classements" className="text-xs text-brand-cyan">
+        <Link href="/classements" className="text-xs text-brand-blue">
           Voir tous les classements →
         </Link>
       </div>
@@ -96,7 +96,7 @@ export default function HomePage() {
         </Link>
         <Link
           href="/battle"
-          className="flex items-center justify-center rounded-xl bg-gradient-to-br from-[#3a0d5c] via-[#7f00ff] to-[#ff5f6d] p-5 text-center"
+          className="flex items-center justify-center rounded-xl bg-gradient-to-br from-brand-blue via-brand-glow to-brand-red p-5 text-center"
         >
           <span className="text-lg font-black text-white">
             BG3 <span className="opacity-60">vs</span> Starfield
