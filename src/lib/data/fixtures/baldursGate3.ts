@@ -1,31 +1,6 @@
-import type {
-  GameLanguageDistribution,
-  GameReviewTrend,
-  GameStats,
-  GameTopReview,
-} from "@/lib/data/types";
+import type { GameLanguageDistribution, GameReviewTrend } from "@/lib/data/types";
 
 export const BALDURS_GATE_3_APP_ID = 1086940;
-
-export const baldursGate3Stats: GameStats = {
-  appId: BALDURS_GATE_3_APP_ID,
-  name: "Baldur's Gate 3",
-  genres: ["Role-playing (RPG)", "Strategy", "Turn-based strategy (TBS)"],
-  developers: ["Larian Studios"],
-  publishers: ["Larian Studios"],
-  coverUrl: "https://images.igdb.com/igdb/image/upload/t_cover_big/co670h.jpg",
-  firstReleaseDate: "2023-08-03",
-  totalReviews: 87412,
-  totalPositive: 84790,
-  totalNegative: 2622,
-  reviewScore: 9,
-  reviewScoreDesc: "Extrêmement positif",
-  pctPositive: 0.97,
-  collectedReviewCount: 87412,
-  playtimeMedianMinutes: 3720,
-  pctSteamDeck: 0.18,
-  pctRefunded: 0.031,
-};
 
 export const baldursGate3ReviewTrends: GameReviewTrend[] = [
   { appId: BALDURS_GATE_3_APP_ID, periodMonth: "2023-08-01", reviewsInPeriod: 21000, positiveInPeriod: 18900, pctPositivePeriod: 0.9 },
@@ -60,30 +35,4 @@ export const baldursGate3LanguageDistribution: GameLanguageDistribution[] = [
   { appId: BALDURS_GATE_3_APP_ID, language: "polish", reviewCount: 1748, pctOfTotal: 0.02 },
   { appId: BALDURS_GATE_3_APP_ID, language: "japanese", reviewCount: 1748, pctOfTotal: 0.02 },
   { appId: BALDURS_GATE_3_APP_ID, language: "italian", reviewCount: 875, pctOfTotal: 0.01 },
-];
-
-export const baldursGate3TopReviews: GameTopReview[] = [
-  {
-    recommendationId: 1,
-    appId: BALDURS_GATE_3_APP_ID,
-    reviewText:
-      "140 heures et je n'ai même pas fini l'acte 2. Chaque quête a l'air d'avoir été écrite par quelqu'un qui l'aime vraiment.",
-    language: "french",
-    votedUp: true,
-    votesUp: 2481,
-    weightedVoteScore: 0.98,
-    authorPlaytimeAtReviewMinutes: 20820,
-    rankInGame: 1,
-  },
-  {
-    recommendationId: 2,
-    appId: BALDURS_GATE_3_APP_ID,
-    reviewText: "Mon perso est resté bloqué dans le décor pendant 3h après le patch 5. Génial le jeu sinon.",
-    language: "french",
-    votedUp: false,
-    votesUp: 892,
-    weightedVoteScore: 0.91,
-    authorPlaytimeAtReviewMinutes: 3720,
-    rankInGame: 1,
-  },
 ];

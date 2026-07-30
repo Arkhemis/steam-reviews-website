@@ -7,12 +7,8 @@ export type GameStats = {
   coverUrl: string | null;
   firstReleaseDate: string | null;
   totalReviews: number;
-  totalPositive: number;
-  totalNegative: number;
   reviewScore: number;
-  reviewScoreDesc: string;
   pctPositive: number;
-  collectedReviewCount: number;
   playtimeMedianMinutes: number;
   pctSteamDeck: number;
   pctRefunded: number;

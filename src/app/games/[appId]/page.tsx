@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { LanguageDistribution } from "@/components/LanguageDistribution";
 import { Nav } from "@/components/Nav";
+import { ReviewBattle } from "@/components/ReviewBattle";
 import { ScoreEvolutionChart } from "@/components/ScoreEvolutionChart";
 import { StatTile } from "@/components/StatTile";
-import { TopReviews } from "@/components/TopReviews";
 import {
   getGameLanguageDistribution,
   getGameReviewTrends,
@@ -46,7 +46,17 @@ export default async function GamePage({ params }: GamePageProps) {
           style={stats.coverUrl ? { backgroundImage: `url(${stats.coverUrl})` } : undefined}
         />
         <div>
-          <h1 className="text-2xl font-bold text-white">{stats.name}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-white">{stats.name}</h1>
+            <a
+              href={`https://store.steampowered.com/app/${stats.appId}/`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-brand-cyan underline"
+            >
+              Voir sur Steam ↗
+            </a>
+          </div>
           <p className="text-xs text-neutral-400">
             {stats.developers.join(", ")}
             {stats.firstReleaseDate ? ` · Sorti le ${new Date(stats.firstReleaseDate).toLocaleDateString("fr-FR")}` : ""} ·{" "}
@@ -54,7 +64,7 @@ export default async function GamePage({ params }: GamePageProps) {
           </p>
           <div className="mt-2 flex gap-2">
             <span className="rounded-full px-2.5 py-1 text-xs font-bold" style={{ color: "var(--status-good)", backgroundColor: "rgba(12,163,12,0.12)" }}>
-              {Math.round(stats.pctPositive * 100)}% positif — {stats.reviewScoreDesc}
+              {Math.round(stats.pctPositive * 100)}% positif — score Steam {stats.reviewScore}/9
             </span>
             {stats.genres[0] && (
               <span className="rounded-full bg-white/10 px-2.5 py-1 text-xs text-neutral-300">{stats.genres[0]}</span>
@@ -85,7 +95,7 @@ export default async function GamePage({ params }: GamePageProps) {
       </div>
 
       <h2 className="mt-8 mb-3 text-xs uppercase tracking-wide text-neutral-400">Reviews les plus votées</h2>
-      <TopReviews reviews={reviews} />
+      <ReviewBattle reviews={reviews} />
 
       <div className="mt-8 flex items-center justify-between rounded-xl bg-gradient-to-r from-brand-glow via-brand-purple to-brand-cyan p-5">
         <div>

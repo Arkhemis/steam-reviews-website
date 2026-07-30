@@ -8,9 +8,9 @@ describe("GamePage", () => {
     const jsx = await GamePage({ params: Promise.resolve({ appId: String(BALDURS_GATE_3_APP_ID) }) });
     render(jsx);
 
-    expect(screen.getByText("Baldur's Gate 3")).toBeInTheDocument();
+    expect(screen.getByText("Baldur's Gate III")).toBeInTheDocument();
     expect(screen.getByText("97%")).toBeInTheDocument();
-    expect(screen.getByText(/Chaque quête a l'air/)).toBeInTheDocument();
+    expect(screen.getByText(/Superbe jeu, rien à redire/)).toBeInTheDocument();
   });
 
   it("renders a not-found message for an unknown app id", async () => {

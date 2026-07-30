@@ -1,54 +1,113 @@
+import Image from "next/image";
+import Link from "next/link";
 import { Nav } from "@/components/Nav";
+import { EmptyReviewCard, ReviewCard } from "@/components/ReviewCard";
+import { getGameStats, getGameTopReviews } from "@/lib/data/gameData";
+import type { GameStats } from "@/lib/data/types";
+
+const DEFAULT_LEFT_APP_ID = 1086940; // Baldur's Gate III
+const DEFAULT_RIGHT_APP_ID = 1716740; // Starfield
+
+type BattlePageProps = {
+  searchParams: Promise<{ game?: string; vs?: string }>;
+};
 
 type BattleStat = {
   label: string;
   left: string;
   right: string;
   leftPct: number;
+  leftWins: boolean;
+  rightWins: boolean;
 };
 
-const STATS: BattleStat[] = [
-  { label: "Score positif", left: "97%", right: "72%", leftPct: 57 },
-  { label: "Playtime médian", left: "62h", right: "41h", leftPct: 60 },
-  { label: "Volume de reviews", left: "87.4k", right: "78.1k", leftPct: 53 },
-  { label: "Taux de remboursement", left: "3.1%", right: "8.4%", leftPct: 30 },
-];
+const compactNumber = new Intl.NumberFormat("fr-FR", { notation: "compact", maximumFractionDigits: 1 });
 
-export default function BattlePage() {
+function buildStats(left: GameStats, right: GameStats): BattleStat[] {
+  function stat(label: string, leftValue: number, rightValue: number, format: (n: number) => string, higherIsBetter: boolean): BattleStat {
+    const total = leftValue + rightValue;
+    const leftPct = total > 0 ? (leftValue / total) * 100 : 50;
+    const leftWins = higherIsBetter ? leftValue > rightValue : leftValue < rightValue;
+    const rightWins = higherIsBetter ? rightValue > leftValue : rightValue < leftValue;
+    return { label, left: format(leftValue), right: format(rightValue), leftPct, leftWins, rightWins };
+  }
+
+  return [
+    stat("Score positif", left.pctPositive * 100, right.pctPositive * 100, (n) => `${Math.round(n)}%`, true),
+    stat("Playtime médian", left.playtimeMedianMinutes, right.playtimeMedianMinutes, (n) => `${Math.round(n / 60)}h`, true),
+    stat("Volume de reviews", left.totalReviews, right.totalReviews, (n) => compactNumber.format(n), true),
+    stat("Taux de remboursement", left.pctRefunded * 100, right.pctRefunded * 100, (n) => `${n.toFixed(1)}%`, false),
+  ];
+}
+
+export default async function BattlePage({ searchParams }: BattlePageProps) {
+  const params = await searchParams;
+
+  let leftAppId = Number(params.game) || DEFAULT_LEFT_APP_ID;
+  let rightAppId = Number(params.vs) || DEFAULT_RIGHT_APP_ID;
+  if (rightAppId === leftAppId) {
+    rightAppId = leftAppId === DEFAULT_LEFT_APP_ID ? DEFAULT_RIGHT_APP_ID : DEFAULT_LEFT_APP_ID;
+  }
+
+  const [left, right] = await Promise.all([getGameStats(leftAppId), getGameStats(rightAppId)]);
+
+  if (!left || !right) {
+    return (
+      <main className="mx-auto max-w-4xl px-6 py-8">
+        <Nav />
+        <p className="mt-12 text-center text-neutral-400">Un des deux jeux est introuvable.</p>
+      </main>
+    );
+  }
+
+  const [leftReviews, rightReviews] = await Promise.all([getGameTopReviews(leftAppId), getGameTopReviews(rightAppId)]);
+  const leftTopReview = leftReviews.find((review) => review.votedUp);
+  const rightTopReview = rightReviews.find((review) => review.votedUp);
+
+  const stats = buildStats(left, right);
+  const leftWinCount = stats.filter((s) => s.leftWins).length;
+  const rightWinCount = stats.filter((s) => s.rightWins).length;
+  const winner = leftWinCount === rightWinCount ? null : leftWinCount > rightWinCount ? left : right;
+
   return (
     <main className="mx-auto max-w-4xl px-6 py-8">
       <Nav />
 
       <p className="mt-6 text-center text-sm text-neutral-400">
-        Face-à-face 100% calculé à partir des données existantes — pas de vote, pas de compte. Données factices en
-        attendant les marts dbt.
+        Face-à-face 100% calculé à partir des données existantes — pas de vote, pas de compte.
       </p>
 
       <div className="mt-6 flex items-center justify-center gap-8">
-        <div className="flex flex-col items-center gap-2">
-          <div className="h-24 w-24 rounded-2xl bg-gradient-to-br from-[#ff5f6d] to-[#7f00ff]" />
-          <h2 className="text-lg font-bold text-white">Baldur&apos;s Gate 3</h2>
-          <div className="bg-gradient-to-r from-brand-cyan to-brand-purple bg-clip-text text-2xl font-black text-transparent">
-            97%
-          </div>
-        </div>
-        <div className="pt-8 text-xl font-black text-neutral-500">VS</div>
-        <div className="flex flex-col items-center gap-2">
-          <div className="h-24 w-24 rounded-2xl bg-gradient-to-br from-[#36d1dc] to-[#5b86e5]" />
-          <h2 className="text-lg font-bold text-white">Starfield</h2>
-          <div className="text-2xl font-black text-neutral-300">72%</div>
-        </div>
+        {[left, right].map((game, i) => (
+          <Link key={game.appId} href={`/games/${game.appId}`} className="flex flex-col items-center gap-2">
+            <div className="relative h-24 w-24 overflow-hidden rounded-2xl bg-white/10">
+              {game.coverUrl && <Image src={game.coverUrl} alt="" fill sizes="96px" className="object-cover" />}
+            </div>
+            <h2 className="text-lg font-bold text-white">{game.name}</h2>
+            <div
+              className={
+                i === 0
+                  ? "bg-gradient-to-r from-brand-cyan to-brand-purple bg-clip-text text-2xl font-black text-transparent"
+                  : "text-2xl font-black text-neutral-300"
+              }
+            >
+              {Math.round(game.pctPositive * 100)}%
+            </div>
+          </Link>
+        ))}
       </div>
 
-      <div
-        className="mx-auto mt-6 max-w-md rounded-lg border border-white/10 px-4 py-2 text-center text-sm"
-        style={{ backgroundColor: "rgba(12,163,12,0.08)", color: "var(--status-good)" }}
-      >
-        🏆 Baldur&apos;s Gate 3 l&apos;emporte sur 4 critères sur 5
-      </div>
+      {winner && (
+        <div
+          className="mx-auto mt-6 max-w-md rounded-lg border border-white/10 px-4 py-2 text-center text-sm"
+          style={{ backgroundColor: "rgba(12,163,12,0.08)", color: "var(--status-good)" }}
+        >
+          🏆 {winner.name} l&apos;emporte sur {Math.max(leftWinCount, rightWinCount)} critères sur {stats.length}
+        </div>
+      )}
 
       <div className="mx-auto mt-6 max-w-2xl space-y-4">
-        {STATS.map((stat) => (
+        {stats.map((stat) => (
           <div key={stat.label}>
             <div className="mb-1 text-center text-xs uppercase tracking-wide text-neutral-400">{stat.label}</div>
             <div className="flex items-center gap-3">
@@ -67,23 +126,20 @@ export default function BattlePage() {
         Meilleure review de chaque côté
       </h2>
       <div className="mx-auto grid max-w-2xl grid-cols-1 gap-3 sm:grid-cols-2">
-        <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-          <div className="mb-1 text-xs text-neutral-400">Baldur&apos;s Gate 3 · 2 481 votes utiles</div>
-          <p className="text-sm text-neutral-200">
-            &quot;Chaque quête a l&apos;air d&apos;avoir été écrite par quelqu&apos;un qui l&apos;aime vraiment.&quot;
-          </p>
-        </div>
-        <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-          <div className="mb-1 text-xs text-neutral-400">Starfield · 1 052 votes utiles</div>
-          <p className="text-sm text-neutral-200">
-            &quot;1000 planètes, mais j&apos;ai l&apos;impression d&apos;en avoir visité une seule 1000 fois.&quot;
-          </p>
-        </div>
+        {[
+          { game: left, review: leftTopReview },
+          { game: right, review: rightTopReview },
+        ].map(({ game, review }) => (
+          <div key={game.appId}>
+            <div className="mb-1 text-xs text-neutral-400">{game.name}</div>
+            {review ? <ReviewCard review={review} /> : <EmptyReviewCard label="Pas de review positive disponible." />}
+          </div>
+        ))}
       </div>
 
       <div className="mx-auto mt-8 flex max-w-2xl items-center justify-center gap-2">
         <div className="w-full max-w-sm truncate rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs text-neutral-400">
-          steam.reviews/battle/baldurs-gate-3-vs-starfield
+          steam.reviews/battle?game={left.appId}&vs={right.appId}
         </div>
         <button className="rounded-full bg-gradient-to-r from-brand-cyan to-brand-purple px-4 py-2 text-xs font-bold text-black">
           Copier le lien

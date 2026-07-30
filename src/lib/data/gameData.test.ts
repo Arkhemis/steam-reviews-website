@@ -12,7 +12,7 @@ describe("gameData", () => {
   it("returns stats for a known game", async () => {
     const stats = await getGameStats(BALDURS_GATE_3_APP_ID);
     expect(stats).not.toBeNull();
-    expect(stats?.name).toBe("Baldur's Gate 3");
+    expect(stats?.name).toBe("Baldur's Gate III");
   });
 
   it("returns null stats for an unknown game", async () => {
