@@ -8,6 +8,8 @@ import type {
   GameReviewTrend,
   GameStats,
   GameTopReview,
+  SiteStats,
+  TrendingGame,
 } from "@/lib/data/types";
 
 // TODO(future plan): once les marts trends/languages existent, remplacer ces
@@ -91,6 +93,144 @@ export async function getTopGames(limit: number, search?: string): Promise<GameS
   );
 
   return rows.map(mapGameStatsRow);
+}
+
+// `minReviews` filters out low-volume games so a handful of reviews can't land
+// a game at the very top (or bottom) of the ranking by chance.
+export async function getRankedGames(
+  direction: "best" | "worst",
+  limit: number,
+  minReviews = 500,
+): Promise<GameStats[]> {
+  const { rows } = await pool.query(
+    `SELECT ${GAME_STATS_COLUMNS} FROM marts.game_stats
+     WHERE total_reviews >= $2
+     ORDER BY pct_positive_reviews ${direction === "best" ? "DESC" : "ASC"}, total_reviews DESC
+     LIMIT $1`,
+    [limit, minReviews],
+  );
+
+  return rows.map(mapGameStatsRow);
+}
+
+export async function getSiteStats(): Promise<SiteStats> {
+  const { rows } = await pool.query(
+    `SELECT SUM(total_reviews) AS total_reviews, COUNT(*) AS total_games
+     FROM marts.game_stats WHERE total_reviews > 0`,
+  );
+
+  return {
+    totalReviews: Number(rows[0]?.total_reviews ?? 0),
+    totalGames: Number(rows[0]?.total_games ?? 0),
+  };
+}
+
+type TrendingGameRow = {
+  app_id: string;
+  game_name: string;
+  cover_url: string | null;
+  recent_reviews: string;
+  recent_pct: string;
+  previous_pct: string;
+  delta_pct: string;
+};
+
+// Compare the last 30 days of reviews against the 30 days before that, requiring
+// a minimum volume on both sides so a single-digit review count can't swing the
+// ranking. `direction` picks the biggest positive-rate gainers vs the biggest drops.
+export async function getTrendingGames(
+  direction: "up" | "down",
+  limit: number,
+  minReviewsPerWindow = 30,
+): Promise<TrendingGame[]> {
+  const { rows } = await pool.query<TrendingGameRow>(
+    `WITH recent AS (
+       SELECT app_id, SUM(total_reviews) AS reviews, SUM(total_positive) AS positive
+       FROM marts.game_review_trend_daily
+       WHERE review_date > CURRENT_DATE - INTERVAL '30 days'
+       GROUP BY app_id
+     ),
+     previous AS (
+       SELECT app_id, SUM(total_reviews) AS reviews, SUM(total_positive) AS positive
+       FROM marts.game_review_trend_daily
+       WHERE review_date > CURRENT_DATE - INTERVAL '60 days'
+         AND review_date <= CURRENT_DATE - INTERVAL '30 days'
+       GROUP BY app_id
+     )
+     SELECT
+       r.app_id,
+       g.game_name,
+       g.cover_url,
+       r.reviews AS recent_reviews,
+       ROUND(r.positive::numeric / NULLIF(r.reviews, 0) * 100, 1) AS recent_pct,
+       ROUND(p.positive::numeric / NULLIF(p.reviews, 0) * 100, 1) AS previous_pct,
+       ROUND(
+         (r.positive::numeric / NULLIF(r.reviews, 0) - p.positive::numeric / NULLIF(p.reviews, 0)) * 100,
+         1
+       ) AS delta_pct
+     FROM recent r
+     JOIN previous p ON p.app_id = r.app_id
+     JOIN marts.game_stats g ON g.steam_app_id = r.app_id
+     WHERE r.reviews >= $2 AND p.reviews >= $2
+     ORDER BY delta_pct ${direction === "up" ? "DESC" : "ASC"}
+     LIMIT $1`,
+    [limit, minReviewsPerWindow],
+  );
+
+  return rows.map((row) => ({
+    appId: Number(row.app_id),
+    name: row.game_name,
+    coverUrl: row.cover_url,
+    recentReviews: Number(row.recent_reviews),
+    recentPctPositive: Number(row.recent_pct) / 100,
+    previousPctPositive: Number(row.previous_pct) / 100,
+    deltaPct: Number(row.delta_pct),
+  }));
+}
+
+// Picks a random top-voted positive review from a well-reviewed game, so the home
+// page shows one genuine review instead of static placeholder text.
+export async function getFeaturedReview(): Promise<{ game: GameStats; review: GameTopReview } | null> {
+  const { rows } = await pool.query(
+    `SELECT
+       rh.recommendation_id, rh.app_id, rh.review_text, rh.language, rh.voted_up,
+       rh.votes_up, rh.votes_funny, rh.weighted_vote_score, rh.author_personaname,
+       rh.author_avatar, rh.author_profile_url, rh.author_playtime_at_review_minutes,
+       rh.author_last_played_at, rh.rank_in_game,
+       g.steam_app_id, g.game_name, g.genres, g.developers, g.publishers, g.cover_url,
+       g.first_release_date, g.total_reviews, g.pct_positive_reviews, g.review_score,
+       g.median_playtime_forever_minutes, g.pct_primarily_steam_deck, g.pct_refunded
+     FROM marts.review_highlight rh
+     JOIN marts.game_stats g ON g.steam_app_id = rh.app_id
+     WHERE rh.rank_in_game = 1 AND rh.voted_up = true AND g.total_reviews > 5000
+     ORDER BY RANDOM()
+     LIMIT 1`,
+  );
+
+  const row = rows[0];
+  if (!row) return null;
+
+  return {
+    game: mapGameStatsRow(row),
+    review: {
+      recommendationId: Number(row.recommendation_id),
+      appId: Number(row.app_id),
+      reviewText: row.review_text,
+      language: row.language,
+      votedUp: row.voted_up,
+      votesUp: row.votes_up,
+      votesFunny: row.votes_funny,
+      weightedVoteScore: Number(row.weighted_vote_score),
+      authorPersonaname: row.author_personaname,
+      authorAvatarUrl: `https://avatars.steamstatic.com/${row.author_avatar}_full.jpg`,
+      authorPlaytimeAtReviewMinutes: row.author_playtime_at_review_minutes,
+      authorLastPlayedAt: row.author_last_played_at
+        ? (row.author_last_played_at as Date).toISOString()
+        : null,
+      reviewUrl: `${row.author_profile_url}recommended/${row.app_id}`,
+      rankInGame: Number(row.rank_in_game),
+    },
+  };
 }
 
 type GameReviewTrendRow = {

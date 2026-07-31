@@ -30,6 +30,21 @@ export type GameLanguageDistribution = {
   pctOfTotal: number;
 };
 
+export type SiteStats = {
+  totalReviews: number;
+  totalGames: number;
+};
+
+export type TrendingGame = {
+  appId: number;
+  name: string;
+  coverUrl: string | null;
+  recentReviews: number;
+  recentPctPositive: number;
+  previousPctPositive: number;
+  deltaPct: number;
+};
+
 export type GameTopReview = {
   recommendationId: number;
   appId: number;

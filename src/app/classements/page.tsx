@@ -1,77 +1,115 @@
+import Image from "next/image";
 import Link from "next/link";
 import { Nav } from "@/components/Nav";
+import { TrendingGameRow } from "@/components/TrendingGameRow";
+import { getRankedGames, getTopGames, getTrendingGames } from "@/lib/data/gameData";
+import type { GameStats } from "@/lib/data/types";
 
-type RankedGame = {
-  appId: number;
-  name: string;
-  reviewCount: number;
-  pctPositive: number;
-  coverGradient: string;
+const FILTERS = [
+  { key: "tendances", label: "Tendances" },
+  { key: "mieux-notes", label: "Mieux notés" },
+  { key: "plus-commentes", label: "Plus commentés" },
+  { key: "pires-notes", label: "Pires notes" },
+] as const;
+
+type FilterKey = (typeof FILTERS)[number]["key"];
+
+const RANKING_LIMIT = 20;
+const MIN_REVIEWS_FOR_RATING = 500;
+
+function isFilterKey(value: string | undefined): value is FilterKey {
+  return FILTERS.some((f) => f.key === value);
+}
+
+const compactNumber = new Intl.NumberFormat("fr-FR", { notation: "compact", maximumFractionDigits: 1 });
+
+function RankedGameRow({ game, rank }: { game: GameStats; rank: number }) {
+  return (
+    <Link
+      href={`/games/${game.appId}`}
+      className="flex items-center gap-4 rounded-lg border border-white/10 bg-white/5 px-4 py-3 hover:border-white/20"
+    >
+      <span className="w-5 text-sm font-bold text-neutral-500">{rank}</span>
+      <div className="relative h-10 w-10 flex-shrink-0 overflow-hidden rounded-md bg-white/10">
+        {game.coverUrl && <Image src={game.coverUrl} alt="" fill sizes="40px" className="object-cover" />}
+      </div>
+      <div className="flex-1">
+        <div className="text-sm font-semibold text-white">{game.name}</div>
+        <div className="text-xs text-neutral-400">{compactNumber.format(game.totalReviews)} reviews</div>
+      </div>
+      <div
+        className="rounded-md px-2 py-1 text-xs font-extrabold"
+        style={{
+          color: game.pctPositive >= 0.5 ? "var(--status-good)" : "var(--status-critical)",
+          backgroundColor: "rgba(255,255,255,0.06)",
+        }}
+      >
+        {Math.round(game.pctPositive * 100)}%
+      </div>
+    </Link>
+  );
+}
+
+type ClassementsPageProps = {
+  searchParams: Promise<{ filter?: string }>;
 };
 
-const LEADERBOARD: RankedGame[] = [
-  { appId: 1086940, name: "Baldur's Gate 3", reviewCount: 87412, pctPositive: 0.97, coverGradient: "from-[#ff5f6d] to-[#7f00ff]" },
-  { appId: 553850, name: "Helldivers 2", reviewCount: 78123, pctPositive: 0.88, coverGradient: "from-[#36d1dc] to-[#5b86e5]" },
-  { appId: 620, name: "Portal 2", reviewCount: 65210, pctPositive: 0.98, coverGradient: "from-[#7dffb0] to-[#199e70]" },
-  { appId: 1245620, name: "Elden Ring", reviewCount: 58990, pctPositive: 0.93, coverGradient: "from-[#c98500] to-[#ffb347]" },
-  { appId: 1091500, name: "Cyberpunk 2077", reviewCount: 52340, pctPositive: 0.82, coverGradient: "from-[#d55181] to-[#7f00ff]" },
-  { appId: 1174180, name: "Red Dead Redemption 2", reviewCount: 48760, pctPositive: 0.91, coverGradient: "from-[#5b86e5] to-[#199e70]" },
-  { appId: 2198150, name: "Concord", reviewCount: 3210, pctPositive: 0.12, coverGradient: "from-[#ffb347] to-[#ff5f6d]" },
-  { appId: 2183900, name: "Skull and Bones", reviewCount: 5120, pctPositive: 0.34, coverGradient: "from-[#5b86e5] to-[#36d1dc]" },
-];
+export default async function ClassementsPage({ searchParams }: ClassementsPageProps) {
+  const { filter: rawFilter } = await searchParams;
+  const filter: FilterKey = isFilterKey(rawFilter) ? rawFilter : "tendances";
 
-const FILTERS = ["Tendances", "Mieux notés", "Plus commentés", "Pires notes"];
+  const trending = filter === "tendances" ? await getTrendingGames("up", RANKING_LIMIT) : null;
+  const ranked =
+    filter === "mieux-notes"
+      ? await getRankedGames("best", RANKING_LIMIT, MIN_REVIEWS_FOR_RATING)
+      : filter === "pires-notes"
+        ? await getRankedGames("worst", RANKING_LIMIT, MIN_REVIEWS_FOR_RATING)
+        : filter === "plus-commentes"
+          ? await getTopGames(RANKING_LIMIT)
+          : null;
 
-export default function ClassementsPage() {
   return (
     <main className="mx-auto max-w-4xl px-6 py-8">
       <Nav />
 
       <h1 className="mt-8 text-2xl font-bold text-white">Classements</h1>
       <p className="mt-1 text-sm text-neutral-400">
-        Données factices pour l&apos;instant — en attente des marts dbt côté pipeline.
+        {filter === "tendances"
+          ? "Plus forte progression du taux d'avis positifs sur les 30 derniers jours."
+          : `Sur les jeux avec au moins ${MIN_REVIEWS_FOR_RATING} reviews, pour éviter qu'un petit volume ne fausse le classement.`}
       </p>
 
       <div className="mt-5 flex flex-wrap gap-2">
-        {FILTERS.map((filter, i) => (
-          <span
-            key={filter}
+        {FILTERS.map((f) => (
+          <Link
+            key={f.key}
+            href={f.key === "tendances" ? "/classements" : `/classements?filter=${f.key}`}
             className={
-              i === 0
+              f.key === filter
                 ? "rounded-full bg-gradient-to-r from-brand-blue to-brand-red px-3 py-1 text-xs font-bold text-black"
-                : "rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-300"
+                : "rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-300 hover:border-white/20"
             }
           >
-            {filter}
-          </span>
-        ))}
-      </div>
-
-      <div className="mt-6 space-y-2">
-        {LEADERBOARD.map((game, i) => (
-          <Link
-            key={game.appId}
-            href={`/games/${game.appId}`}
-            className="flex items-center gap-4 rounded-lg border border-white/10 bg-white/5 px-4 py-3 hover:border-white/20"
-          >
-            <span className="w-5 text-sm font-bold text-neutral-500">{i + 1}</span>
-            <div className={`h-10 w-10 flex-shrink-0 rounded-md bg-gradient-to-br ${game.coverGradient}`} />
-            <div className="flex-1">
-              <div className="text-sm font-semibold text-white">{game.name}</div>
-              <div className="text-xs text-neutral-400">{game.reviewCount.toLocaleString("fr-FR")} reviews</div>
-            </div>
-            <div
-              className="rounded-md px-2 py-1 text-xs font-extrabold"
-              style={{
-                color: game.pctPositive >= 0.5 ? "var(--status-good)" : "var(--status-critical)",
-                backgroundColor: "rgba(255,255,255,0.06)",
-              }}
-            >
-              {Math.round(game.pctPositive * 100)}%
-            </div>
+            {f.label}
           </Link>
         ))}
       </div>
+
+      {trending && (
+        <div className="mt-6 space-y-2">
+          {trending.map((game, i) => (
+            <TrendingGameRow key={game.appId} game={game} index={i} />
+          ))}
+        </div>
+      )}
+
+      {ranked && (
+        <div className="mt-6 space-y-2">
+          {ranked.map((game, i) => (
+            <RankedGameRow key={game.appId} game={game} rank={i + 1} />
+          ))}
+        </div>
+      )}
     </main>
   );
 }
