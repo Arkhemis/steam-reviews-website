@@ -4,6 +4,11 @@ import { ReviewCard } from "@/components/ReviewCard";
 import { TrendingGameRow } from "@/components/TrendingGameRow";
 import { getFeaturedReview, getSiteStats, getTrendingGames } from "@/lib/data/gameData";
 
+// Les données (tendances, review du jour) viennent de Postgres et doivent être
+// à jour à chaque requête ; la DB n'est de toute façon pas joignable au build
+// (image buildée hors du réseau docker compose).
+export const dynamic = "force-dynamic";
+
 const fullNumber = new Intl.NumberFormat("fr-FR");
 
 export default async function HomePage() {
