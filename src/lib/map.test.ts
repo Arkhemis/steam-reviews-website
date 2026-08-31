@@ -12,8 +12,26 @@ describe("getCountryColor", () => {
     expect(getCountryColor("276")).toBe(LANGUAGE_COLORS.german);
   });
 
+  it("colors Francophone African countries by French", () => {
+    expect(getCountryColor("450")).toBe(LANGUAGE_COLORS.french); // Madagascar
+    expect(getCountryColor("686")).toBe(LANGUAGE_COLORS.french); // Senegal
+    expect(getCountryColor("384")).toBe(LANGUAGE_COLORS.french); // Côte d'Ivoire
+    expect(getCountryColor("180")).toBe(LANGUAGE_COLORS.french); // Dem. Rep. Congo
+  });
+
+  it("colors Anglophone African/Caribbean/Pacific countries by English", () => {
+    expect(getCountryColor("566")).toBe(LANGUAGE_COLORS.english); // Nigeria
+    expect(getCountryColor("404")).toBe(LANGUAGE_COLORS.english); // Kenya
+    expect(getCountryColor("388")).toBe(LANGUAGE_COLORS.english); // Jamaica
+  });
+
   it("falls back to the neutral color for an unmapped country", () => {
     expect(getCountryColor("999")).toBe(FALLBACK);
+  });
+
+  it("does not force a country into an inaccurate bucket just because it's not english/french/german/russian/schinese/brazilian", () => {
+    expect(getCountryColor("392")).toBe(FALLBACK); // Japan (Japanese, untracked)
+    expect(getCountryColor("724")).toBe(FALLBACK); // Spain (Spanish, untracked)
   });
 });
 

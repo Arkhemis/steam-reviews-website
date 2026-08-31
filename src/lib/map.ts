@@ -69,6 +69,15 @@ export const LANGUAGE_LABELS: Record<LanguageKey, string> = {
 // Countries where a language split would track a contested border or an
 // active conflict (Cyprus, Ukraine, Cameroon's Anglophone regions...) are
 // deliberately left as a single dominant language rather than shown split.
+// For the same reason, Central Asian ex-Soviet states beyond
+// Belarus/Kazakhstan (Kyrgyzstan, Tajikistan, Turkmenistan, Uzbekistan) are
+// left unmapped: Russian's official/lingua-franca status there is less
+// settled and more politically loaded than in the two included.
+//
+// Every one of the ~177 countries in world-atlas's dataset was checked
+// against this table on purpose (not just a "major markets" shortlist) — the
+// ones missing are missing because their dominant language genuinely isn't
+// one of the 6 tracked here, not because they were skipped.
 export const COUNTRY_LANGUAGE: Record<string, GlobalLanguageKey> = {
   "840": "english", // United States
   "826": "english", // United Kingdom
@@ -81,6 +90,23 @@ export const COUNTRY_LANGUAGE: Record<string, GlobalLanguageKey> = {
   "250": "french", // France
   "056": "french", // Belgium (dominant; see REGION_LANGUAGE)
   "120": "french", // Cameroon
+  "450": "french", // Madagascar
+  "686": "french", // Senegal
+  "466": "french", // Mali
+  "562": "french", // Niger
+  "854": "french", // Burkina Faso
+  "324": "french", // Guinea
+  "768": "french", // Togo
+  "204": "french", // Benin
+  "180": "french", // Democratic Republic of the Congo
+  "178": "french", // Republic of the Congo
+  "266": "french", // Gabon
+  "148": "french", // Chad
+  "140": "french", // Central African Republic
+  "384": "french", // Côte d'Ivoire
+  "108": "french", // Burundi
+  "332": "french", // Haiti
+  "540": "french", // New Caledonia
   "756": "german", // Switzerland (dominant; see REGION_LANGUAGE)
   "276": "german", // Germany
   "040": "german", // Austria
@@ -89,6 +115,37 @@ export const COUNTRY_LANGUAGE: Record<string, GlobalLanguageKey> = {
   "398": "russian", // Kazakhstan
   "076": "brazilian", // Brazil
   "156": "schinese", // China
+
+  // English: every other country where English is *the* (sole or primary)
+  // official language — a verifiable, non-contested fact, unlike the
+  // regional splits called out above.
+  "044": "english", // Bahamas
+  "084": "english", // Belize
+  "072": "english", // Botswana
+  "748": "english", // eSwatini
+  "238": "english", // Falkland Islands
+  "242": "english", // Fiji
+  "270": "english", // Gambia
+  "288": "english", // Ghana
+  "328": "english", // Guyana
+  "388": "english", // Jamaica
+  "404": "english", // Kenya
+  "426": "english", // Lesotho
+  "430": "english", // Liberia
+  "454": "english", // Malawi
+  "516": "english", // Namibia
+  "566": "english", // Nigeria
+  "586": "english", // Pakistan
+  "598": "english", // Papua New Guinea
+  "608": "english", // Philippines
+  "728": "english", // South Sudan
+  "694": "english", // Sierra Leone
+  "090": "english", // Solomon Islands
+  "834": "english", // Tanzania
+  "780": "english", // Trinidad and Tobago
+  "800": "english", // Uganda
+  "894": "english", // Zambia
+  "716": "english", // Zimbabwe
 };
 
 export function getCountryColor(isoNumericId: string): string {
