@@ -30,6 +30,12 @@ export type GameLanguageDistribution = {
   pctOfTotal: number;
 };
 
+export type GlobalLanguageDistribution = {
+  language: string;
+  reviewCount: number;
+  pctOfTotal: number;
+};
+
 export type SiteStats = {
   totalReviews: number;
   totalGames: number;
