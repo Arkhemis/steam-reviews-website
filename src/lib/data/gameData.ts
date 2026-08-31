@@ -8,7 +8,7 @@ import type {
   GameReviewTrend,
   GameStats,
   GameTopReview,
-  GlobalLanguageDistribution,
+  LanguageReviewScore,
   SiteStats,
   TrendingGame,
 } from "@/lib/data/types";
@@ -268,22 +268,26 @@ export async function getGameLanguageDistribution(appId: number): Promise<GameLa
   return LANGUAGES_BY_APP_ID[appId] ?? [];
 }
 
-type GlobalLanguageDistributionRow = {
+type LanguageReviewScoreRow = {
   language: string;
-  review_count: string;
+  total_reviews: string;
+  total_positive: string;
+  pct_positive: string;
   pct_of_total: string;
 };
 
-export async function getGlobalLanguageDistribution(): Promise<GlobalLanguageDistribution[]> {
-  const { rows } = await pool.query<GlobalLanguageDistributionRow>(
-    `SELECT language, review_count, pct_of_total
-     FROM marts.language_distribution
+export async function getLanguageReviewScores(): Promise<LanguageReviewScore[]> {
+  const { rows } = await pool.query<LanguageReviewScoreRow>(
+    `SELECT language, total_reviews, total_positive, pct_positive, pct_of_total
+     FROM marts.language_review_score
      ORDER BY pct_of_total DESC`,
   );
 
   return rows.map((row) => ({
     language: row.language,
-    reviewCount: Number(row.review_count),
+    totalReviews: Number(row.total_reviews),
+    totalPositive: Number(row.total_positive),
+    pctPositive: Number(row.pct_positive),
     pctOfTotal: Number(row.pct_of_total),
   }));
 }

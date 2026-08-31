@@ -1,84 +1,105 @@
-// Language -> color follows the same validated 6-slot categorical ramp used
-// elsewhere on the site (see LanguageDistribution.tsx): the world map's own
-// legend only ever shows these 6 (the same 6 tracked in the ranking table
-// below it). GlobalLanguageKey is that set.
-//
-// The subnational insets (Switzerland/Belgium/Canada/Finland) need more
-// distinct identities than 6 slots. Since each inset has its own
-// self-contained legend and never shares the screen with a *different*
-// inset, four extra keys reuse a slot from a global language that never
-// co-occurs with them in the same legend (Italian only appears in the
-// Switzerland inset, alongside French/German but never English; Dutch only
-// in Belgium, alongside French but never Simplified Chinese; Finnish/Swedish
-// only in Finland, never alongside English or Simplified Chinese). Each
-// reuse was checked pairwise with dataviz's validate_palette.js against
-// everything else rendered in that same inset.
-//
-// Crucially, these 4 reused keys must never be used to color the world map
-// itself — that map's legend says blue=English, and reusing blue for
-// Finland there (even though blue=Finnish inside the Finland inset) would
-// silently relabel Finland as English on the one legend a reader actually
-// sees next to it. GlobalLanguageKey vs LanguageKey keeps that mistake from
-// compiling.
-export type GlobalLanguageKey = "english" | "schinese" | "french" | "german" | "russian" | "brazilian";
+// Steam's review-language codes (matches the `language` column in
+// stg_steam_review / marts.language_review_score), plus the French label
+// shown for each in the ranking list and map tooltips.
+export type LanguageKey =
+  | "arabic"
+  | "bulgarian"
+  | "schinese"
+  | "tchinese"
+  | "czech"
+  | "danish"
+  | "dutch"
+  | "english"
+  | "finnish"
+  | "french"
+  | "german"
+  | "greek"
+  | "hungarian"
+  | "italian"
+  | "japanese"
+  | "koreana"
+  | "norwegian"
+  | "polish"
+  | "portuguese"
+  | "brazilian"
+  | "romanian"
+  | "russian"
+  | "spanish"
+  | "latam"
+  | "swedish"
+  | "thai"
+  | "turkish"
+  | "ukrainian"
+  | "vietnamese";
 
-export type LanguageKey = GlobalLanguageKey | "italian" | "dutch" | "finnish" | "swedish";
+export const LANGUAGE_LABELS: Record<LanguageKey, string> = {
+  arabic: "Arabe",
+  bulgarian: "Bulgare",
+  schinese: "Chinois simplifié",
+  tchinese: "Chinois traditionnel",
+  czech: "Tchèque",
+  danish: "Danois",
+  dutch: "Néerlandais",
+  english: "Anglais",
+  finnish: "Finnois",
+  french: "Français",
+  german: "Allemand",
+  greek: "Grec",
+  hungarian: "Hongrois",
+  italian: "Italien",
+  japanese: "Japonais",
+  koreana: "Coréen",
+  norwegian: "Norvégien",
+  polish: "Polonais",
+  portuguese: "Portugais",
+  brazilian: "Portugais (Brésil)",
+  romanian: "Roumain",
+  russian: "Russe",
+  spanish: "Espagnol",
+  latam: "Espagnol (Amérique latine)",
+  swedish: "Suédois",
+  thai: "Thaï",
+  turkish: "Turc",
+  ukrainian: "Ukrainien",
+  vietnamese: "Vietnamien",
+};
 
 export const FALLBACK_COLOR = "var(--series-fallback)";
 
-export const LANGUAGE_COLORS: Record<LanguageKey, string> = {
-  english: "var(--series-1)",
-  schinese: "var(--series-2)",
-  french: "var(--series-3)",
-  german: "var(--series-4)",
-  russian: "var(--series-5)",
-  brazilian: "var(--series-6)",
-  italian: "var(--series-1)", // reused: Switzerland inset only, never shown with English
-  dutch: "var(--series-2)", // reused: Belgium inset only, never shown with Simplified Chinese
-  finnish: "var(--series-1)", // reused: Finland inset only, never shown with English
-  swedish: "var(--series-2)", // reused: Finland inset only, never shown with Simplified Chinese
-};
+// Red/yellow/green, matching the site's own status tokens (--status-critical/
+// -warning/-good) so the map's gradient reads consistently with the rest of
+// the site's sentiment coloring (e.g. games/[appId]/page.tsx's score labels).
+// Chosen deliberately over an accessible diverging pair — literal
+// red-to-green is not colorblind-safe (~8% of men can't tell the endpoints
+// apart), a tradeoff made knowingly here.
+const SCORE_LOW: readonly [number, number, number] = [0xd0, 0x3b, 0x3b];
+const SCORE_MID: readonly [number, number, number] = [0xfa, 0xb2, 0x19];
+const SCORE_HIGH: readonly [number, number, number] = [0x0c, 0xa3, 0x0c];
 
-export const LANGUAGE_LABELS: Record<LanguageKey, string> = {
-  english: "Anglais",
-  schinese: "Chinois simplifié",
-  french: "Français",
-  german: "Allemand",
-  russian: "Russe",
-  brazilian: "Portugais (Brésil)",
-  italian: "Italien",
-  dutch: "Néerlandais",
-  finnish: "Finnois",
-  swedish: "Suédois",
-};
+function lerpChannel(a: number, b: number, t: number): number {
+  return Math.round(a + (b - a) * t);
+}
 
-// ISO 3166-1 numeric id (matches world-atlas country ids) -> dominant
-// language, restricted to the 6 GlobalLanguageKey values shown in this
-// page's world-map legend. A country whose dominant Steam-review language
-// isn't one of those 6 (Japan, Poland, Ukraine, Taiwan, Portugal, Turkey...)
-// is intentionally left unmapped and falls back to the neutral "non classé"
-// color, rather than being force-fit into an inaccurate bucket (e.g. Taiwan
-// is Traditional, not Simplified, Chinese; Portugal is European, not
-// Brazilian, Portuguese).
-//
-// Countries with a genuine, non-contested official bilingual/trilingual
-// split (Switzerland, Belgium, Canada, Finland) get a detailed regional
-// breakdown instead — see REGION_LANGUAGE — and are colored here by their
-// overall-dominant language like any other country (or left unmapped, for
-// Finland, since Finnish/Swedish aren't among the 6 global languages).
-// Countries where a language split would track a contested border or an
-// active conflict (Cyprus, Ukraine, Cameroon's Anglophone regions...) are
-// deliberately left as a single dominant language rather than shown split.
-// For the same reason, Central Asian ex-Soviet states beyond
-// Belarus/Kazakhstan (Kyrgyzstan, Tajikistan, Turkmenistan, Uzbekistan) are
-// left unmapped: Russian's official/lingua-franca status there is less
-// settled and more politically loaded than in the two included.
-//
-// Every one of the ~177 countries in world-atlas's dataset was checked
-// against this table on purpose (not just a "major markets" shortlist) — the
-// ones missing are missing because their dominant language genuinely isn't
-// one of the 6 tracked here, not because they were skipped.
-export const COUNTRY_LANGUAGE: Record<string, GlobalLanguageKey> = {
+function lerpHex(c1: readonly [number, number, number], c2: readonly [number, number, number], t: number): string {
+  return `#${c1.map((v, i) => lerpChannel(v, c2[i], t).toString(16).padStart(2, "0")).join("")}`;
+}
+
+// Maps a 0..1 pct_positive to a point on the red -> yellow -> green gradient.
+export function scoreToColor(pctPositive: number): string {
+  const t = Math.min(1, Math.max(0, pctPositive));
+  return t <= 0.5 ? lerpHex(SCORE_LOW, SCORE_MID, t / 0.5) : lerpHex(SCORE_MID, SCORE_HIGH, (t - 0.5) / 0.5);
+}
+
+// ISO 3166-1 numeric id (matches world-atlas country ids) -> dominant Steam
+// review language. A country is left unmapped, falling back to the neutral
+// "non classé" color, when: its dominant language genuinely isn't tracked
+// (rare — most countries have one clear official language), the pick would
+// be inaccurate (e.g. Taiwan is Traditional not Simplified Chinese, Portugal
+// is European not Brazilian Portuguese), or a language split would track a
+// contested border or active conflict (Cyprus, Ukraine, Cameroon's
+// Anglophone regions, Rwanda, most ex-Soviet Central Asian states beyond
+// Belarus/Kazakhstan...) — deliberately left as neutral rather than guessed.
+export const COUNTRY_LANGUAGE: Record<string, LanguageKey> = {
   "840": "english", // United States
   "826": "english", // United Kingdom
   "036": "english", // Australia
@@ -86,39 +107,7 @@ export const COUNTRY_LANGUAGE: Record<string, GlobalLanguageKey> = {
   "372": "english", // Ireland
   "710": "english", // South Africa
   "356": "english", // India
-  "124": "english", // Canada (dominant; see REGION_LANGUAGE for Québec)
-  "250": "french", // France
-  "056": "french", // Belgium (dominant; see REGION_LANGUAGE)
-  "120": "french", // Cameroon
-  "450": "french", // Madagascar
-  "686": "french", // Senegal
-  "466": "french", // Mali
-  "562": "french", // Niger
-  "854": "french", // Burkina Faso
-  "324": "french", // Guinea
-  "768": "french", // Togo
-  "204": "french", // Benin
-  "180": "french", // Democratic Republic of the Congo
-  "178": "french", // Republic of the Congo
-  "266": "french", // Gabon
-  "148": "french", // Chad
-  "140": "french", // Central African Republic
-  "384": "french", // Côte d'Ivoire
-  "108": "french", // Burundi
-  "332": "french", // Haiti
-  "540": "french", // New Caledonia
-  "756": "german", // Switzerland (dominant; see REGION_LANGUAGE)
-  "276": "german", // Germany
-  "040": "german", // Austria
-  "643": "russian", // Russia
-  "112": "russian", // Belarus
-  "398": "russian", // Kazakhstan
-  "076": "brazilian", // Brazil
-  "156": "schinese", // China
-
-  // English: every other country where English is *the* (sole or primary)
-  // official language — a verifiable, non-contested fact, unlike the
-  // regional splits called out above.
+  "124": "english", // Canada
   "044": "english", // Bahamas
   "084": "english", // Belize
   "072": "english", // Botswana
@@ -146,153 +135,109 @@ export const COUNTRY_LANGUAGE: Record<string, GlobalLanguageKey> = {
   "800": "english", // Uganda
   "894": "english", // Zambia
   "716": "english", // Zimbabwe
+
+  "250": "french", // France
+  "056": "french", // Belgium
+  "120": "french", // Cameroon
+  "450": "french", // Madagascar
+  "686": "french", // Senegal
+  "466": "french", // Mali
+  "562": "french", // Niger
+  "854": "french", // Burkina Faso
+  "324": "french", // Guinea
+  "768": "french", // Togo
+  "204": "french", // Benin
+  "180": "french", // Democratic Republic of the Congo
+  "178": "french", // Republic of the Congo
+  "266": "french", // Gabon
+  "148": "french", // Chad
+  "140": "french", // Central African Republic
+  "384": "french", // Côte d'Ivoire
+  "108": "french", // Burundi
+  "332": "french", // Haiti
+  "540": "french", // New Caledonia
+
+  "756": "german", // Switzerland
+  "276": "german", // Germany
+  "040": "german", // Austria
+
+  "643": "russian", // Russia
+  "112": "russian", // Belarus
+  "398": "russian", // Kazakhstan
+
+  "076": "brazilian", // Brazil
+
+  "156": "schinese", // China
+  "158": "tchinese", // Taiwan
+
+  "392": "japanese", // Japan
+  "410": "koreana", // South Korea
+
+  // Steam distinguishes European Spanish from Latin American Spanish.
+  "724": "spanish", // Spain
+  "032": "latam", // Argentina
+  "068": "latam", // Bolivia
+  "152": "latam", // Chile
+  "170": "latam", // Colombia
+  "188": "latam", // Costa Rica
+  "192": "latam", // Cuba
+  "214": "latam", // Dominican Republic
+  "218": "latam", // Ecuador
+  "222": "latam", // El Salvador
+  "320": "latam", // Guatemala
+  "340": "latam", // Honduras
+  "484": "latam", // Mexico
+  "558": "latam", // Nicaragua
+  "591": "latam", // Panama
+  "600": "latam", // Paraguay
+  "604": "latam", // Peru
+  "630": "latam", // Puerto Rico
+  "858": "latam", // Uruguay
+  "862": "latam", // Venezuela
+
+  "380": "italian", // Italy
+  "528": "dutch", // Netherlands
+  "740": "dutch", // Suriname
+  "616": "polish", // Poland
+  "792": "turkish", // Turkey
+  "620": "portuguese", // Portugal
+  "024": "portuguese", // Angola
+  "624": "portuguese", // Guinea-Bissau
+  "508": "portuguese", // Mozambique
+  "764": "thai", // Thailand
+  "704": "vietnamese", // Vietnam
+  "752": "swedish", // Sweden
+  "208": "danish", // Denmark
+  "578": "norwegian", // Norway
+  "642": "romanian", // Romania
+  "498": "romanian", // Moldova
+  "348": "hungarian", // Hungary
+  "203": "czech", // Czechia
+  "300": "greek", // Greece
+  "100": "bulgarian", // Bulgaria
+
+  "012": "arabic", // Algeria
+  "818": "arabic", // Egypt
+  "368": "arabic", // Iraq
+  "400": "arabic", // Jordan
+  "414": "arabic", // Kuwait
+  "422": "arabic", // Lebanon
+  "434": "arabic", // Libya
+  "478": "arabic", // Mauritania
+  "504": "arabic", // Morocco
+  "512": "arabic", // Oman
+  "634": "arabic", // Qatar
+  "682": "arabic", // Saudi Arabia
+  "729": "arabic", // Sudan
+  "760": "arabic", // Syria
+  "788": "arabic", // Tunisia
+  "784": "arabic", // United Arab Emirates
+  "887": "arabic", // Yemen
 };
 
-export function getCountryColor(isoNumericId: string): string {
+export function getCountryScoreColor(isoNumericId: string, scores: Record<string, number>): string {
   const lang = COUNTRY_LANGUAGE[isoNumericId];
-  return lang ? LANGUAGE_COLORS[lang] : FALLBACK_COLOR;
-}
-
-const GLOBAL_LANGUAGE_KEYS: readonly GlobalLanguageKey[] = [
-  "english",
-  "schinese",
-  "french",
-  "german",
-  "russian",
-  "brazilian",
-];
-
-function isGlobalLanguageKey(language: string): language is GlobalLanguageKey {
-  return (GLOBAL_LANGUAGE_KEYS as readonly string[]).includes(language);
-}
-
-export type LanguageBucketRow = {
-  key: GlobalLanguageKey | "other";
-  reviewCount: number;
-  pctOfTotal: number;
-};
-
-// Buckets a raw per-language breakdown (Steam's language codes) into the 6
-// languages the world map's own legend tracks, folding everything else into
-// a single "other" row — same top-N-plus-rest pattern as
-// LanguageDistribution.tsx, applied here to the site-wide rollup instead of
-// a per-game one.
-export function bucketGlobalLanguages(
-  rows: { language: string; reviewCount: number; pctOfTotal: number }[],
-): LanguageBucketRow[] {
-  const known: LanguageBucketRow[] = [];
-  let otherReviewCount = 0;
-  let otherPctOfTotal = 0;
-
-  for (const row of rows) {
-    if (isGlobalLanguageKey(row.language)) {
-      known.push({ key: row.language, reviewCount: row.reviewCount, pctOfTotal: row.pctOfTotal });
-    } else {
-      otherReviewCount += row.reviewCount;
-      otherPctOfTotal += row.pctOfTotal;
-    }
-  }
-
-  known.sort((a, b) => b.pctOfTotal - a.pctOfTotal);
-
-  if (otherReviewCount > 0) {
-    known.push({ key: "other", reviewCount: otherReviewCount, pctOfTotal: otherPctOfTotal });
-  }
-
-  return known;
-}
-
-export type SubregionCountry = "switzerland" | "belgium" | "canada" | "finland";
-
-const SWITZERLAND_REGIONS: Record<string, LanguageKey> = {
-  Genève: "french",
-  Jura: "french",
-  Neuchâtel: "french",
-  Vaud: "french",
-  Valais: "french",
-  Fribourg: "french",
-  Ticino: "italian",
-  Aargau: "german",
-  Lucerne: "german",
-  Nidwalden: "german",
-  "Appenzell Ausserrhoden": "german",
-  "Appenzell Innerrhoden": "german",
-  "Sankt Gallen": "german",
-  Glarus: "german",
-  Graubünden: "german",
-  Schaffhausen: "german",
-  Schwyz: "german",
-  Thurgau: "german",
-  Uri: "german",
-  Zürich: "german",
-  Zug: "german",
-  "Basel-Landschaft": "german",
-  Bern: "german",
-  "Basel-Stadt": "german",
-  Solothurn: "german",
-  Obwalden: "german",
-};
-
-const BELGIUM_REGIONS: Record<string, LanguageKey> = {
-  Hainaut: "french",
-  Namur: "french",
-  Liege: "french",
-  Luxembourg: "french",
-  "Walloon Brabant": "french",
-  Limburg: "dutch",
-  "Flemish Brabant": "dutch",
-  "East Flanders": "dutch",
-  "West Flanders": "dutch",
-  Antwerp: "dutch",
-  Brussels: "french",
-};
-
-const CANADA_REGIONS: Record<string, LanguageKey> = {
-  Québec: "french",
-  Manitoba: "english",
-  Saskatchewan: "english",
-  Alberta: "english",
-  "British Columbia": "english",
-  Nunavut: "english",
-  "Northwest Territories": "english",
-  Yukon: "english",
-  Ontario: "english",
-  "New Brunswick": "english",
-  "Nova Scotia": "english",
-  "Newfoundland and Labrador": "english",
-  "Prince Edward Island": "english",
-};
-
-const FINLAND_REGIONS: Record<string, LanguageKey> = {
-  Lapland: "finnish",
-  "Central Finland": "finnish",
-  "Northern Savonia": "finnish",
-  Kainuu: "finnish",
-  "Northern Ostrobothnia": "finnish",
-  "Central Ostrobothnia": "finnish",
-  Ostrobothnia: "swedish",
-  "Southern Ostrobothnia": "finnish",
-  "Päijät-Häme": "finnish",
-  "Tavastia Proper": "finnish",
-  Pirkanmaa: "finnish",
-  Kymenlaakso: "finnish",
-  "South Karelia": "finnish",
-  "Southern Savonia": "finnish",
-  "North Karelia": "finnish",
-  "Finland Proper": "finnish",
-  Satakunta: "finnish",
-  Uusimaa: "finnish",
-};
-
-const REGION_LANGUAGE: Record<SubregionCountry, Record<string, LanguageKey>> = {
-  switzerland: SWITZERLAND_REGIONS,
-  belgium: BELGIUM_REGIONS,
-  canada: CANADA_REGIONS,
-  finland: FINLAND_REGIONS,
-};
-
-export function getRegionColor(country: SubregionCountry, regionName: string | null | undefined): string {
-  if (!regionName) return FALLBACK_COLOR;
-  const lang = REGION_LANGUAGE[country][regionName];
-  return lang ? LANGUAGE_COLORS[lang] : FALLBACK_COLOR;
+  if (!lang) return FALLBACK_COLOR;
+  const score = scores[lang];
+  return score === undefined ? FALLBACK_COLOR : scoreToColor(score);
 }
