@@ -1,9 +1,21 @@
+import Link from "next/link";
 import { geoNaturalEarth1 } from "d3-geo";
 import type { Topology } from "topojson-specification";
+import { GameSearch } from "@/components/GameSearch";
 import { Nav } from "@/components/Nav";
-import { getLanguageReviewScores } from "@/lib/data/gameData";
+import { getGameLanguageReviewScores, getGameStats, getLanguageReviewScores } from "@/lib/data/gameData";
+import type { GameStats, LanguageReviewScore } from "@/lib/data/types";
 import { fitProjection, topologyToPaths } from "@/lib/geo";
-import { COUNTRY_LANGUAGE, FALLBACK_COLOR, getCountryScoreColor, LANGUAGE_LABELS, scoreToColor, type LanguageKey } from "@/lib/map";
+import {
+  buildScoreMap,
+  COUNTRY_LANGUAGE,
+  FALLBACK_COLOR,
+  getCountryScoreColor,
+  LANGUAGE_LABELS,
+  MIN_REVIEWS_FOR_GAME_COLOR,
+  scoreToColor,
+  type LanguageKey,
+} from "@/lib/map";
 
 import worldTopologyRaw from "world-atlas/countries-110m.json";
 
@@ -16,13 +28,18 @@ const worldTopology = worldTopologyRaw as unknown as Topology;
 
 const WORLD_SIZE: [number, number] = [1000, 480];
 
-function WorldMap({ scores }: { scores: Record<string, number> }) {
-  const projection = fitProjection(geoNaturalEarth1, WORLD_SIZE, worldTopology, "countries");
-  const paths = topologyToPaths(worldTopology, "countries", projection);
+// La géométrie ne dépend pas des scores : projetée une fois au chargement du
+// module plutôt qu'à chaque requête.
+const WORLD_PATHS = topologyToPaths(
+  worldTopology,
+  "countries",
+  fitProjection(geoNaturalEarth1, WORLD_SIZE, worldTopology, "countries"),
+);
 
+function WorldMap({ scores }: { scores: Record<string, number> }) {
   return (
     <svg viewBox={`0 0 ${WORLD_SIZE[0]} ${WORLD_SIZE[1]}`} className="w-full">
-      {paths.map((p) => {
+      {WORLD_PATHS.map((p) => {
         const lang = COUNTRY_LANGUAGE[p.id ?? ""];
         const score = lang ? scores[lang] : undefined;
         const color = getCountryScoreColor(p.id ?? "", scores);
@@ -47,25 +64,75 @@ function WorldMap({ scores }: { scores: Record<string, number> }) {
   );
 }
 
-export default async function CartePage() {
-  const scoreRows = await getLanguageReviewScores();
-  const scores = Object.fromEntries(scoreRows.map((row) => [row.language, row.pctPositive]));
+function SelectedGameHeader({ game, scoreRows }: { game: GameStats; scoreRows: LanguageReviewScore[] }) {
+  const coloredLanguages = scoreRows.filter((row) => row.totalReviews >= MIN_REVIEWS_FOR_GAME_COLOR).length;
+
+  return (
+    <div className="mt-4 flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-3">
+      <div
+        className="h-14 w-14 flex-shrink-0 rounded-lg bg-white/10 bg-cover bg-center"
+        style={game.coverUrl ? { backgroundImage: `url(${game.coverUrl})` } : undefined}
+      />
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-bold text-white">{game.name}</div>
+        <div className="text-xs text-neutral-400">
+          {game.totalReviews.toLocaleString("fr-FR")} reviews ·{" "}
+          <span style={{ color: scoreToColor(game.pctPositive) }}>{Math.round(game.pctPositive * 100)}% positif</span>{" "}
+          au global · {coloredLanguages} langue{coloredLanguages > 1 ? "s" : ""} assez commentée
+          {coloredLanguages > 1 ? "s" : ""} pour colorer la carte
+        </div>
+      </div>
+      <Link href={`/games/${game.appId}`} className="text-xs whitespace-nowrap text-brand-blue underline">
+        Fiche du jeu ↗
+      </Link>
+    </div>
+  );
+}
+
+type CartePageProps = {
+  searchParams: Promise<{ app?: string }>;
+};
+
+export default async function CartePage({ searchParams }: CartePageProps) {
+  const { app } = await searchParams;
+  const requestedAppId = app && /^\d+$/.test(app) ? Number(app) : null;
+
+  // Un app_id inconnu (URL bidouillée, jeu retiré du catalogue) retombe sur la
+  // carte globale plutôt que sur une carte entièrement grise.
+  const game = requestedAppId === null ? null : await getGameStats(requestedAppId);
+  const scoreRows = game ? await getGameLanguageReviewScores(game.appId) : await getLanguageReviewScores();
+
+  const scores = buildScoreMap(scoreRows, game ? MIN_REVIEWS_FOR_GAME_COLOR : 0);
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-8">
       <Nav />
 
-      <div className="mt-6 flex flex-wrap items-end justify-between gap-3">
-        <h1 className="text-2xl font-bold text-white">
-          🌍 Score des reviews <span className="text-neutral-400">par langue</span>
-        </h1>
-        <div className="flex gap-2">
-          <span className="rounded-full bg-gradient-to-r from-brand-blue to-brand-red px-3 py-1 text-xs font-bold text-black">
-            Global
-          </span>
-          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-300">Par jeu</span>
-        </div>
+      <h1 className="mt-6 text-2xl font-bold text-white">
+        🌍 Score des reviews <span className="text-neutral-400">par langue</span>
+      </h1>
+
+      <div className="mt-3">
+        <GameSearch
+          selected={
+            game && {
+              appId: game.appId,
+              name: game.name,
+              coverUrl: game.coverUrl,
+              totalReviews: game.totalReviews,
+              pctPositive: game.pctPositive,
+            }
+          }
+        />
       </div>
+
+      {requestedAppId !== null && !game && (
+        <p className="mt-4 rounded-r-md border-l-2 border-brand-red bg-white/5 px-3 py-2 text-xs text-neutral-300">
+          Jeu introuvable (app id {requestedAppId}) — affichage de la carte globale.
+        </p>
+      )}
+
+      {game && <SelectedGameHeader game={game} scoreRows={scoreRows} />}
 
       <p className="mt-4 max-w-2xl rounded-r-md border-l-2 border-brand-red bg-white/5 px-3 py-2 text-xs text-neutral-400">
         ⚠️ Chaque pays est coloré selon la note moyenne (% d&apos;avis positifs) de sa langue dominante déclarée
@@ -101,40 +168,54 @@ export default async function CartePage() {
       <p className="mt-2 text-[0.65rem] text-neutral-500">
         <span className="mr-1.5 inline-block h-2 w-2 rounded-sm align-middle" style={{ backgroundColor: FALLBACK_COLOR }} />
         Non classé — langue dominante non trackée ou trop incertaine pour être assignée
+        {game ? `, ou moins de ${MIN_REVIEWS_FOR_GAME_COLOR} avis dans cette langue pour ce jeu` : ""}
       </p>
 
       <h2 className="mt-8 mb-3 text-xs uppercase tracking-wide text-neutral-400">
-        Répartition &amp; note, toutes les langues Steam
+        {game
+          ? `Répartition & note par langue — ${game.name}`
+          : "Répartition & note, toutes les langues Steam"}
       </h2>
-      <div className="flex flex-col gap-2">
-        {scoreRows.map((row) => {
-          const label = LANGUAGE_LABELS[row.language as LanguageKey] ?? row.language;
-          const color = scoreToColor(row.pctPositive);
-          return (
-            <div
-              key={row.language}
-              className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-xs sm:grid-cols-[140px_100px_1fr_auto]"
-            >
-              <span className="font-semibold text-white">{label}</span>
-              <span className="font-mono text-[0.7rem] text-neutral-500 tabular-nums">
-                {row.totalReviews.toLocaleString("fr-FR")} reviews
-              </span>
-              <div className="col-span-2 h-1.5 overflow-hidden rounded-full bg-white/5 sm:col-span-1">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-brand-blue to-brand-red"
-                  style={{ width: `${(row.pctOfTotal * 100).toFixed(1)}%` }}
-                />
-              </div>
-              <span
-                className="justify-self-end rounded-full border px-2.5 py-1 font-mono text-[0.68rem] font-semibold whitespace-nowrap"
-                style={{ backgroundColor: `${color}22`, color, borderColor: `${color}55` }}
+      {scoreRows.length === 0 ? (
+        <p className="text-sm text-neutral-400">Aucune review par langue pour ce jeu.</p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {scoreRows.map((row) => {
+            const label = LANGUAGE_LABELS[row.language as LanguageKey] ?? row.language;
+            const tooThin = Boolean(game) && row.totalReviews < MIN_REVIEWS_FOR_GAME_COLOR;
+            const color = scoreToColor(row.pctPositive);
+            // Le badge d'une langue trop peu commentée est neutralisé, comme
+            // le pays correspondant sur la carte.
+            const badgeStyle = tooThin
+              ? { backgroundColor: "rgba(255,255,255,.04)", color: "var(--ink-muted)", borderColor: "rgba(255,255,255,.1)" }
+              : { backgroundColor: `${color}22`, color, borderColor: `${color}55` };
+            return (
+              <div
+                key={row.language}
+                className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-xs sm:grid-cols-[140px_100px_1fr_auto]"
               >
-                {Math.round(row.pctPositive * 100)}% positif
-              </span>
-            </div>
-          );
-        })}
-      </div>
+                <span className="font-semibold text-white">{label}</span>
+                <span className="font-mono text-[0.7rem] text-neutral-500 tabular-nums">
+                  {row.totalReviews.toLocaleString("fr-FR")} reviews
+                </span>
+                <div className="col-span-2 h-1.5 overflow-hidden rounded-full bg-white/5 sm:col-span-1">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-brand-blue to-brand-red"
+                    style={{ width: `${(row.pctOfTotal * 100).toFixed(1)}%` }}
+                  />
+                </div>
+                <span
+                  className="justify-self-end rounded-full border px-2.5 py-1 font-mono text-[0.68rem] font-semibold whitespace-nowrap"
+                  style={badgeStyle}
+                  title={tooThin ? `Moins de ${MIN_REVIEWS_FOR_GAME_COLOR} avis : non coloré sur la carte` : undefined}
+                >
+                  {Math.round(row.pctPositive * 100)}% positif
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </main>
   );
 }

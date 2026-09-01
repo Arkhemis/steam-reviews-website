@@ -276,20 +276,42 @@ type LanguageReviewScoreRow = {
   pct_of_total: string;
 };
 
-export async function getLanguageReviewScores(): Promise<LanguageReviewScore[]> {
-  const { rows } = await pool.query<LanguageReviewScoreRow>(
-    `SELECT language, total_reviews, total_positive, pct_positive, pct_of_total
-     FROM marts.language_review_score
-     ORDER BY pct_of_total DESC`,
-  );
-
-  return rows.map((row) => ({
+function mapLanguageReviewScoreRow(row: LanguageReviewScoreRow): LanguageReviewScore {
+  return {
     language: row.language,
     totalReviews: Number(row.total_reviews),
     totalPositive: Number(row.total_positive),
     pctPositive: Number(row.pct_positive),
     pctOfTotal: Number(row.pct_of_total),
-  }));
+  };
+}
+
+const LANGUAGE_REVIEW_SCORE_COLUMNS = "language, total_reviews, total_positive, pct_positive, pct_of_total";
+
+export async function getLanguageReviewScores(): Promise<LanguageReviewScore[]> {
+  const { rows } = await pool.query<LanguageReviewScoreRow>(
+    `SELECT ${LANGUAGE_REVIEW_SCORE_COLUMNS}
+     FROM marts.language_review_score_global
+     ORDER BY pct_of_total DESC`,
+  );
+
+  return rows.map(mapLanguageReviewScoreRow);
+}
+
+// Same shape as the global scores above, but for a single game. Upstream only
+// exposes this grain in the intermediate layer for now
+// (`language_review_score`, one row per app_id + language); the marts layer
+// only rolls it up globally. TODO: point this at a mart once one exists.
+export async function getGameLanguageReviewScores(appId: number): Promise<LanguageReviewScore[]> {
+  const { rows } = await pool.query<LanguageReviewScoreRow>(
+    `SELECT ${LANGUAGE_REVIEW_SCORE_COLUMNS}
+     FROM intermediate.language_review_score
+     WHERE app_id = $1
+     ORDER BY pct_of_total DESC`,
+    [appId],
+  );
+
+  return rows.map(mapLanguageReviewScoreRow);
 }
 
 export async function getGameTopReviews(appId: number): Promise<GameTopReview[]> {

@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { COUNTRY_LANGUAGE, FALLBACK_COLOR, getCountryScoreColor, LANGUAGE_LABELS, scoreToColor } from "@/lib/map";
+import {
+  buildScoreMap,
+  COUNTRY_LANGUAGE,
+  FALLBACK_COLOR,
+  getCountryScoreColor,
+  LANGUAGE_LABELS,
+  scoreToColor,
+} from "@/lib/map";
 
 describe("scoreToColor", () => {
   it("returns the critical red at 0", () => {
@@ -74,5 +81,24 @@ describe("getCountryScoreColor", () => {
 
   it("falls back to the neutral color when the mapped language has no score", () => {
     expect(getCountryScoreColor("250", { german: 0.8 })).toBe(FALLBACK_COLOR);
+  });
+});
+
+describe("buildScoreMap", () => {
+  const rows = [
+    { language: "english", totalReviews: 500, pctPositive: 0.9 },
+    { language: "french", totalReviews: 4, pctPositive: 0 },
+  ];
+
+  it("keeps every language when no threshold is given", () => {
+    expect(buildScoreMap(rows)).toEqual({ english: 0.9, french: 0 });
+  });
+
+  it("drops languages under the review threshold", () => {
+    expect(buildScoreMap(rows, 10)).toEqual({ english: 0.9 });
+  });
+
+  it("leaves the countries of a dropped language uncolored", () => {
+    expect(getCountryScoreColor("250", buildScoreMap(rows, 10))).toBe(FALLBACK_COLOR); // France
   });
 });

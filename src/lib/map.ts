@@ -1,5 +1,5 @@
 // Steam's review-language codes (matches the `language` column in
-// stg_steam_review / marts.language_review_score), plus the French label
+// stg_steam_review / marts.language_review_score_global), plus the French label
 // shown for each in the ranking list and map tooltips.
 export type LanguageKey =
   | "arabic"
@@ -234,6 +234,23 @@ export const COUNTRY_LANGUAGE: Record<string, LanguageKey> = {
   "784": "arabic", // United Arab Emirates
   "887": "arabic", // Yemen
 };
+
+// A language with a handful of reviews for one game would otherwise paint a
+// whole country red or green off pure noise, so per-game coloring ignores
+// languages under this many reviews (they stay "non classé"). The global map
+// never needs it: every tracked language has thousands of reviews site-wide.
+export const MIN_REVIEWS_FOR_GAME_COLOR = 10;
+
+// Turns the per-language rows into the `language -> pct_positive` lookup the
+// map colors from, dropping anything below `minReviews`.
+export function buildScoreMap(
+  rows: readonly { language: string; totalReviews: number; pctPositive: number }[],
+  minReviews = 0,
+): Record<string, number> {
+  return Object.fromEntries(
+    rows.filter((row) => row.totalReviews >= minReviews).map((row) => [row.language, row.pctPositive]),
+  );
+}
 
 export function getCountryScoreColor(isoNumericId: string, scores: Record<string, number>): string {
   const lang = COUNTRY_LANGUAGE[isoNumericId];
