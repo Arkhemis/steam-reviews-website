@@ -1,5 +1,6 @@
-import Image from "next/image";
 import Link from "next/link";
+import { GameCoverTile } from "@/components/GameCoverTile";
+import { GameSearchForm } from "@/components/GameSearchForm";
 import { Nav } from "@/components/Nav";
 import { getTopGames } from "@/lib/data/gameData";
 
@@ -28,73 +29,74 @@ export default async function GamesIndexPage({ searchParams }: GamesIndexPagePro
   const hasNext = rows.length > PAGE_SIZE;
 
   return (
-    <main className="mx-auto max-w-5xl px-6 py-8">
-      <Nav />
+    <div className="min-h-screen bg-[#0c1116] text-[#eef2f4]">
+      <div className="mx-auto max-w-[1320px] px-5 py-8 sm:px-7">
+        <Nav />
 
-      <h1 className="mt-8 text-2xl font-bold text-white">Jeux</h1>
-      <p className="mt-1 text-sm text-neutral-400">Les jeux les plus commentés sur Steam.</p>
+        <h1 className="mt-8 text-2xl font-extrabold tracking-tight">Jeux</h1>
+        <p className="mt-1 text-sm text-[#9fb2bd]">Les jeux les plus commentés sur Steam.</p>
 
-      <form className="mt-6" action="/games">
-        <input
-          type="text"
-          name="q"
-          defaultValue={q ?? ""}
-          placeholder="🔍 Chercher un jeu, ex. Baldur's Gate 3…"
-          className="block w-full max-w-md rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-300 placeholder:text-neutral-500 focus:outline-none"
+        <GameSearchForm
+          placeholder="Chercher un jeu, ex. Baldur's Gate 3…"
+          defaultValue={q}
+          className="mt-6 max-w-md"
         />
-      </form>
 
-      {games.length === 0 ? (
-        <p className="mt-6 text-sm text-neutral-400">
-          {q ? `Aucun jeu ne correspond à « ${q} ».` : "Plus aucun jeu à cette page."}
-        </p>
-      ) : (
-        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {games.map((game) => (
-            <Link
-              key={game.appId}
-              href={`/games/${game.appId}`}
-              className="rounded-xl border border-white/10 bg-white/5 p-3 hover:border-white/20"
-            >
-              <div className="relative h-20 w-full overflow-hidden rounded-lg bg-white/10">
-                {game.coverUrl && (
-                  <Image src={game.coverUrl} alt="" fill sizes="160px" className="object-cover" />
-                )}
-              </div>
-              <div className="mt-2 text-sm font-semibold text-white">{game.name}</div>
-              <div className="text-xs" style={{ color: "var(--status-good)" }}>
-                {Math.round(game.pctPositive * 100)}% positif
-              </div>
-            </Link>
-          ))}
-        </div>
-      )}
+        {games.length === 0 ? (
+          <p className="mt-6 text-sm text-[#9fb2bd]">
+            {q ? (
+              <>
+                Aucun jeu ne correspond à « {q} ».{" "}
+                <Link href="/games" className="text-brand-blue hover:underline">
+                  Voir tous les jeux →
+                </Link>
+              </>
+            ) : (
+              "Plus aucun jeu à cette page."
+            )}
+          </p>
+        ) : (
+          <div className="mt-6 grid grid-cols-3 gap-2.5 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8">
+            {games.map((game) => (
+              <GameCoverTile
+                key={game.appId}
+                appId={game.appId}
+                name={game.name}
+                coverUrl={game.coverUrl}
+                pct={game.pctPositive * 100}
+                reviews={game.totalReviews}
+                sizes="12vw"
+              />
+            ))}
+          </div>
+        )}
 
-      {(page > 1 || hasNext) && (
-        <nav className="mt-8 flex items-center justify-between text-xs" aria-label="Pagination">
-          {page > 1 ? (
-            <Link
-              href={pageHref(page - 1, q)}
-              className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-neutral-300 hover:border-white/20"
-            >
-              ← Précédent
-            </Link>
-          ) : (
-            <span />
-          )}
-          <span className="text-neutral-500">Page {page}</span>
-          {hasNext ? (
-            <Link
-              href={pageHref(page + 1, q)}
-              className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-neutral-300 hover:border-white/20"
-            >
-              Suivant →
-            </Link>
-          ) : (
-            <span />
-          )}
-        </nav>
-      )}
-    </main>
+        {(page > 1 || hasNext) && (
+          <nav className="mt-8 flex items-center justify-between text-xs" aria-label="Pagination">
+            {page > 1 ? (
+              <Link
+                href={pageHref(page - 1, q)}
+                className="rounded-full border border-[#24333f] px-4 py-2 text-[#9fb2bd] hover:border-white/30"
+              >
+                ← Précédent
+              </Link>
+            ) : (
+              <span />
+            )}
+            <span className="text-[#5f7481]">Page {page}</span>
+            {hasNext ? (
+              <Link
+                href={pageHref(page + 1, q)}
+                className="rounded-full border border-[#24333f] px-4 py-2 text-[#9fb2bd] hover:border-white/30"
+              >
+                Suivant →
+              </Link>
+            ) : (
+              <span />
+            )}
+          </nav>
+        )}
+      </div>
+    </div>
   );
 }

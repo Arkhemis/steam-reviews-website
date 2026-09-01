@@ -4,6 +4,7 @@ import {
   getGameReviewTrends,
   getGameStats,
   getGameTopReviews,
+  getReviewDuel,
   getTopGames,
   TOP_REVIEWS_PER_SIDE,
 } from "@/lib/data/gameData";
@@ -68,5 +69,14 @@ describe("gameData", () => {
     const games = await getTopGames(10, "baldur");
     expect(games.length).toBeGreaterThan(0);
     expect(games.every((g) => g.name.toLowerCase().includes("baldur"))).toBe(true);
+  });
+
+  it("returns one positive and one negative review for the review duel", async () => {
+    const duel = await getReviewDuel();
+    expect(duel).not.toBeNull();
+    expect(duel?.positive.review.votedUp).toBe(true);
+    expect(duel?.negative.review.votedUp).toBe(false);
+    expect(duel?.positive.game.totalReviews).toBeGreaterThan(5000);
+    expect(duel?.negative.game.totalReviews).toBeGreaterThan(5000);
   });
 });

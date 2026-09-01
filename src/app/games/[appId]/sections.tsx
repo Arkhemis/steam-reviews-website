@@ -65,8 +65,6 @@ export async function TrendsSection({ appId }: { appId: number }) {
   return <ScoreEvolutionChart trends={trends} />;
 }
 
-// In-memory lookup today, but the upstream TODO points it at Postgres like the
-// others — the boundary is here so that switch costs nothing.
 export async function LanguagesSection({ appId }: { appId: number }) {
   const languages = await getGameLanguageDistribution(appId);
   return <LanguageDistribution languages={languages} />;

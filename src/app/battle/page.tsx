@@ -80,10 +80,12 @@ export default async function BattlePage({ searchParams }: BattlePageProps) {
 
   if (!left || !right) {
     return (
-      <main className="mx-auto max-w-4xl px-6 py-8">
-        <Nav />
-        <p className="mt-12 text-center text-neutral-400">Un des deux jeux est introuvable.</p>
-      </main>
+      <div className="min-h-screen bg-[#0c1116] text-[#eef2f4]">
+        <div className="mx-auto max-w-[1320px] px-5 py-8 sm:px-7">
+          <Nav />
+          <p className="mt-12 text-center text-[#9fb2bd]">Un des deux jeux est introuvable.</p>
+        </div>
+      </div>
     );
   }
 
@@ -103,100 +105,102 @@ export default async function BattlePage({ searchParams }: BattlePageProps) {
   const winner = leftWinCount === rightWinCount ? null : leftWinCount > rightWinCount ? left : right;
 
   return (
-    <main className="mx-auto max-w-4xl px-6 py-8">
-      <Nav />
+    <div className="min-h-screen bg-[#0c1116] text-[#eef2f4]">
+      <div className="mx-auto max-w-[1320px] px-5 py-8 sm:px-7">
+        <Nav />
 
-      <p className="mt-6 text-center text-sm text-neutral-400">
-        Face-à-face 100% calculé à partir des données existantes — pas de vote, pas de compte.
-      </p>
+        <p className="mt-6 text-center text-sm text-[#9fb2bd]">
+          Face-à-face 100% calculé à partir des données existantes — pas de vote, pas de compte.
+        </p>
 
-      <div className="mt-6 flex items-center justify-center gap-8">
-        {[left, right].map((game, i) => (
-          <Link key={game.appId} href={`/games/${game.appId}`} className="flex flex-col items-center gap-2">
-            <div className="relative h-24 w-24 overflow-hidden rounded-2xl bg-white/10">
-              {game.coverUrl && <Image src={game.coverUrl} alt="" fill sizes="96px" className="object-cover" />}
-              {winner?.appId === game.appId && (
-                <Image
-                  src="/chad.png"
-                  alt=""
-                  fill
-                  sizes="96px"
-                  className="animate-chad-blink object-cover"
-                />
-              )}
-            </div>
-            <h2 className="text-lg font-bold text-white">{game.name}</h2>
-            <div
-              className={
-                i === 0
-                  ? "bg-gradient-to-r from-brand-blue to-brand-red bg-clip-text text-2xl font-black text-transparent"
-                  : "text-2xl font-black text-neutral-300"
-              }
-            >
-              {Math.round(game.pctPositive * 100)}%
-            </div>
-          </Link>
-        ))}
-      </div>
-
-      {winner && (
-        <div
-          className="mx-auto mt-6 max-w-md rounded-lg border border-white/10 px-4 py-2 text-center text-sm"
-          style={{ backgroundColor: "rgba(12,163,12,0.08)", color: "var(--status-good)" }}
-        >
-          🏆 {winner.name} l&apos;emporte sur {Math.max(leftWinCount, rightWinCount)} critères sur {stats.length}
-        </div>
-      )}
-
-      <div className="mx-auto mt-6 max-w-2xl space-y-4">
-        {stats.map((stat) => (
-          <div key={stat.label}>
-            <div className="mb-1 text-center text-xs uppercase tracking-wide text-neutral-400">{stat.label}</div>
-            <div className="flex items-center gap-3">
-              <span className="w-16 text-right text-sm font-bold text-white">{stat.left}</span>
-              <div className="flex h-2.5 flex-1 items-stretch gap-[2px]">
-                <div className="flex h-full flex-1 justify-end">
-                  <div
-                    className="h-full rounded-l-[4px]"
-                    style={{ width: `${stat.leftFillPct}%`, backgroundColor: "var(--series-1)" }}
+        <div className="mt-6 flex items-center justify-center gap-8">
+          {[left, right].map((game, i) => (
+            <Link key={game.appId} href={`/games/${game.appId}`} className="flex flex-col items-center gap-2">
+              <div className="relative h-24 w-24 overflow-hidden rounded-2xl bg-white/10">
+                {game.coverUrl && <Image src={game.coverUrl} alt="" fill sizes="96px" className="object-cover" />}
+                {winner?.appId === game.appId && (
+                  <Image
+                    src="/chad.png"
+                    alt=""
+                    fill
+                    sizes="96px"
+                    className="animate-chad-blink object-cover"
                   />
-                </div>
-                <div className="flex h-full flex-1 justify-start">
-                  <div
-                    className="h-full rounded-r-[4px]"
-                    style={{ width: `${stat.rightFillPct}%`, backgroundColor: "var(--series-2)" }}
-                  />
-                </div>
+                )}
               </div>
-              <span className="w-16 text-sm font-bold text-white">{stat.right}</span>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <h2 className="mx-auto mt-8 mb-3 max-w-2xl text-xs uppercase tracking-wide text-neutral-400">
-        Meilleure review de chaque côté
-      </h2>
-      <div className="mx-auto grid max-w-2xl grid-cols-1 gap-3 sm:grid-cols-2">
-        {[
-          { game: left, review: leftTopReview },
-          { game: right, review: rightTopReview },
-        ].map(({ game, review }) => (
-          <div key={game.appId}>
-            <div className="mb-1 text-xs text-neutral-400">{game.name}</div>
-            {review ? <ReviewCard review={review} /> : <EmptyReviewCard label="Pas de review positive disponible." />}
-          </div>
-        ))}
-      </div>
-
-      <div className="mx-auto mt-8 flex max-w-2xl items-center justify-center gap-2">
-        <div className="w-full max-w-sm truncate rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs text-neutral-400">
-          steam.reviews/battle?game={left.appId}&vs={right.appId}
+              <h2 className="text-lg font-bold text-white">{game.name}</h2>
+              <div
+                className={
+                  i === 0
+                    ? "bg-gradient-to-r from-brand-blue to-brand-red bg-clip-text text-2xl font-black text-transparent"
+                    : "text-2xl font-black text-neutral-300"
+                }
+              >
+                {Math.round(game.pctPositive * 100)}%
+              </div>
+            </Link>
+          ))}
         </div>
-        <button className="rounded-full bg-gradient-to-r from-brand-blue to-brand-red px-4 py-2 text-xs font-bold text-black">
-          Copier le lien
-        </button>
+
+        {winner && (
+          <div
+            className="mx-auto mt-6 max-w-md rounded-lg border border-white/10 px-4 py-2 text-center text-sm"
+            style={{ backgroundColor: "rgba(12,163,12,0.08)", color: "var(--status-good)" }}
+          >
+            🏆 {winner.name} l&apos;emporte sur {Math.max(leftWinCount, rightWinCount)} critères sur {stats.length}
+          </div>
+        )}
+
+        <div className="mx-auto mt-6 max-w-2xl space-y-4">
+          {stats.map((stat) => (
+            <div key={stat.label}>
+              <div className="mb-1 text-center text-xs uppercase tracking-wide text-neutral-400">{stat.label}</div>
+              <div className="flex items-center gap-3">
+                <span className="w-16 text-right text-sm font-bold text-white">{stat.left}</span>
+                <div className="flex h-2.5 flex-1 items-stretch gap-[2px]">
+                  <div className="flex h-full flex-1 justify-end">
+                    <div
+                      className="h-full rounded-l-[4px]"
+                      style={{ width: `${stat.leftFillPct}%`, backgroundColor: "var(--series-1)" }}
+                    />
+                  </div>
+                  <div className="flex h-full flex-1 justify-start">
+                    <div
+                      className="h-full rounded-r-[4px]"
+                      style={{ width: `${stat.rightFillPct}%`, backgroundColor: "var(--series-2)" }}
+                    />
+                  </div>
+                </div>
+                <span className="w-16 text-sm font-bold text-white">{stat.right}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <h2 className="mx-auto mt-8 mb-3 max-w-2xl text-xs uppercase tracking-wide text-neutral-400">
+          Meilleure review de chaque côté
+        </h2>
+        <div className="mx-auto grid max-w-2xl grid-cols-1 gap-3 sm:grid-cols-2">
+          {[
+            { game: left, review: leftTopReview },
+            { game: right, review: rightTopReview },
+          ].map(({ game, review }) => (
+            <div key={game.appId}>
+              <div className="mb-1 text-xs text-neutral-400">{game.name}</div>
+              {review ? <ReviewCard review={review} /> : <EmptyReviewCard label="Pas de review positive disponible." />}
+            </div>
+          ))}
+        </div>
+
+        <div className="mx-auto mt-8 flex max-w-2xl items-center justify-center gap-2">
+          <div className="w-full max-w-sm truncate rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs text-neutral-400">
+            steam.reviews/battle?game={left.appId}&vs={right.appId}
+          </div>
+          <button className="rounded-full bg-gradient-to-r from-brand-blue to-brand-red px-4 py-2 text-xs font-bold text-black">
+            Copier le lien
+          </button>
+        </div>
       </div>
-    </main>
+    </div>
   );
 }

@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Vendored runtime for the Claude Design canvas source files (*.dc.html) kept
+    // at the repo root for reference — not application code.
+    "support.js",
   ]),
 ]);
 

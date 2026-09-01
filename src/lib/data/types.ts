@@ -69,3 +69,13 @@ export type GameTopReview = {
   reviewUrl: string;
   rankInGame: number;
 };
+
+export type ReviewDuelSide = {
+  game: GameStats;
+  review: GameTopReview;
+};
+
+export type ReviewDuel = {
+  positive: ReviewDuelSide;
+  negative: ReviewDuelSide;
+};
