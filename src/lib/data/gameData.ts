@@ -83,14 +83,14 @@ export async function getGameStats(appId: number): Promise<GameStats | null> {
   return row ? mapGameStatsRow(row) : null;
 }
 
-export async function getTopGames(limit: number, search?: string): Promise<GameStats[]> {
+export async function getTopGames(limit: number, search?: string, offset = 0): Promise<GameStats[]> {
   const query = search?.trim();
   const { rows } = await pool.query(
     `SELECT ${GAME_STATS_COLUMNS} FROM marts.game_stats
      WHERE total_reviews > 0 AND ($2::text IS NULL OR game_name ILIKE '%' || $2 || '%')
-     ORDER BY total_reviews DESC
-     LIMIT $1`,
-    [limit, query || null],
+     ORDER BY total_reviews DESC, steam_app_id
+     LIMIT $1 OFFSET $3`,
+    [limit, query || null, offset],
   );
 
   return rows.map(mapGameStatsRow);
@@ -314,27 +314,48 @@ export async function getGameLanguageReviewScores(appId: number): Promise<Langua
   return rows.map(mapLanguageReviewScoreRow);
 }
 
-export async function getGameTopReviews(appId: number): Promise<GameTopReview[]> {
+// Upstream ranks `review_highlight` per (app_id, voted_up, language) and keeps
+// 30 of each, so a game commented in twenty-odd languages carries well over a
+// thousand rows — full review texts included. Nothing on the site shows more
+// than a couple at a time, so the cap belongs in the query rather than in the
+// RSC payload. Ordering by `rank_in_game` before the tie-break keeps the
+// language spread: every language's best review outranks any language's second
+// best, so a small `perSide` still yields a varied pool instead of twenty
+// English reviews.
+export const TOP_REVIEWS_PER_SIDE = 20;
+
+export async function getGameTopReviews(
+  appId: number,
+  perSide: number = TOP_REVIEWS_PER_SIDE,
+): Promise<GameTopReview[]> {
   const { rows } = await pool.query(
-    `SELECT
-       recommendation_id,
-       app_id,
-       review_text,
-       language,
-       voted_up,
-       votes_up,
-       votes_funny,
-       weighted_vote_score,
-       author_personaname,
-       author_avatar,
-       author_profile_url,
-       author_playtime_at_review_minutes,
-       author_last_played_at,
-       rank_in_game
-     FROM marts.review_highlight
-     WHERE app_id = $1
-     ORDER BY voted_up DESC, rank_in_game`,
-    [appId],
+    `WITH ranked AS (
+       SELECT
+         recommendation_id,
+         app_id,
+         review_text,
+         language,
+         voted_up,
+         votes_up,
+         votes_funny,
+         weighted_vote_score,
+         author_personaname,
+         author_avatar,
+         author_profile_url,
+         author_playtime_at_review_minutes,
+         author_last_played_at,
+         rank_in_game,
+         ROW_NUMBER() OVER (
+           PARTITION BY voted_up
+           ORDER BY rank_in_game, weighted_vote_score DESC, recommendation_id
+         ) AS rank_in_side
+       FROM marts.review_highlight
+       WHERE app_id = $1
+     )
+     SELECT * FROM ranked
+     WHERE rank_in_side <= $2
+     ORDER BY voted_up DESC, rank_in_side`,
+    [appId, perSide],
   );
 
   return rows.map((row) => ({

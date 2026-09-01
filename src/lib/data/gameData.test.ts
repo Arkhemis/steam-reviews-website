@@ -5,6 +5,7 @@ import {
   getGameStats,
   getGameTopReviews,
   getTopGames,
+  TOP_REVIEWS_PER_SIDE,
 } from "@/lib/data/gameData";
 
 const BALDURS_GATE_3_APP_ID = 1086940;
@@ -35,12 +36,25 @@ describe("gameData", () => {
     expect(total).toBeCloseTo(1, 1);
   });
 
-  it("returns at most 5 top reviews per voted_up side", async () => {
+  it("caps top reviews per voted_up side", async () => {
     const reviews = await getGameTopReviews(BALDURS_GATE_3_APP_ID);
     const positiveCount = reviews.filter((r) => r.votedUp).length;
     const negativeCount = reviews.filter((r) => !r.votedUp).length;
-    expect(positiveCount).toBeLessThanOrEqual(5);
-    expect(negativeCount).toBeLessThanOrEqual(5);
+    expect(positiveCount).toBeLessThanOrEqual(TOP_REVIEWS_PER_SIDE);
+    expect(negativeCount).toBeLessThanOrEqual(TOP_REVIEWS_PER_SIDE);
+  });
+
+  it("honours a smaller per-side cap", async () => {
+    const reviews = await getGameTopReviews(BALDURS_GATE_3_APP_ID, 1);
+    expect(reviews.filter((r) => r.votedUp).length).toBeLessThanOrEqual(1);
+    expect(reviews.filter((r) => !r.votedUp).length).toBeLessThanOrEqual(1);
+  });
+
+  it("pages through top games without repeating a game", async () => {
+    const firstPage = await getTopGames(5);
+    const secondPage = await getTopGames(5, undefined, 5);
+    const overlap = secondPage.filter((g) => firstPage.some((f) => f.appId === g.appId));
+    expect(overlap).toEqual([]);
   });
 
   it("returns top games sorted by total reviews descending, excluding games without review data", async () => {

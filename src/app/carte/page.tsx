@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { geoNaturalEarth1 } from "d3-geo";
 import type { Topology } from "topojson-specification";
@@ -69,10 +70,9 @@ function SelectedGameHeader({ game, scoreRows }: { game: GameStats; scoreRows: L
 
   return (
     <div className="mt-4 flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-3">
-      <div
-        className="h-14 w-14 flex-shrink-0 rounded-lg bg-white/10 bg-cover bg-center"
-        style={game.coverUrl ? { backgroundImage: `url(${game.coverUrl})` } : undefined}
-      />
+      <div className="relative h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg bg-white/10">
+        {game.coverUrl && <Image src={game.coverUrl} alt="" fill sizes="56px" className="object-cover" />}
+      </div>
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-bold text-white">{game.name}</div>
         <div className="text-xs text-neutral-400">

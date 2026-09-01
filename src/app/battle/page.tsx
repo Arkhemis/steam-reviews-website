@@ -70,7 +70,7 @@ function buildStats(left: GameStats, right: GameStats): BattleStat[] {
 export default async function BattlePage({ searchParams }: BattlePageProps) {
   const params = await searchParams;
 
-  let leftAppId = Number(params.game) || DEFAULT_LEFT_APP_ID;
+  const leftAppId = Number(params.game) || DEFAULT_LEFT_APP_ID;
   let rightAppId = Number(params.vs) || DEFAULT_RIGHT_APP_ID;
   if (rightAppId === leftAppId) {
     rightAppId = leftAppId === DEFAULT_LEFT_APP_ID ? DEFAULT_RIGHT_APP_ID : DEFAULT_LEFT_APP_ID;
@@ -87,7 +87,13 @@ export default async function BattlePage({ searchParams }: BattlePageProps) {
     );
   }
 
-  const [leftReviews, rightReviews] = await Promise.all([getGameTopReviews(leftAppId), getGameTopReviews(rightAppId)]);
+  // One card per side, and only ever the best positive one — asking for a single
+  // review per polarity keeps this to two rows per game instead of the whole
+  // highlight set.
+  const [leftReviews, rightReviews] = await Promise.all([
+    getGameTopReviews(leftAppId, 1),
+    getGameTopReviews(rightAppId, 1),
+  ]);
   const leftTopReview = leftReviews.find((review) => review.votedUp);
   const rightTopReview = rightReviews.find((review) => review.votedUp);
 

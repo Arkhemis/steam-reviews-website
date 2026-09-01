@@ -1,15 +1,17 @@
+import Image from "next/image";
 import Link from "next/link";
-import { LanguageDistribution } from "@/components/LanguageDistribution";
+import { Suspense } from "react";
 import { Nav } from "@/components/Nav";
-import { ReviewBattle } from "@/components/ReviewBattle";
-import { ScoreEvolutionChart } from "@/components/ScoreEvolutionChart";
 import { StatTile } from "@/components/StatTile";
+import { getGameStats } from "@/lib/data/gameData";
 import {
-  getGameLanguageDistribution,
-  getGameReviewTrends,
-  getGameStats,
-  getGameTopReviews,
-} from "@/lib/data/gameData";
+  LanguagesSection,
+  LanguagesSkeleton,
+  ReviewsSection,
+  ReviewsSkeleton,
+  TrendsSection,
+  TrendsSkeleton,
+} from "./sections";
 
 type GamePageProps = {
   params: Promise<{ appId: string }>;
@@ -46,12 +48,10 @@ export default async function GamePage({ params }: GamePageProps) {
     );
   }
 
-  const [trends, languages, reviews] = await Promise.all([
-    getGameReviewTrends(numericAppId),
-    getGameLanguageDistribution(numericAppId),
-    getGameTopReviews(numericAppId),
-  ]);
-
+  // Only `getGameStats` is awaited here: it decides between the page and the
+  // 404, and feeds the hero. The three heavier queries run inside their own
+  // Suspense boundaries below, so the header and the KPIs reach the browser
+  // without waiting on the review set.
   const rating = getSteamRating(stats.pctPositive, stats.totalReviews);
 
   return (
@@ -59,10 +59,14 @@ export default async function GamePage({ params }: GamePageProps) {
       <Nav />
 
       <div className="mt-6 flex items-center gap-5">
-        <div
-          className="h-32 w-32 flex-shrink-0 rounded-2xl bg-cover bg-center"
-          style={stats.coverUrl ? { backgroundImage: `url(${stats.coverUrl})` } : undefined}
-        />
+        <div className="relative h-32 w-32 flex-shrink-0 overflow-hidden rounded-2xl bg-white/10">
+          {stats.coverUrl && (
+            // The LCP element on this route: served through the image optimizer
+            // like every other cover, but eagerly — lazy-loading the largest
+            // above-the-fold image would only delay it.
+            <Image src={stats.coverUrl} alt="" fill sizes="128px" priority className="object-cover" />
+          )}
+        </div>
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold text-white">{stats.name}</h1>
@@ -106,11 +110,15 @@ export default async function GamePage({ params }: GamePageProps) {
       <div className="mt-8 grid grid-cols-[1.4fr_1fr] gap-5">
         <div className="rounded-xl border border-white/10 bg-white/5 p-4">
           <h2 className="mb-2 text-xs uppercase tracking-wide text-neutral-400">Évolution du score positif</h2>
-          <ScoreEvolutionChart trends={trends} />
+          <Suspense fallback={<TrendsSkeleton />}>
+            <TrendsSection appId={numericAppId} />
+          </Suspense>
         </div>
         <div className="rounded-xl border border-white/10 bg-white/5 p-4">
           <h2 className="mb-2 text-xs uppercase tracking-wide text-neutral-400">Langues</h2>
-          <LanguageDistribution languages={languages} />
+          <Suspense fallback={<LanguagesSkeleton />}>
+            <LanguagesSection appId={numericAppId} />
+          </Suspense>
           <Link href={`/carte?game=${stats.appId}`} className="mt-2 block text-center text-xs text-brand-blue">
             Voir sur la carte →
           </Link>
@@ -118,7 +126,9 @@ export default async function GamePage({ params }: GamePageProps) {
       </div>
 
       <h2 className="mt-8 mb-3 text-xs uppercase tracking-wide text-neutral-400">Reviews les plus votées</h2>
-      <ReviewBattle reviews={reviews} />
+      <Suspense fallback={<ReviewsSkeleton />}>
+        <ReviewsSection appId={numericAppId} />
+      </Suspense>
 
       <div className="mt-8 flex items-center justify-between rounded-xl bg-gradient-to-r from-brand-blue via-brand-glow to-brand-red p-5">
         <div>

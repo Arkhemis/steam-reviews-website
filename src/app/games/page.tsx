@@ -3,13 +3,29 @@ import Link from "next/link";
 import { Nav } from "@/components/Nav";
 import { getTopGames } from "@/lib/data/gameData";
 
+const PAGE_SIZE = 24;
+
 type GamesIndexPageProps = {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; page?: string }>;
 };
 
+function pageHref(page: number, q?: string): string {
+  const params = new URLSearchParams();
+  if (q) params.set("q", q);
+  if (page > 1) params.set("page", String(page));
+  const query = params.toString();
+  return query ? `/games?${query}` : "/games";
+}
+
 export default async function GamesIndexPage({ searchParams }: GamesIndexPageProps) {
-  const { q } = await searchParams;
-  const games = await getTopGames(24, q);
+  const { q, page: rawPage } = await searchParams;
+  const page = Math.max(1, Number(rawPage) || 1);
+
+  // Asking for one row past the page tells us whether a "next" link is
+  // warranted, without a second COUNT(*) over the whole catalogue.
+  const rows = await getTopGames(PAGE_SIZE + 1, q, (page - 1) * PAGE_SIZE);
+  const games = rows.slice(0, PAGE_SIZE);
+  const hasNext = rows.length > PAGE_SIZE;
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-8">
@@ -29,7 +45,9 @@ export default async function GamesIndexPage({ searchParams }: GamesIndexPagePro
       </form>
 
       {games.length === 0 ? (
-        <p className="mt-6 text-sm text-neutral-400">Aucun jeu ne correspond à « {q} ».</p>
+        <p className="mt-6 text-sm text-neutral-400">
+          {q ? `Aucun jeu ne correspond à « ${q} ».` : "Plus aucun jeu à cette page."}
+        </p>
       ) : (
         <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
           {games.map((game) => (
@@ -50,6 +68,32 @@ export default async function GamesIndexPage({ searchParams }: GamesIndexPagePro
             </Link>
           ))}
         </div>
+      )}
+
+      {(page > 1 || hasNext) && (
+        <nav className="mt-8 flex items-center justify-between text-xs" aria-label="Pagination">
+          {page > 1 ? (
+            <Link
+              href={pageHref(page - 1, q)}
+              className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-neutral-300 hover:border-white/20"
+            >
+              ← Précédent
+            </Link>
+          ) : (
+            <span />
+          )}
+          <span className="text-neutral-500">Page {page}</span>
+          {hasNext ? (
+            <Link
+              href={pageHref(page + 1, q)}
+              className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-neutral-300 hover:border-white/20"
+            >
+              Suivant →
+            </Link>
+          ) : (
+            <span />
+          )}
+        </nav>
       )}
     </main>
   );
