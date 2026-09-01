@@ -6,6 +6,9 @@ describe("Nav", () => {
   it("renders the brand name and nav links", () => {
     render(<Nav />);
     expect(screen.getByText("steam.reviews")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Games" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Charts" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Language map" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Battle" })).toBeInTheDocument();
   });
 });

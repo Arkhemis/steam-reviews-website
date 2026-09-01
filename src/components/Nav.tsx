@@ -10,9 +10,9 @@ export function Nav() {
         steam.reviews
       </Link>
       <div className="flex items-center gap-5 text-sm text-neutral-300">
-        <Link href="/games">Jeux</Link>
-        <Link href="/classements">Classements</Link>
-        <Link href="/carte">Carte</Link>
+        <Link href="/games">Games</Link>
+        <Link href="/classements">Charts</Link>
+        <Link href="/carte">Language map</Link>
         <Link
           href="/battle"
           className="rounded-full bg-gradient-to-r from-brand-blue to-brand-red px-3 py-1 font-bold text-black"
