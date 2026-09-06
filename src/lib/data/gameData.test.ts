@@ -7,6 +7,7 @@ import {
   getGameTopReviews,
   getReviewDuel,
   getTopGames,
+  getTrendingGames,
   TOP_REVIEWS_PER_SIDE,
 } from "@/lib/data/gameData";
 
@@ -104,6 +105,34 @@ describe("gameData", () => {
     const games = await getTopGames(10, "baldur");
     expect(games.length).toBeGreaterThan(0);
     expect(games.every((g) => g.name.toLowerCase().includes("baldur"))).toBe(true);
+  });
+
+  // Both directions come out of the same 30-day-vs-30-day comparison, so asking
+  // for them separately aggregates the whole trend table twice over.
+  it("returns both trend directions from a single call", async () => {
+    const { up, down } = await getTrendingGames(5);
+
+    expect(up.length).toBeGreaterThan(0);
+    expect(down.length).toBeGreaterThan(0);
+    expect(up.length).toBeLessThanOrEqual(5);
+    expect(down.length).toBeLessThanOrEqual(5);
+  });
+
+  it("orders risers by biggest gain and fallers by biggest drop", async () => {
+    const { up, down } = await getTrendingGames(5);
+
+    expect(up.map((g) => g.deltaPct)).toEqual([...up.map((g) => g.deltaPct)].sort((a, b) => b - a));
+    expect(down.map((g) => g.deltaPct)).toEqual([...down.map((g) => g.deltaPct)].sort((a, b) => a - b));
+    expect(up[0].deltaPct).toBeGreaterThanOrEqual(down[0].deltaPct);
+  });
+
+  // The duel draws a handful of random games and keeps the first with a ranked
+  // review of the right polarity. Drawing only one would leave it empty whenever
+  // that game happens to have no such review.
+  it("always finds both sides, however the random draw falls", async () => {
+    const duels = await Promise.all(Array.from({ length: 10 }, () => getReviewDuel()));
+    expect(duels.every((d) => d !== null)).toBe(true);
+    expect(duels.every((d) => d!.positive.review.votedUp && !d!.negative.review.votedUp)).toBe(true);
   });
 
   it("returns one positive and one negative review for the review duel", async () => {

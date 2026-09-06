@@ -31,7 +31,7 @@ export default async function ClassementsPage({ searchParams }: ClassementsPageP
 
   const rows =
     filter === "tendances"
-      ? (await getTrendingGames("up", RANKING_LIMIT)).map((g, i) => ({
+      ? (await getTrendingGames(RANKING_LIMIT)).up.map((g, i) => ({
           rank: i + 1,
           appId: g.appId,
           name: g.name,

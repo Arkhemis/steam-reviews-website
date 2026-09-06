@@ -56,3 +56,12 @@ See more: https://nextjs.org/docs/app/guides/local-development
  GET /games/1605850?lang=french 200 in 126ms (next.js: 2ms, application-code: 123ms)
  GET /games/1605850?lang=all 200 in 177ms (next.js: 3ms, application-code: 174ms)
  GET /games/1605850?lang=english 200 in 148ms (next.js: 14ms, application-code: 135ms)
+✓ Compiled in 56ms
+✓ Compiled in 126ms
+✓ Compiled in 47ms
+✓ Compiled in 59ms
+✓ Compiled in 2.9s
+✓ Compiled in 51ms
+✓ Compiled in 41ms
+✓ Compiled in 1520ms
+[?25h

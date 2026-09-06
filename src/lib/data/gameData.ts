@@ -9,6 +9,7 @@ import type {
   ReviewDuel,
   SiteStats,
   TrendingGame,
+  TrendingGames,
 } from "@/lib/data/types";
 
 const GAME_STATS_COLUMNS = `
@@ -173,17 +174,18 @@ type TrendingGameRow = {
 
 // Compare the last 30 days of reviews against the 30 days before that, requiring
 // a minimum volume on both sides so a single-digit review count can't swing the
-// ranking. `direction` picks the biggest positive-rate gainers vs the biggest drops.
+// ranking. Both ends of the ranking come back at once: the comparison itself is
+// the expensive part (two aggregations over the whole trend table), so asking for
+// gainers and droppers separately would pay for it twice.
 //
 // The window is anchored to the mart's own latest `review_date`, not wall-clock
 // `CURRENT_DATE` — the pipeline can lag behind today by days or weeks, and anchoring
 // to "today" would silently return an empty window whenever it does.
 export async function getTrendingGames(
-  direction: "up" | "down",
   limit: number,
   minReviewsPerWindow = 30,
-): Promise<TrendingGame[]> {
-  const { rows } = await pool.query<TrendingGameRow>(
+): Promise<TrendingGames> {
+  const { rows } = await pool.query<TrendingGameRow & { direction: "up" | "down" }>(
     `WITH bounds AS (
        SELECT MAX(review_date) AS latest FROM marts.game_review_trend_daily
      ),
@@ -199,28 +201,31 @@ export async function getTrendingGames(
        WHERE t.review_date > bounds.latest - INTERVAL '60 days'
          AND t.review_date <= bounds.latest - INTERVAL '30 days'
        GROUP BY t.app_id
+     ),
+     deltas AS (
+       SELECT
+         r.app_id,
+         g.game_name,
+         g.cover_url,
+         r.reviews AS recent_reviews,
+         ROUND(r.positive::numeric / NULLIF(r.reviews, 0) * 100, 1) AS recent_pct,
+         ROUND(p.positive::numeric / NULLIF(p.reviews, 0) * 100, 1) AS previous_pct,
+         ROUND(
+           (r.positive::numeric / NULLIF(r.reviews, 0) - p.positive::numeric / NULLIF(p.reviews, 0)) * 100,
+           1
+         ) AS delta_pct
+       FROM recent r
+       JOIN previous p ON p.app_id = r.app_id
+       JOIN marts.game_stats g ON g.steam_app_id = r.app_id
+       WHERE r.reviews >= $2 AND p.reviews >= $2
      )
-     SELECT
-       r.app_id,
-       g.game_name,
-       g.cover_url,
-       r.reviews AS recent_reviews,
-       ROUND(r.positive::numeric / NULLIF(r.reviews, 0) * 100, 1) AS recent_pct,
-       ROUND(p.positive::numeric / NULLIF(p.reviews, 0) * 100, 1) AS previous_pct,
-       ROUND(
-         (r.positive::numeric / NULLIF(r.reviews, 0) - p.positive::numeric / NULLIF(p.reviews, 0)) * 100,
-         1
-       ) AS delta_pct
-     FROM recent r
-     JOIN previous p ON p.app_id = r.app_id
-     JOIN marts.game_stats g ON g.steam_app_id = r.app_id
-     WHERE r.reviews >= $2 AND p.reviews >= $2
-     ORDER BY delta_pct ${direction === "up" ? "DESC" : "ASC"}
-     LIMIT $1`,
+     (SELECT *, 'up' AS direction FROM deltas ORDER BY delta_pct DESC LIMIT $1)
+     UNION ALL
+     (SELECT *, 'down' AS direction FROM deltas ORDER BY delta_pct ASC LIMIT $1)`,
     [limit, minReviewsPerWindow],
   );
 
-  return rows.map((row) => ({
+  const toTrendingGame = (row: TrendingGameRow): TrendingGame => ({
     appId: Number(row.app_id),
     name: row.game_name,
     coverUrl: row.cover_url,
@@ -228,7 +233,12 @@ export async function getTrendingGames(
     recentPctPositive: Number(row.recent_pct) / 100,
     previousPctPositive: Number(row.previous_pct) / 100,
     deltaPct: Number(row.delta_pct),
-  }));
+  });
+
+  return {
+    up: rows.filter((r) => r.direction === "up").map(toTrendingGame),
+    down: rows.filter((r) => r.direction === "down").map(toTrendingGame),
+  };
 }
 
 // Picks a random top-voted positive review from a well-reviewed game, so the home
@@ -256,32 +266,61 @@ export async function getFeaturedReview(): Promise<{ game: GameStats; review: Ga
 // Picks one random top-voted positive and one random top-voted negative review (each from a
 // well-reviewed game, not necessarily the same one) so the home page can show a "two sides"
 // contrast without either side being cherry-picked.
-export async function getReviewDuel(minReviews = 5000): Promise<ReviewDuel | null> {
-  const { rows } = await pool.query<TopReviewRow & GameStatsRow & { side: "positive" | "negative" }>(
-    `(SELECT
-        ${REVIEW_HIGHLIGHT_COLUMNS},
-        g.steam_app_id, g.game_name, g.genres, g.developers, g.publishers, g.cover_url,
-        g.first_release_date, g.total_reviews, g.pct_positive_reviews, g.review_score,
-        g.median_playtime_forever_minutes, g.pct_primarily_steam_deck, g.pct_refunded,
-        'positive' AS side
-      FROM marts.review_highlight rh
-      JOIN marts.game_stats g ON g.steam_app_id = rh.app_id
-      WHERE rh.rank_in_game = 1 AND rh.voted_up = true AND g.total_reviews > $1
+const GAME_STATS_JOIN_COLUMNS = `
+  g.steam_app_id, g.game_name, g.genres, g.developers, g.publishers, g.cover_url,
+  g.first_release_date, g.total_reviews, g.pct_positive_reviews, g.review_score,
+  g.median_playtime_forever_minutes, g.pct_primarily_steam_deck, g.pct_refunded
+`;
+
+// Drawing the review straight out of `review_highlight` with ORDER BY RANDOM()
+// forces Postgres to materialise and sort every candidate row — `review_text`
+// included — just to hand back one. In production that is a ~4.4 GB sequential
+// scan per side, 54s for the pair, and it gates the whole home page.
+//
+// So we draw the *game* at random instead (a few thousand narrow rows in
+// `game_stats`, already indexed on total_reviews), then fetch that game's ranked
+// review through the `app_id` index. A handful of candidates rather than one
+// covers the rare game that has no ranked review of the requested polarity.
+const DUEL_CANDIDATE_GAMES = 20;
+
+function reviewDuelSide(side: "positive" | "negative"): string {
+  return `(SELECT
+      ${REVIEW_HIGHLIGHT_COLUMNS},
+      ${GAME_STATS_JOIN_COLUMNS},
+      '${side}' AS side
+    FROM (
+      SELECT steam_app_id
+      FROM marts.game_stats
+      WHERE total_reviews > $1
       ORDER BY RANDOM()
-      LIMIT 1)
+      LIMIT $2
+    ) c
+    JOIN LATERAL (
+      SELECT *
+      FROM marts.review_highlight r
+      WHERE r.app_id = c.steam_app_id
+        AND r.rank_in_game = 1
+        AND r.voted_up = ${side === "positive"}
+      LIMIT 1
+    ) rh ON true
+    JOIN marts.game_stats g ON g.steam_app_id = c.steam_app_id
+    LIMIT 1)`;
+}
+
+export function reviewDuelQuery(minReviews = 5000): { text: string; values: unknown[] } {
+  return {
+    text: `${reviewDuelSide("positive")}
      UNION ALL
-     (SELECT
-        ${REVIEW_HIGHLIGHT_COLUMNS},
-        g.steam_app_id, g.game_name, g.genres, g.developers, g.publishers, g.cover_url,
-        g.first_release_date, g.total_reviews, g.pct_positive_reviews, g.review_score,
-        g.median_playtime_forever_minutes, g.pct_primarily_steam_deck, g.pct_refunded,
-        'negative' AS side
-      FROM marts.review_highlight rh
-      JOIN marts.game_stats g ON g.steam_app_id = rh.app_id
-      WHERE rh.rank_in_game = 1 AND rh.voted_up = false AND g.total_reviews > $1
-      ORDER BY RANDOM()
-      LIMIT 1)`,
-    [minReviews],
+     ${reviewDuelSide("negative")}`,
+    values: [minReviews, DUEL_CANDIDATE_GAMES],
+  };
+}
+
+export async function getReviewDuel(minReviews = 5000): Promise<ReviewDuel | null> {
+  const query = reviewDuelQuery(minReviews);
+  const { rows } = await pool.query<TopReviewRow & GameStatsRow & { side: "positive" | "negative" }>(
+    query.text,
+    query.values,
   );
 
   const positiveRow = rows.find((r) => r.side === "positive");

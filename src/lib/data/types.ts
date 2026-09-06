@@ -53,6 +53,12 @@ export type TrendingGame = {
   deltaPct: number;
 };
 
+/** Biggest gainers and biggest droppers, from one pass over the trend table. */
+export type TrendingGames = {
+  up: TrendingGame[];
+  down: TrendingGame[];
+};
+
 export type GameTopReview = {
   recommendationId: number;
   appId: number;
