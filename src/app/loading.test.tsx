@@ -1,11 +1,17 @@
 import { render } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import BattleLoading from "@/app/battle/loading";
 import CarteLoading from "@/app/carte/loading";
 import ClassementsLoading from "@/app/classements/loading";
 import GameLoading from "@/app/games/[appId]/loading";
 import GamesLoading from "@/app/games/loading";
 import RootLoading from "@/app/loading";
+
+// La nav embarque la recherche typeahead, un client component qui appelle
+// `useRouter` : rendue hors App Router, elle a besoin d'un routeur simulé.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+}));
 
 // `layout.tsx` rend `<body className="min-h-full flex flex-col">`. Un enfant
 // direct du body avec `margin-inline: auto` perd `align-self: stretch` (flexbox

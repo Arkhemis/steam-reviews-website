@@ -158,7 +158,7 @@ export function GameSearchCombobox({
           id={listboxId}
           role="listbox"
           aria-label="Résultats"
-          className="absolute z-10 mt-1 max-h-80 w-full overflow-y-auto rounded-xl border border-white/10 bg-brand-bg p-1 shadow-xl shadow-black/60"
+          className="absolute z-20 mt-1 max-h-80 w-full overflow-y-auto rounded-xl border border-white/10 bg-brand-bg p-1 shadow-xl shadow-black/60"
         >
           {hits.length === 0 ? (
             <li className="px-3 py-2 text-xs text-neutral-500">
