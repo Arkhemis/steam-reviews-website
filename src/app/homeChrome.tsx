@@ -23,7 +23,7 @@ export function ChartsHeading() {
     <SectionHeading
       number="01"
       title="Charts"
-      note="rising over 30 days · 30-review floor"
+      note="rising over 30 days · 1,000-review floor"
       action={
         <div className="flex flex-wrap gap-1.5">
           {CHART_FILTERS.map((f) => (

@@ -36,12 +36,22 @@ const enFull = new Intl.NumberFormat("en-US");
 
 const SHELF_SIZE = 10;
 
+// Volume minimum sur chacune des deux fenêtres de 30 jours. La home est la
+// vitrine : on ne veut que des jeux dont le mouvement est réel, pas des titres
+// confidentiels qu'une poignée d'avis fait bondir de trente points.
+const HOME_TRENDING_MIN_REVIEWS = 1000;
+
 // L'étagère et les charts lisent la même comparaison 30j/30j : `cache` la
 // déduplique au sein d'une requête, `unstable_cache` évite de la recalculer à
 // chaque visiteur. C'est de loin la requête la plus lourde de la page, et son
-// contenu ne bouge qu'au rythme du pipeline.
+// contenu ne bouge qu'au rythme du pipeline. Le seuil fait partie de la clé de
+// cache : le changer doit invalider l'entrée, pas resservir l'ancien palmarès.
 const trending = cache(
-  unstable_cache(() => getTrendingGames(SHELF_SIZE / 2), ["home-trending"], { revalidate: 900 }),
+  unstable_cache(
+    () => getTrendingGames(SHELF_SIZE / 2, HOME_TRENDING_MIN_REVIEWS),
+    ["home-trending", String(HOME_TRENDING_MIN_REVIEWS)],
+    { revalidate: 900 },
+  ),
 );
 
 // Deux sections affichent ces totaux ; une seule requête doit suffire.
