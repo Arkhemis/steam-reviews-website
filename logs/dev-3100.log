@@ -17,3 +17,4 @@ See more: https://nextjs.org/docs/app/guides/local-development
  GET /games/271590 200 in 81ms (next.js: 17ms, application-code: 64ms)
  GET /games/578080 200 in 78ms (next.js: 14ms, application-code: 64ms)
  GET /games/2357570 200 in 71ms (next.js: 13ms, application-code: 58ms)
+✓ Compiled in 81ms

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { BBCodeText } from "@/components/BBCodeText";
 import { ChartRow, ChartRowHeader } from "@/components/ChartRow";
 import { GameCoverTile } from "@/components/GameCoverTile";
-import { GameSearchForm } from "@/components/GameSearchForm";
+import { GameSearchBox } from "@/components/GameSearchBox";
 import { HeroShelf } from "@/components/HeroShelf";
 import { Nav } from "@/components/Nav";
 import { SectionHeading } from "@/components/SectionHeading";
@@ -61,7 +61,7 @@ async function HeroCopy() {
           Every cover hangs at its real approval rating. Below: the charts, the full
           catalogue, and what players actually wrote.
         </p>
-        <GameSearchForm placeholder={`Search ${enFull.format(stats.totalGames)} games…`} className="mt-5 max-w-[420px]" />
+        <GameSearchBox placeholder={`Search ${enFull.format(stats.totalGames)} games…`} className="mt-5 max-w-[420px]" />
       </div>
       <div className="flex justify-start gap-8 pb-1.5 font-mono lg:justify-end">
         <div>
