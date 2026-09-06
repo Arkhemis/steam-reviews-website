@@ -1,5 +1,6 @@
 import { pool } from "@/lib/db";
 import type {
+  GameEvent,
   GameLanguageDistribution,
   GameReviewLanguage,
   GameReviewTrend,
@@ -360,6 +361,54 @@ export async function getGameReviewTrends(appId: number): Promise<GameReviewTren
     reviewsInPeriod: Number(row.reviews_in_period),
     positiveInPeriod: Number(row.positive_in_period),
     pctPositivePeriod: Number(row.pct_positive_period),
+  }));
+}
+
+type GameEventRow = {
+  gid: string;
+  started_on: string;
+  event_category: "news" | "update";
+  headline: string;
+  votes_up: number;
+  votes_down: number;
+  comment_count: number;
+  image_url: string | null;
+  is_well_received: boolean;
+};
+
+// Le tri et la sélection (top 3 par an, `news`/`update` seulement) sont faits en
+// amont dans le mart : lire `intermediate.steam_event_categorized` directement
+// coûtait un Parallel Seq Scan de 8 s sur 1,77 M de lignes, contre 0,1 ms ici
+// grâce à l'index (app_id, started_on).
+export async function getGameEvents(appId: number): Promise<GameEvent[]> {
+  const { rows } = await pool.query<GameEventRow>(
+    `SELECT
+       gid,
+       TO_CHAR(started_on, 'YYYY-MM-DD') AS started_on,
+       event_category,
+       headline,
+       votes_up,
+       votes_down,
+       comment_count,
+       image_url,
+       is_well_received
+     FROM marts.game_event_highlight
+     WHERE app_id = $1
+     ORDER BY started_on`,
+    [appId],
+  );
+
+  return rows.map((row) => ({
+    appId,
+    gid: row.gid,
+    startedOn: row.started_on,
+    category: row.event_category,
+    headline: row.headline,
+    votesUp: Number(row.votes_up),
+    votesDown: Number(row.votes_down),
+    commentCount: Number(row.comment_count),
+    imageUrl: row.image_url,
+    isWellReceived: row.is_well_received,
   }));
 }
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  getGameEvents,
   getGameLanguageDistribution,
   getGameReviewTrends,
   getGameReviewLanguages,
@@ -30,6 +31,18 @@ describe("gameData", () => {
     expect(trends.length).toBeGreaterThan(0);
     const months = trends.map((t) => t.periodMonth);
     expect(months).toEqual([...months].sort());
+  });
+
+  it("returns news and update events ordered by date", async () => {
+    const events = await getGameEvents(BALDURS_GATE_3_APP_ID);
+    expect(events.length).toBeGreaterThan(0);
+    expect(events.every((e) => e.category === "news" || e.category === "update")).toBe(true);
+    expect(events.map((e) => e.startedOn)).toEqual([...events.map((e) => e.startedOn)].sort());
+    expect(events.every((e) => e.isWellReceived === e.votesUp >= e.votesDown)).toBe(true);
+  });
+
+  it("returns no event for an unknown game", async () => {
+    expect(await getGameEvents(999999999)).toEqual([]);
   });
 
   it("returns language distribution summing close to 1", async () => {

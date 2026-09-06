@@ -3,6 +3,7 @@ import { ReviewBattle } from "@/components/ReviewBattle";
 import { ScoreEvolutionChart } from "@/components/ScoreEvolutionChart";
 import { Skeleton, SkeletonLines } from "@/components/Skeleton";
 import {
+  getGameEvents,
   getGameLanguageDistribution,
   getGameReviewLanguages,
   getGameReviewTrends,
@@ -63,8 +64,10 @@ export function ReviewsSkeleton() {
 }
 
 export async function TrendsSection({ appId }: { appId: number }) {
-  const trends = await getGameReviewTrends(appId);
-  return <ScoreEvolutionChart trends={trends} />;
+  // Les deux requêtes sont indépendantes et touchent deux marts distincts : on
+  // ne fait pas attendre la courbe pendant qu'on lit les annonces.
+  const [trends, events] = await Promise.all([getGameReviewTrends(appId), getGameEvents(appId)]);
+  return <ScoreEvolutionChart trends={trends} events={events} />;
 }
 
 export async function LanguagesSection({ appId }: { appId: number }) {

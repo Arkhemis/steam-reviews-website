@@ -2,66 +2,18 @@
 - Local:         http://localhost:3100
 - Network:       http://192.168.1.125:3100
 - Environments: .env.local
-✓ Ready in 770ms
+✓ Ready in 278ms
 
-⚠ Slow filesystem detected. The benchmark took 917ms. If /mnt/storage/steam-reviews-website/.next/dev is a network drive, consider moving it to a local folder.
+⚠ Slow filesystem detected. The benchmark took 290ms. If /mnt/storage/steam-reviews-website/.next/dev is a network drive, consider moving it to a local folder.
 See more: https://nextjs.org/docs/app/guides/local-development
- GET /games/1605850 200 in 1011ms (next.js: 554ms, application-code: 457ms)
- GET /games/1605850 200 in 172ms (next.js: 14ms, application-code: 158ms)
- GET /games/1605850?lang=french 200 in 140ms (next.js: 3ms, application-code: 137ms)
- GET /games/1605850?lang=all 200 in 142ms (next.js: 2ms, application-code: 140ms)
- GET /games/1605850?lang=thai 200 in 143ms (next.js: 11ms, application-code: 133ms)
-⨯ error: relation "marts.language_review_score_global" does not exist
-    at async getLanguageReviewScores (src/lib/data/gameData.ts:372:20)
-    at async HomePage (src/app/page.tsx:32:67)
-  370 |
-  371 | export async function getLanguageReviewScores(): Promise<LanguageReviewScore[]> {
-> 372 |   const { rows } = await pool.query<LanguageReviewScoreRow>(
-      |                    ^
-  373 |     `SELECT ${LANGUAGE_REVIEW_SCORE_COLUMNS}
-  374 |      FROM marts.language_review_score_global
-  375 |      ORDER BY pct_of_total DESC`, {
-  length: 133,
-  severity: 'ERROR',
-  code: '42P01',
-  detail: undefined,
-  hint: undefined,
-  position: '86',
-  internalPosition: undefined,
-  internalQuery: undefined,
-  where: undefined,
-  schema: undefined,
-  table: undefined,
-  column: undefined,
-  dataType: undefined,
-  constraint: undefined,
-  file: 'parse_relation.c',
-  line: '1428',
-  routine: 'parserOpenTable',
-  digest: '2339399356'
-}
- GET / 200 in 218ms (next.js: 28ms, application-code: 190ms)
- GET /games/1605850 200 in 188ms (next.js: 15ms, application-code: 173ms)
-[browser] Uncaught error: relation "marts.language_review_score_global" does not exist
-    at getLanguageReviewScores (src/lib/data/gameData.ts:372:20)
-    at Function.all (<anonymous>:1:21)
-    at HomePage (src/app/page.tsx:32:67)
-  370 |
-  371 | export async function getLanguageReviewScores(): Promise<LanguageReviewScore[]> {
-> 372 |   const { rows } = await pool.query<LanguageReviewScoreRow>(
-      |                    ^
-  373 |     `SELECT ${LANGUAGE_REVIEW_SCORE_COLUMNS}
-  374 |      FROM marts.language_review_score_global
-  375 |      ORDER BY pct_of_total DESC`,
- GET /games/1605850?lang=french 200 in 126ms (next.js: 2ms, application-code: 123ms)
- GET /games/1605850?lang=all 200 in 177ms (next.js: 3ms, application-code: 174ms)
- GET /games/1605850?lang=english 200 in 148ms (next.js: 14ms, application-code: 135ms)
-✓ Compiled in 56ms
-✓ Compiled in 126ms
-✓ Compiled in 47ms
-✓ Compiled in 59ms
-✓ Compiled in 2.9s
-✓ Compiled in 51ms
-✓ Compiled in 41ms
-✓ Compiled in 1520ms
-[?25h
+ GET /games/1086940 200 in 1279ms (next.js: 822ms, application-code: 457ms)
+ GET /games/1086940 200 in 215ms (next.js: 15ms, application-code: 200ms)
+ GET /games/460930 200 in 196ms (next.js: 12ms, application-code: 184ms)
+ GET /games/460930 200 in 195ms (next.js: 12ms, application-code: 183ms)
+ GET / 200 in 536ms (next.js: 34ms, application-code: 503ms)
+ GET / 200 in 175ms (next.js: 3ms, application-code: 172ms)
+ GET /games/3240220 200 in 89ms (next.js: 25ms, application-code: 65ms)
+ GET /games/271590 200 in 104ms (next.js: 13ms, application-code: 91ms)
+ GET /games/271590 200 in 81ms (next.js: 17ms, application-code: 64ms)
+ GET /games/578080 200 in 78ms (next.js: 14ms, application-code: 64ms)
+ GET /games/2357570 200 in 71ms (next.js: 13ms, application-code: 58ms)

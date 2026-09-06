@@ -20,7 +20,24 @@ export type GameReviewTrend = {
   reviewsInPeriod: number;
   positiveInPeriod: number;
   pctPositivePeriod: number;
-  annotation?: string; // optional callout, e.g. "Patch controversé"
+};
+
+/**
+ * Une annonce Steam retenue par `marts.game_event_highlight` (top 3 par an et
+ * par jeu, catégories `news` et `update` seulement), affichée en repère sur la
+ * courbe d'évolution du score.
+ */
+export type GameEvent = {
+  appId: number;
+  gid: string;
+  startedOn: string; // ISO date, e.g. "2023-08-17"
+  category: "news" | "update";
+  headline: string;
+  votesUp: number;
+  votesDown: number;
+  commentCount: number;
+  imageUrl: string | null; // absent d'environ la moitié des annonces
+  isWellReceived: boolean;
 };
 
 export type GameLanguageDistribution = {

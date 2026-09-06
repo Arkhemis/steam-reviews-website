@@ -15,12 +15,14 @@ import type { GameStats, GameTopReview } from "@/lib/data/types";
 // Le SQL lui-même reste couvert par gameData.test.ts.
 const {
   getGameStats,
+  getGameEvents,
   getGameReviewTrends,
   getGameLanguageDistribution,
   getGameReviewLanguages,
   getGameTopReviews,
 } = vi.hoisted(() => ({
   getGameStats: vi.fn(),
+  getGameEvents: vi.fn(),
   getGameReviewTrends: vi.fn(),
   getGameLanguageDistribution: vi.fn(),
   getGameReviewLanguages: vi.fn(),
@@ -29,6 +31,7 @@ const {
 
 vi.mock("@/lib/data/gameData", () => ({
   getGameStats,
+  getGameEvents,
   getGameReviewTrends,
   getGameLanguageDistribution,
   getGameReviewLanguages,
@@ -102,6 +105,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   getGameStats.mockResolvedValue(game);
   getGameReviewTrends.mockResolvedValue(baldursGate3ReviewTrends);
+  getGameEvents.mockResolvedValue([]);
   getGameLanguageDistribution.mockResolvedValue(baldursGate3LanguageDistribution);
   getGameReviewLanguages.mockResolvedValue([
     { language: "english", reviewCount: 30 },
