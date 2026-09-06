@@ -79,3 +79,8 @@ export type ReviewDuel = {
   positive: ReviewDuelSide;
   negative: ReviewDuelSide;
 };
+
+export type GameReviewLanguage = {
+  language: string;
+  reviewCount: number;
+};

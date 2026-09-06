@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   getGameLanguageDistribution,
   getGameReviewTrends,
+  getGameReviewLanguages,
   getGameStats,
   getGameTopReviews,
   getReviewDuel,
@@ -46,7 +47,41 @@ describe("gameData", () => {
   });
 
   it("honours a smaller per-side cap", async () => {
-    const reviews = await getGameTopReviews(BALDURS_GATE_3_APP_ID, 1);
+    const reviews = await getGameTopReviews(BALDURS_GATE_3_APP_ID, { perSide: 1 });
+    expect(reviews.filter((r) => r.votedUp).length).toBeLessThanOrEqual(1);
+    expect(reviews.filter((r) => !r.votedUp).length).toBeLessThanOrEqual(1);
+  });
+
+  it("lists the review languages of a game, best represented first", async () => {
+    const languages = await getGameReviewLanguages(BALDURS_GATE_3_APP_ID);
+    expect(languages.length).toBeGreaterThan(0);
+    expect(languages.every((l) => l.reviewCount > 0)).toBe(true);
+    const counts = languages.map((l) => l.reviewCount);
+    expect(counts).toEqual([...counts].sort((a, b) => b - a));
+  });
+
+  it("counts every highlighted review across the languages it lists", async () => {
+    const languages = await getGameReviewLanguages(BALDURS_GATE_3_APP_ID);
+    const all = await getGameTopReviews(BALDURS_GATE_3_APP_ID, { perSide: 1000 });
+    const summed = languages.reduce((sum, l) => sum + l.reviewCount, 0);
+    expect(summed).toBe(all.length);
+  });
+
+  it("returns only reviews written in the requested language", async () => {
+    const [first] = await getGameReviewLanguages(BALDURS_GATE_3_APP_ID);
+    const reviews = await getGameTopReviews(BALDURS_GATE_3_APP_ID, { language: first.language });
+    expect(reviews.length).toBeGreaterThan(0);
+    expect(reviews.every((r) => r.language === first.language)).toBe(true);
+  });
+
+  it("returns nothing for a language the game has no reviews in", async () => {
+    const reviews = await getGameTopReviews(BALDURS_GATE_3_APP_ID, { language: "__nope__" });
+    expect(reviews).toEqual([]);
+  });
+
+  it("keeps the per-side cap when filtering by language", async () => {
+    const [first] = await getGameReviewLanguages(BALDURS_GATE_3_APP_ID);
+    const reviews = await getGameTopReviews(BALDURS_GATE_3_APP_ID, { language: first.language, perSide: 1 });
     expect(reviews.filter((r) => r.votedUp).length).toBeLessThanOrEqual(1);
     expect(reviews.filter((r) => !r.votedUp).length).toBeLessThanOrEqual(1);
   });

@@ -2,10 +2,15 @@
 
 import { useState } from "react";
 import { EmptyReviewCard, ReviewCard, ThumbIcon } from "@/components/ReviewCard";
-import type { GameTopReview } from "@/lib/data/types";
+import { ReviewLanguageSelect } from "@/components/ReviewLanguageSelect";
+import type { GameReviewLanguage, GameTopReview } from "@/lib/data/types";
 
 type ReviewBattleProps = {
   reviews: GameTopReview[];
+  /** Langues disponibles pour ce jeu ; vide = pas de sélecteur. */
+  languages?: GameReviewLanguage[];
+  /** Langue appliquée à `reviews`, `null` quand elles sont toutes langues confondues. */
+  selectedLanguage?: string | null;
 };
 
 function pickDifferentIndex(length: number, current: number): number {
@@ -17,15 +22,22 @@ function pickDifferentIndex(length: number, current: number): number {
   return next;
 }
 
-export function ReviewBattle({ reviews }: ReviewBattleProps) {
+export function ReviewBattle({ reviews, languages = [], selectedLanguage = null }: ReviewBattleProps) {
   const positives = reviews.filter((review) => review.votedUp);
   const negatives = reviews.filter((review) => !review.votedUp);
 
   const [positiveIndex, setPositiveIndex] = useState(0);
   const [negativeIndex, setNegativeIndex] = useState(0);
 
+  const languageSelect = <ReviewLanguageSelect languages={languages} selected={selectedLanguage} />;
+
   if (positives.length === 0 && negatives.length === 0) {
-    return <p className="text-sm text-neutral-400">Aucune review disponible pour ce jeu.</p>;
+    return (
+      <div>
+        <div className="mb-3">{languageSelect}</div>
+        <p className="text-sm text-neutral-400">Aucune review disponible pour ce jeu.</p>
+      </div>
+    );
   }
 
   const randomizeUp = () => setPositiveIndex((i) => pickDifferentIndex(positives.length, i));
@@ -62,6 +74,7 @@ export function ReviewBattle({ reviews }: ReviewBattleProps) {
         >
           🎲 Les deux
         </button>
+        {languageSelect}
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {positives[positiveIndex] ? (

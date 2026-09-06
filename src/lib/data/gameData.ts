@@ -1,6 +1,7 @@
 import { pool } from "@/lib/db";
 import type {
   GameLanguageDistribution,
+  GameReviewLanguage,
   GameReviewTrend,
   GameStats,
   GameTopReview,
@@ -403,9 +404,31 @@ export async function getGameLanguageReviewScores(appId: number): Promise<Langua
 // English reviews.
 export const TOP_REVIEWS_PER_SIDE = 20;
 
+// Alimente le sélecteur de langue de la fiche : un GROUP BY sur l'index
+// `app_id`, sans toucher à `review_text`, donc bien moins cher que de déduire
+// les langues disponibles des reviews elles-mêmes.
+export async function getGameReviewLanguages(appId: number): Promise<GameReviewLanguage[]> {
+  const { rows } = await pool.query<{ language: string; review_count: string }>(
+    `SELECT language, COUNT(*) AS review_count
+     FROM marts.review_highlight
+     WHERE app_id = $1
+     GROUP BY language
+     ORDER BY review_count DESC, language`,
+    [appId],
+  );
+
+  return rows.map((row) => ({ language: row.language, reviewCount: Number(row.review_count) }));
+}
+
+type GameTopReviewsOptions = {
+  /** Code langue Steam ; `null`/absent = toutes langues confondues. */
+  language?: string | null;
+  perSide?: number;
+};
+
 export async function getGameTopReviews(
   appId: number,
-  perSide: number = TOP_REVIEWS_PER_SIDE,
+  { language = null, perSide = TOP_REVIEWS_PER_SIDE }: GameTopReviewsOptions = {},
 ): Promise<GameTopReview[]> {
   const { rows } = await pool.query(
     `WITH ranked AS (
@@ -429,12 +452,12 @@ export async function getGameTopReviews(
            ORDER BY rank_in_game, weighted_vote_score DESC, recommendation_id
          ) AS rank_in_side
        FROM marts.review_highlight
-       WHERE app_id = $1
+       WHERE app_id = $1 AND ($3::text IS NULL OR language = $3)
      )
      SELECT * FROM ranked
      WHERE rank_in_side <= $2
      ORDER BY voted_up DESC, rank_in_side`,
-    [appId, perSide],
+    [appId, perSide, language],
   );
 
   return rows.map((row) => ({

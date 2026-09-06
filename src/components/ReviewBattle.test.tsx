@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ReviewBattle } from "@/components/ReviewBattle";
 import type { GameTopReview } from "@/lib/data/types";
 
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+
 function makeReview(overrides: Partial<GameTopReview>): GameTopReview {
   return {
     recommendationId: 1,
@@ -78,5 +80,25 @@ describe("ReviewBattle", () => {
     const buttons = screen.getAllByRole("button", { name: /autre review/i });
     expect(buttons[0]).toBeDisabled();
     expect(buttons[1]).toBeDisabled();
+  });
+
+  it("offers the language selector when the game has reviews in several languages", () => {
+    render(
+      <ReviewBattle
+        reviews={reviews}
+        languages={[
+          { language: "english", reviewCount: 30 },
+          { language: "french", reviewCount: 12 },
+        ]}
+        selectedLanguage="english"
+      />,
+    );
+
+    expect(screen.getByRole("combobox")).toHaveValue("english");
+  });
+
+  it("omits the language selector when no language breakdown is given", () => {
+    render(<ReviewBattle reviews={reviews} />);
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
   });
 });

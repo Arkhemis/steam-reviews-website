@@ -15,6 +15,7 @@ import {
 
 type GamePageProps = {
   params: Promise<{ appId: string }>;
+  searchParams: Promise<{ lang?: string }>;
 };
 
 function getSteamRating(pctPositive: number, totalReviews: number): { label: string; color: string } {
@@ -33,8 +34,9 @@ function getSteamRating(pctPositive: number, totalReviews: number): { label: str
   return { label: "Positif", color: "var(--status-good)" };
 }
 
-export default async function GamePage({ params }: GamePageProps) {
+export default async function GamePage({ params, searchParams }: GamePageProps) {
   const { appId } = await params;
+  const { lang } = await searchParams;
   const numericAppId = Number(appId);
 
   const stats = await getGameStats(numericAppId);
@@ -129,8 +131,11 @@ export default async function GamePage({ params }: GamePageProps) {
         </div>
 
         <h2 className="mt-8 mb-3 text-xs uppercase tracking-wide text-neutral-400">Reviews les plus votées</h2>
-        <Suspense fallback={<ReviewsSkeleton />}>
-          <ReviewsSection appId={numericAppId} />
+        {/* Clé sur la langue : changer de langue remonte la boundary, donc le
+            skeleton revient au lieu de figer la paire précédente pendant la
+            requête. */}
+        <Suspense key={lang ?? "default"} fallback={<ReviewsSkeleton />}>
+          <ReviewsSection appId={numericAppId} lang={lang} />
         </Suspense>
 
         <div className="mt-8 flex items-center justify-between rounded-xl bg-gradient-to-r from-brand-blue via-brand-glow to-brand-red p-5">

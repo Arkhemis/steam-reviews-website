@@ -93,8 +93,8 @@ export default async function BattlePage({ searchParams }: BattlePageProps) {
   // review per polarity keeps this to two rows per game instead of the whole
   // highlight set.
   const [leftReviews, rightReviews] = await Promise.all([
-    getGameTopReviews(leftAppId, 1),
-    getGameTopReviews(rightAppId, 1),
+    getGameTopReviews(leftAppId, { perSide: 1 }),
+    getGameTopReviews(rightAppId, { perSide: 1 }),
   ]);
   const leftTopReview = leftReviews.find((review) => review.votedUp);
   const rightTopReview = rightReviews.find((review) => review.votedUp);

@@ -1,0 +1,58 @@
+▲ Next.js 16.2.12 (Turbopack)
+- Local:         http://localhost:3100
+- Network:       http://192.168.1.125:3100
+- Environments: .env.local
+✓ Ready in 770ms
+
+⚠ Slow filesystem detected. The benchmark took 917ms. If /mnt/storage/steam-reviews-website/.next/dev is a network drive, consider moving it to a local folder.
+See more: https://nextjs.org/docs/app/guides/local-development
+ GET /games/1605850 200 in 1011ms (next.js: 554ms, application-code: 457ms)
+ GET /games/1605850 200 in 172ms (next.js: 14ms, application-code: 158ms)
+ GET /games/1605850?lang=french 200 in 140ms (next.js: 3ms, application-code: 137ms)
+ GET /games/1605850?lang=all 200 in 142ms (next.js: 2ms, application-code: 140ms)
+ GET /games/1605850?lang=thai 200 in 143ms (next.js: 11ms, application-code: 133ms)
+⨯ error: relation "marts.language_review_score_global" does not exist
+    at async getLanguageReviewScores (src/lib/data/gameData.ts:372:20)
+    at async HomePage (src/app/page.tsx:32:67)
+  370 |
+  371 | export async function getLanguageReviewScores(): Promise<LanguageReviewScore[]> {
+> 372 |   const { rows } = await pool.query<LanguageReviewScoreRow>(
+      |                    ^
+  373 |     `SELECT ${LANGUAGE_REVIEW_SCORE_COLUMNS}
+  374 |      FROM marts.language_review_score_global
+  375 |      ORDER BY pct_of_total DESC`, {
+  length: 133,
+  severity: 'ERROR',
+  code: '42P01',
+  detail: undefined,
+  hint: undefined,
+  position: '86',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '1428',
+  routine: 'parserOpenTable',
+  digest: '2339399356'
+}
+ GET / 200 in 218ms (next.js: 28ms, application-code: 190ms)
+ GET /games/1605850 200 in 188ms (next.js: 15ms, application-code: 173ms)
+[browser] Uncaught error: relation "marts.language_review_score_global" does not exist
+    at getLanguageReviewScores (src/lib/data/gameData.ts:372:20)
+    at Function.all (<anonymous>:1:21)
+    at HomePage (src/app/page.tsx:32:67)
+  370 |
+  371 | export async function getLanguageReviewScores(): Promise<LanguageReviewScore[]> {
+> 372 |   const { rows } = await pool.query<LanguageReviewScoreRow>(
+      |                    ^
+  373 |     `SELECT ${LANGUAGE_REVIEW_SCORE_COLUMNS}
+  374 |      FROM marts.language_review_score_global
+  375 |      ORDER BY pct_of_total DESC`,
+ GET /games/1605850?lang=french 200 in 126ms (next.js: 2ms, application-code: 123ms)
+ GET /games/1605850?lang=all 200 in 177ms (next.js: 3ms, application-code: 174ms)
+ GET /games/1605850?lang=english 200 in 148ms (next.js: 14ms, application-code: 135ms)

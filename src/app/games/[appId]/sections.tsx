@@ -4,9 +4,11 @@ import { ScoreEvolutionChart } from "@/components/ScoreEvolutionChart";
 import { Skeleton, SkeletonLines } from "@/components/Skeleton";
 import {
   getGameLanguageDistribution,
+  getGameReviewLanguages,
   getGameReviewTrends,
   getGameTopReviews,
 } from "@/lib/data/gameData";
+import { resolveReviewLanguage } from "@/lib/reviewLanguage";
 
 // Each section owns one query and one Suspense boundary, so the page shell (and
 // the sections that answer first) reach the browser without waiting on the
@@ -70,7 +72,15 @@ export async function LanguagesSection({ appId }: { appId: number }) {
   return <LanguageDistribution languages={languages} />;
 }
 
-export async function ReviewsSection({ appId }: { appId: number }) {
-  const reviews = await getGameTopReviews(appId);
-  return <ReviewBattle reviews={reviews} />;
+export async function ReviewsSection({ appId, lang }: { appId: number; lang?: string }) {
+  // Les deux requêtes s'enchaînent au lieu de partir en parallèle : la langue à
+  // charger dépend de celles que le jeu possède (défaut anglais, repli sur la
+  // mieux représentée). Le GROUP BY est indexé et ne lit aucun `review_text`,
+  // donc l'aller-retour supplémentaire est négligeable devant la requête des
+  // reviews elles-mêmes.
+  const languages = await getGameReviewLanguages(appId);
+  const language = resolveReviewLanguage(languages, lang);
+  const reviews = await getGameTopReviews(appId, { language });
+
+  return <ReviewBattle reviews={reviews} languages={languages} selectedLanguage={language} />;
 }

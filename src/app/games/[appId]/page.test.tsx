@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { Suspense } from "react";
+import { isValidElement, Suspense } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import GamePage from "@/app/games/[appId]/page";
 import { LanguagesSection, ReviewsSection, TrendsSection } from "@/app/games/[appId]/sections";
@@ -13,22 +13,30 @@ import type { GameStats, GameTopReview } from "@/lib/data/types";
 // La page tape Postgres ; comme pour la carte, on mocke la couche data pour
 // tester le rendu (et le découpage en boundaries Suspense) sans base locale.
 // Le SQL lui-même reste couvert par gameData.test.ts.
-const { getGameStats, getGameReviewTrends, getGameLanguageDistribution, getGameTopReviews } = vi.hoisted(
-  () => ({
-    getGameStats: vi.fn(),
-    getGameReviewTrends: vi.fn(),
-    getGameLanguageDistribution: vi.fn(),
-    getGameTopReviews: vi.fn(),
-  }),
-);
+const {
+  getGameStats,
+  getGameReviewTrends,
+  getGameLanguageDistribution,
+  getGameReviewLanguages,
+  getGameTopReviews,
+} = vi.hoisted(() => ({
+  getGameStats: vi.fn(),
+  getGameReviewTrends: vi.fn(),
+  getGameLanguageDistribution: vi.fn(),
+  getGameReviewLanguages: vi.fn(),
+  getGameTopReviews: vi.fn(),
+}));
 
 vi.mock("@/lib/data/gameData", () => ({
   getGameStats,
   getGameReviewTrends,
   getGameLanguageDistribution,
+  getGameReviewLanguages,
   getGameTopReviews,
   TOP_REVIEWS_PER_SIDE: 20,
 }));
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
 const game: GameStats = {
   appId: BALDURS_GATE_3_APP_ID,
@@ -66,11 +74,39 @@ function review(overrides: Partial<GameTopReview>): GameTopReview {
   };
 }
 
+/** Retrouve dans l'arbre rendu le premier élément d'un type de composant donné. */
+function findElement(node: unknown, type: unknown): { key: string | null; props: Record<string, unknown> } | null {
+  if (!isValidElement(node)) {
+    return Array.isArray(node)
+      ? node.reduce<ReturnType<typeof findElement>>((found, child) => found ?? findElement(child, type), null)
+      : null;
+  }
+  if (node.type === type) return node as never;
+  return findElement((node.props as { children?: unknown }).children, type);
+}
+
+/** Clé du <Suspense> qui enveloppe un composant donné. */
+function findSuspenseKeyAround(node: unknown, type: unknown): string | null | undefined {
+  if (!isValidElement(node)) {
+    return Array.isArray(node)
+      ? node.reduce<string | null | undefined>((found, child) => found ?? findSuspenseKeyAround(child, type), undefined)
+      : undefined;
+  }
+  if (node.type === Suspense && findElement((node.props as { children?: unknown }).children, type)) {
+    return node.key;
+  }
+  return findSuspenseKeyAround((node.props as { children?: unknown }).children, type);
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   getGameStats.mockResolvedValue(game);
   getGameReviewTrends.mockResolvedValue(baldursGate3ReviewTrends);
   getGameLanguageDistribution.mockResolvedValue(baldursGate3LanguageDistribution);
+  getGameReviewLanguages.mockResolvedValue([
+    { language: "english", reviewCount: 30 },
+    { language: "french", reviewCount: 12 },
+  ]);
   getGameTopReviews.mockResolvedValue([
     review({}),
     review({ recommendationId: 2, votedUp: false, reviewText: "Trop de bugs au patch 4" }),
@@ -79,7 +115,10 @@ beforeEach(() => {
 
 describe("GamePage", () => {
   it("renders the header and KPIs without awaiting the section queries", async () => {
-    const jsx = await GamePage({ params: Promise.resolve({ appId: String(BALDURS_GATE_3_APP_ID) }) });
+    const jsx = await GamePage({
+      params: Promise.resolve({ appId: String(BALDURS_GATE_3_APP_ID) }),
+      searchParams: Promise.resolve({}),
+    });
 
     // Le shell ne dépend que de getGameStats : quand la page rend, les trois
     // requêtes lourdes n'ont pas encore été lancées — elles vivent dans leurs
@@ -93,9 +132,34 @@ describe("GamePage", () => {
     expect(screen.getByText("97%")).toBeInTheDocument();
   });
 
+  it("hands the requested language to the reviews section", async () => {
+    const jsx = await GamePage({
+      params: Promise.resolve({ appId: String(BALDURS_GATE_3_APP_ID) }),
+      searchParams: Promise.resolve({ lang: "french" }),
+    });
+
+    const section = findElement(jsx, ReviewsSection);
+    expect(section?.props).toMatchObject({ appId: BALDURS_GATE_3_APP_ID, lang: "french" });
+  });
+
+  it("remounts the reviews boundary when the language changes, so the skeleton comes back", async () => {
+    const french = await GamePage({
+      params: Promise.resolve({ appId: String(BALDURS_GATE_3_APP_ID) }),
+      searchParams: Promise.resolve({ lang: "french" }),
+    });
+    const german = await GamePage({
+      params: Promise.resolve({ appId: String(BALDURS_GATE_3_APP_ID) }),
+      searchParams: Promise.resolve({ lang: "german" }),
+    });
+
+    expect(findSuspenseKeyAround(french, ReviewsSection)).not.toBe(
+      findSuspenseKeyAround(german, ReviewsSection),
+    );
+  });
+
   it("renders a not-found message for an unknown app id", async () => {
     getGameStats.mockResolvedValue(null);
-    render(await GamePage({ params: Promise.resolve({ appId: "999999999" }) }));
+    render(await GamePage({ params: Promise.resolve({ appId: "999999999" }), searchParams: Promise.resolve({}) }));
 
     expect(screen.getByText(/introuvable/i)).toBeInTheDocument();
   });
@@ -107,6 +171,35 @@ describe("GamePage sections", () => {
 
     expect(await screen.findByText(/Superbe jeu, rien à redire/)).toBeInTheDocument();
     expect(screen.getByText(/Trop de bugs au patch 4/)).toBeInTheDocument();
+  });
+
+  it("loads english reviews when the visitor asked for no particular language", async () => {
+    await ReviewsSection({ appId: BALDURS_GATE_3_APP_ID });
+
+    expect(getGameTopReviews).toHaveBeenCalledWith(BALDURS_GATE_3_APP_ID, { language: "english" });
+  });
+
+  it("loads reviews in the language taken from the URL", async () => {
+    await ReviewsSection({ appId: BALDURS_GATE_3_APP_ID, lang: "french" });
+
+    expect(getGameTopReviews).toHaveBeenCalledWith(BALDURS_GATE_3_APP_ID, { language: "french" });
+  });
+
+  it("drops the language filter for the all-languages selection", async () => {
+    await ReviewsSection({ appId: BALDURS_GATE_3_APP_ID, lang: "all" });
+
+    expect(getGameTopReviews).toHaveBeenCalledWith(BALDURS_GATE_3_APP_ID, { language: null });
+  });
+
+  it("offers the game's languages in the selector, with the applied one preselected", async () => {
+    render(
+      <Suspense fallback={null}>
+        {await ReviewsSection({ appId: BALDURS_GATE_3_APP_ID, lang: "french" })}
+      </Suspense>,
+    );
+
+    expect(await screen.findByRole("combobox")).toHaveValue("french");
+    expect(screen.getByRole("option", { name: /Anglais \(30\)/ })).toBeInTheDocument();
   });
 
   it("renders the score chart once the section resolves", async () => {
