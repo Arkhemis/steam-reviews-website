@@ -370,10 +370,15 @@ type GameLanguageDistributionRow = {
   pct_of_total: string;
 };
 
+// `marts.game_language_distribution` n'existe plus : le modèle a été remplacé
+// en amont par `language_review_score` (même grain app_id + langue, plus les
+// votes positifs). La table ne subsiste en prod que comme résidu d'un ancien
+// run — figée depuis, et effacée au prochain full refresh. On lit donc la
+// source vivante, dont `total_reviews` porte l'ancien `review_count`.
 export async function getGameLanguageDistribution(appId: number): Promise<GameLanguageDistribution[]> {
   const { rows } = await pool.query<GameLanguageDistributionRow>(
-    `SELECT app_id, language, review_count, pct_of_total
-     FROM marts.game_language_distribution
+    `SELECT app_id, language, total_reviews AS review_count, pct_of_total
+     FROM intermediate.language_review_score
      WHERE app_id = $1
      ORDER BY pct_of_total DESC`,
     [appId],
