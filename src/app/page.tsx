@@ -7,7 +7,18 @@ import { GameCoverTile } from "@/components/GameCoverTile";
 import { GameSearchForm } from "@/components/GameSearchForm";
 import { HeroShelf } from "@/components/HeroShelf";
 import { Nav } from "@/components/Nav";
-import { Skeleton } from "@/components/Skeleton";
+import { SectionHeading } from "@/components/SectionHeading";
+import {
+  CHART_SIZE,
+  ChartsFallback,
+  ChartsHeading,
+  GRID_SIZE,
+  GamesCountFallback,
+  GamesGridFallback,
+  GamesHeading,
+  HeroCopyFallback,
+  ShelfFallback,
+} from "@/app/homeChrome";
 import {
   getLanguageReviewScores,
   getReviewDuel,
@@ -23,15 +34,7 @@ export const dynamic = "force-dynamic";
 const enCompact = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
 const enFull = new Intl.NumberFormat("en-US");
 
-const CHART_FILTERS = [
-  { label: "Trending", href: "/classements" },
-  { label: "Best rated", href: "/classements?filter=mieux-notes" },
-  { label: "Most reviewed", href: "/classements?filter=plus-commentes" },
-  { label: "Worst rated", href: "/classements?filter=pires-notes" },
-] as const;
-
 const SHELF_SIZE = 10;
-const CHART_SIZE = 5;
 
 // L'étagère et les charts lisent la même comparaison 30j/30j : `cache` la
 // déduplique au sein d'une requête, `unstable_cache` évite de la recalculer à
@@ -78,26 +81,6 @@ async function HeroCopy() {
   );
 }
 
-function HeroCopyFallback() {
-  return (
-    <div className="mt-4 grid grid-cols-1 items-end gap-8 lg:grid-cols-[minmax(0,620px)_minmax(0,1fr)] lg:gap-10">
-      <div>
-        <Skeleton className="h-[54px] w-full max-w-[560px] sm:h-[60px] lg:h-[106px]" />
-        <Skeleton className="mt-4 h-12 w-full max-w-[50ch]" />
-        <Skeleton className="mt-5 h-10 w-full max-w-[420px]" />
-      </div>
-      <div className="flex justify-start gap-8 pb-1.5 lg:justify-end">
-        {[0, 1, 2].map((i) => (
-          <div key={i}>
-            <Skeleton className="h-8 w-16" />
-            <Skeleton className="mt-1 h-2.5 w-12" />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 async function Shelf() {
   const { up, down } = await trending();
 
@@ -113,28 +96,6 @@ async function Shelf() {
     .slice(0, SHELF_SIZE);
 
   return <HeroShelf games={games} />;
-}
-
-function ShelfFallback() {
-  return <div className="mt-4 h-[300px] sm:h-[380px] lg:h-[430px]" />;
-}
-
-function SectionHeading({ number, title, note, action }: {
-  number: string;
-  title: string;
-  note: React.ReactNode;
-  action?: React.ReactNode;
-}) {
-  return (
-    <div className="mb-4 flex flex-wrap items-baseline justify-between gap-3">
-      <div className="flex items-baseline gap-3">
-        <span className="font-mono text-[11px] text-brand-blue">{number}</span>
-        <h2 className="m-0 text-2xl font-extrabold tracking-tight sm:text-[26px]">{title}</h2>
-        <span className="text-sm text-[#7d919c]">{note}</span>
-      </div>
-      {action}
-    </div>
-  );
 }
 
 async function Charts() {
@@ -164,20 +125,8 @@ async function Charts() {
   );
 }
 
-function ChartsFallback() {
-  return (
-    <div className="overflow-x-auto">
-      <div className="min-w-[560px] space-y-2">
-        {Array.from({ length: CHART_SIZE }, (_, i) => (
-          <Skeleton key={i} className="h-14 w-full" />
-        ))}
-      </div>
-    </div>
-  );
-}
-
 async function GamesGrid() {
-  const games = await getTopGames(20);
+  const games = await getTopGames(GRID_SIZE);
 
   return (
     <div className="grid grid-cols-4 gap-2.5 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10">
@@ -191,16 +140,6 @@ async function GamesGrid() {
           reviews={game.totalReviews}
           sizes="10vw"
         />
-      ))}
-    </div>
-  );
-}
-
-function GamesGridFallback() {
-  return (
-    <div className="grid grid-cols-4 gap-2.5 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10">
-      {Array.from({ length: 20 }, (_, i) => (
-        <Skeleton key={i} className="aspect-[2/3] w-full rounded-[3px]" />
       ))}
     </div>
   );
@@ -264,24 +203,7 @@ export default function HomePage() {
 
       <div className="border-t border-[#1a2530] px-5 py-9 sm:px-7">
         <div className="mx-auto max-w-[1320px]">
-          <SectionHeading
-            number="01"
-            title="Charts"
-            note="rising over 30 days · 30-review floor"
-            action={
-              <div className="flex flex-wrap gap-1.5">
-                {CHART_FILTERS.map((f) => (
-                  <Link
-                    key={f.label}
-                    href={f.href}
-                    className="rounded-full border border-[#24333f] px-3 py-1 text-xs font-semibold text-[#9fb2bd]"
-                  >
-                    {f.label}
-                  </Link>
-                ))}
-              </div>
-            }
-          />
+          <ChartsHeading />
           <Suspense fallback={<ChartsFallback />}>
             <Charts />
           </Suspense>
@@ -290,18 +212,11 @@ export default function HomePage() {
 
       <div className="border-t border-[#1a2530] px-5 py-9 sm:px-7">
         <div className="mx-auto max-w-[1320px]">
-          <SectionHeading
-            number="02"
-            title="Games"
+          <GamesHeading
             note={
-              <Suspense fallback={<Skeleton className="inline-block h-3 w-64 align-middle" />}>
+              <Suspense fallback={<GamesCountFallback />}>
                 <GamesCount />
               </Suspense>
-            }
-            action={
-              <Link href="/games" className="font-mono text-[10px] tracking-[0.12em] text-brand-blue uppercase">
-                browse all →
-              </Link>
             }
           />
           <Suspense fallback={<GamesGridFallback />}>
