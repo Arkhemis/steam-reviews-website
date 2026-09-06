@@ -259,6 +259,13 @@ export function ScoreEvolutionChart({ trends, events = [] }: ScoreEvolutionChart
           <p className="mt-0.5 text-neutral-400">
             {EVENT_STYLES[hoveredMarker.event.category].label} · {formatDay(hoveredMarker.event.startedOn)}
           </p>
+          {!hoveredMarker.event.isWellReceived && (
+            // Sans ce chiffre, le contour rouge ne dit pas de combien l'annonce
+            // a été rejetée : 26 % et 92 % de votes négatifs s'affichent pareil.
+            <p className="mt-1 font-medium text-[color:var(--status-critical)]">
+              {Math.round(hoveredMarker.event.pctNegative * 100)} % de votes négatifs
+            </p>
+          )}
           <p className="mt-1 flex gap-3 text-neutral-300">
             <span className="flex items-center gap-1" title="Votes positifs">
               <span aria-hidden>▲</span>

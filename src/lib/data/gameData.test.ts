@@ -38,7 +38,17 @@ describe("gameData", () => {
     expect(events.length).toBeGreaterThan(0);
     expect(events.every((e) => e.category === "news" || e.category === "update")).toBe(true);
     expect(events.map((e) => e.startedOn)).toEqual([...events.map((e) => e.startedOn)].sort());
-    expect(events.every((e) => e.isWellReceived === e.votesUp >= e.votesDown)).toBe(true);
+    expect(events.every((e) => e.pctNegative >= 0 && e.pctNegative <= 1)).toBe(true);
+
+    // Le mart ne juge une annonce mal reçue qu'au-delà de 25 % de votes
+    // négatifs, et seulement si elle réunit assez de votes pour que le ratio
+    // veuille dire quelque chose. Cf. marts/game_event_highlight.sql.
+    expect(
+      events.every((e) => {
+        const controversee = e.pctNegative > 0.25 && e.votesUp + e.votesDown >= 100;
+        return e.isWellReceived === !controversee;
+      }),
+    ).toBe(true);
   });
 
   it("returns no event for an unknown game", async () => {

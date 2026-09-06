@@ -20,6 +20,7 @@ function makeEvent(overrides: Partial<GameEvent> = {}): GameEvent {
     votesDown: 12,
     commentCount: 44,
     imageUrl: "https://clan.cloudflare.steamstatic.com/images/patch.jpg",
+    pctNegative: 0.013,
     isWellReceived: true,
     ...overrides,
   };
@@ -145,6 +146,25 @@ describe("ScoreEvolutionChart", () => {
     rerender(<ScoreEvolutionChart trends={trends} events={[makeEvent({ isWellReceived: false })]} />);
     fireEvent.pointerEnter(hitArea(container, "e1"));
     expect(screen.getByTestId("event-tooltip").style.borderColor).toBe("var(--status-critical)");
+  });
+
+  it("spells out the negative share on a controversial event", () => {
+    const { container } = render(
+      <ScoreEvolutionChart
+        trends={trends}
+        events={[
+          makeEvent({ votesUp: 17494, votesDown: 190200, pctNegative: 0.9158, isWellReceived: false }),
+        ]}
+      />
+    );
+    fireEvent.pointerEnter(hitArea(container, "e1"));
+    expect(screen.getByTestId("event-tooltip")).toHaveTextContent("92 % de votes négatifs");
+  });
+
+  it("keeps the negative share out of a well-received tooltip", () => {
+    const { container } = render(<ScoreEvolutionChart trends={trends} events={[makeEvent()]} />);
+    fireEvent.pointerEnter(hitArea(container, "e1"));
+    expect(screen.getByTestId("event-tooltip")).not.toHaveTextContent("de votes négatifs");
   });
 
   it("lets the event tooltip win over the month tooltip", () => {

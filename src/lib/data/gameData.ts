@@ -373,10 +373,12 @@ type GameEventRow = {
   votes_down: number;
   comment_count: number;
   image_url: string | null;
+  pct_negative: string;
   is_well_received: boolean;
 };
 
-// Le tri et la sélection (top 3 par an, `news`/`update` seulement) sont faits en
+// Le tri et la sélection (`news`/`update` seulement, les 3 annonces les plus
+// discutées de chaque année plus jusqu'à 2 controverses repêchées) sont faits en
 // amont dans le mart : lire `intermediate.steam_event_categorized` directement
 // coûtait un Parallel Seq Scan de 8 s sur 1,77 M de lignes, contre 0,1 ms ici
 // grâce à l'index (app_id, started_on).
@@ -391,6 +393,7 @@ export async function getGameEvents(appId: number): Promise<GameEvent[]> {
        votes_down,
        comment_count,
        image_url,
+       pct_negative,
        is_well_received
      FROM marts.game_event_highlight
      WHERE app_id = $1
@@ -408,6 +411,7 @@ export async function getGameEvents(appId: number): Promise<GameEvent[]> {
     votesDown: Number(row.votes_down),
     commentCount: Number(row.comment_count),
     imageUrl: row.image_url,
+    pctNegative: Number(row.pct_negative),
     isWellReceived: row.is_well_received,
   }));
 }

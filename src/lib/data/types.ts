@@ -37,7 +37,8 @@ export type GameEvent = {
   votesDown: number;
   commentCount: number;
   imageUrl: string | null; // absent d'environ la moitié des annonces
-  isWellReceived: boolean;
+  pctNegative: number; // part de votes négatifs, de 0 à 1
+  isWellReceived: boolean; // faux au-delà de 25 % de négatifs, cf. le mart
 };
 
 export type GameLanguageDistribution = {
