@@ -1,13 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
+  getCatalogueTrend,
   getGameEvents,
   getGameLanguageDistribution,
   getGameReviewTrends,
   getGameReviewLanguages,
   getGameStats,
   getGameTopReviews,
+  getPolarisedGames,
   getReviewDuel,
   getTopGames,
+  getTopRatedGamesInWindow,
   getTrendingGames,
   TOP_REVIEWS_PER_SIDE,
 } from "@/lib/data/gameData";
@@ -165,5 +168,65 @@ describe("gameData", () => {
     expect(duel?.negative.review.votedUp).toBe(false);
     expect(duel?.positive.game.totalReviews).toBeGreaterThan(5000);
     expect(duel?.negative.game.totalReviews).toBeGreaterThan(5000);
+  });
+
+  // --- Home éditoriale ---
+
+  it("classe le podium d'une fenêtre par part d'avis positifs décroissante", async () => {
+    const { games } = await getTopRatedGamesInWindow("month", 5, 100);
+
+    expect(games.length).toBeGreaterThan(0);
+    expect(games.map((g) => g.pctPositive)).toEqual(
+      [...games.map((g) => g.pctPositive)].sort((a, b) => b - a),
+    );
+    expect(games.every((g) => g.pctPositive >= 0 && g.pctPositive <= 1)).toBe(true);
+  });
+
+  it("écarte du podium les jeux qui n'atteignent pas le seuil de la fenêtre", async () => {
+    const floor = 500;
+    const { games } = await getTopRatedGamesInWindow("month", 5, floor);
+
+    expect(games.every((g) => g.reviews >= floor)).toBe(true);
+  });
+
+  it("rend la fenêtre du podium, ancrée sur la dernière date du mart", async () => {
+    const window = await getTopRatedGamesInWindow("month", 1, 100);
+
+    expect(window.startsOn).not.toBeNull();
+    expect(window.endsOn).not.toBeNull();
+    expect(window.startsOn! < window.endsOn!).toBe(true);
+  });
+
+  it("resserre la fenêtre quand on demande la semaine plutôt que le mois", async () => {
+    const [week, month] = await Promise.all([
+      getTopRatedGamesInWindow("week", 1, 10),
+      getTopRatedGamesInWindow("month", 1, 10),
+    ]);
+
+    expect(week.endsOn).toBe(month.endsOn);
+    expect(week.startsOn! > month.startsOn!).toBe(true);
+  });
+
+  it("range les jeux clivants du plus proche de 50 % au moins proche", async () => {
+    const games = await getPolarisedGames(5, 1000);
+
+    expect(games.length).toBeGreaterThan(0);
+    const distances = games.map((g) => Math.abs(g.pctPositive * 100 - 50));
+    expect(distances).toEqual([...distances].sort((a, b) => a - b));
+    expect(games.every((g) => g.totalReviews >= 1000)).toBe(true);
+  });
+
+  it("rend le pouls du catalogue jour par jour, sans trou d'ordre", async () => {
+    const days = await getCatalogueTrend();
+
+    expect(days.length).toBeGreaterThan(0);
+    expect(days.map((d) => d.date)).toEqual([...days.map((d) => d.date)].sort());
+    expect(days.every((d) => d.positive <= d.reviews)).toBe(true);
+
+    // Douze mois calendaires au plus : le premier jour rendu ne peut pas être
+    // antérieur au premier du mois, onze mois avant le dernier jour rendu.
+    const last = new Date(`${days[days.length - 1].date}T00:00:00Z`);
+    const floor = new Date(Date.UTC(last.getUTCFullYear(), last.getUTCMonth() - 11, 1));
+    expect(new Date(`${days[0].date}T00:00:00Z`) >= floor).toBe(true);
   });
 });

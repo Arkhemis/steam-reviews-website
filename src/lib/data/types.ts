@@ -108,3 +108,34 @@ export type GameReviewLanguage = {
   language: string;
   reviewCount: number;
 };
+
+/**
+ * Fenêtre d'un podium de la home, toujours ancrée sur la dernière date
+ * présente dans `marts.game_review_trend_daily` — jamais sur `CURRENT_DATE`,
+ * que le pipeline peut avoir des jours de retard à rejoindre.
+ */
+export type ReviewWindow = "week" | "month" | "year-to-date";
+
+export type WindowedGame = {
+  appId: number;
+  name: string;
+  coverUrl: string | null;
+  /** Avis reçus dans la fenêtre, pas le total du jeu. */
+  reviews: number;
+  /** Part d'avis positifs dans la fenêtre, de 0 à 1. */
+  pctPositive: number;
+};
+
+export type RankedWindow = {
+  /** `null` quand aucun jeu ne passe le seuil : la fenêtre reste inconnue. */
+  startsOn: string | null;
+  endsOn: string | null;
+  games: WindowedGame[];
+};
+
+/** Une journée du catalogue entier, tous jeux confondus. */
+export type CatalogueTrendDay = {
+  date: string; // ISO, e.g. "2026-09-11"
+  reviews: number;
+  positive: number;
+};

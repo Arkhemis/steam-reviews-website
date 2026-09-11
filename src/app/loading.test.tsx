@@ -46,9 +46,12 @@ describe.each(LOADINGS)("loading state de %s", (_route, Loading) => {
     expect(root().className).toContain("bg-[#0c1116]");
   });
 
+  // La home éditoriale ouvre sur trois bandes à fond perdu (nav, héros,
+  // bandeau de pouls) : son conteneur centré n'est plus le premier enfant de la
+  // racine, mais il reste à la largeur du site, comme sur les autres pages.
   it("centre son contenu à la même largeur que la page qu'il remplace", () => {
-    const container = root().firstElementChild;
-    expect(container?.className).toContain("mx-auto");
+    const container = root().querySelector(".mx-auto");
+    expect(container).not.toBeNull();
     expect(container?.className).toContain("max-w-[1320px]");
   });
 });

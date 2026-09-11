@@ -1,23 +1,11 @@
 import Link from "next/link";
 import { ChartRow, ChartRowHeader } from "@/components/ChartRow";
 import { Nav } from "@/components/Nav";
+import { CHART_FILTERS, type ChartFilterKey, chartFilterHref, isChartFilterKey } from "@/lib/charts";
 import { getRankedGames, getTopGames, getTrendingGames } from "@/lib/data/gameData";
-
-const FILTERS = [
-  { key: "trending", label: "Trending" },
-  { key: "best-rated", label: "Best rated" },
-  { key: "most-reviewed", label: "Most reviewed" },
-  { key: "worst-rated", label: "Worst rated" },
-] as const;
-
-type FilterKey = (typeof FILTERS)[number]["key"];
 
 const RANKING_LIMIT = 20;
 const MIN_REVIEWS_FOR_RATING = 500;
-
-function isFilterKey(value: string | undefined): value is FilterKey {
-  return FILTERS.some((f) => f.key === value);
-}
 
 const enFull = new Intl.NumberFormat("en-US");
 
@@ -27,7 +15,7 @@ type ChartsPageProps = {
 
 export default async function ChartsPage({ searchParams }: ChartsPageProps) {
   const { filter: rawFilter } = await searchParams;
-  const filter: FilterKey = isFilterKey(rawFilter) ? rawFilter : "trending";
+  const filter: ChartFilterKey = isChartFilterKey(rawFilter) ? rawFilter : "trending";
 
   const rows =
     filter === "trending"
@@ -69,10 +57,10 @@ export default async function ChartsPage({ searchParams }: ChartsPageProps) {
         </p>
 
         <div className="mt-5 flex flex-wrap gap-1.5">
-          {FILTERS.map((f) => (
+          {CHART_FILTERS.map((f) => (
             <Link
               key={f.key}
-              href={f.key === "trending" ? "/charts" : `/charts?filter=${f.key}`}
+              href={chartFilterHref(f.key)}
               className={
                 f.key === filter
                   ? "rounded-full bg-brand-blue px-3 py-1 text-xs font-bold text-black"
