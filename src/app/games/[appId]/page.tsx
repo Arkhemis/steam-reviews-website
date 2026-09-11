@@ -114,18 +114,18 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
         </div>
 
         <div className="mt-8 grid grid-cols-[1.4fr_1fr] gap-5">
-          <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+          <div className="flex flex-col rounded-xl border border-white/10 bg-white/5 p-4">
             <TrendsHeading />
             <Suspense fallback={<TrendsSkeleton />}>
               <TrendsSection appId={numericAppId} />
             </Suspense>
           </div>
-          <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+          <div className="flex flex-col rounded-xl border border-white/10 bg-white/5 p-4">
             <h2 className="mb-2 text-xs uppercase tracking-wide text-neutral-400">Languages</h2>
             <Suspense fallback={<LanguagesSkeleton />}>
               <LanguagesSection appId={numericAppId} />
             </Suspense>
-            <Link href={`/map?app=${stats.appId}`} className="mt-2 block text-center text-xs text-brand-blue">
+            <Link href={`/map?app=${stats.appId}`} className="mt-auto block pt-2 text-center text-xs text-brand-blue">
               View on the map →
             </Link>
           </div>

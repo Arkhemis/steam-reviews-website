@@ -37,10 +37,11 @@ export function TrendsHeading() {
   );
 }
 
-// The chart's viewBox is 640x220, rendered full-width — same aspect here so the
-// card doesn't resize when the series lands.
+// Même règle de hauteur que le graphe : le ratio 640x220 en plancher, `grow`
+// pour occuper ce que la carte a en trop. La carte ne bouge donc pas quand la
+// série arrive.
 export function TrendsSkeleton() {
-  return <Skeleton className="aspect-[640/220] w-full" />;
+  return <Skeleton className="aspect-[640/220] w-full grow" />;
 }
 
 export function LanguagesSkeleton() {

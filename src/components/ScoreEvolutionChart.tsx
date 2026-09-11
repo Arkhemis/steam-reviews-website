@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import type { GameEvent, GameReviewTrend } from "@/lib/data/types";
 
 type ScoreEvolutionChartProps = {
@@ -9,7 +9,10 @@ type ScoreEvolutionChartProps = {
 };
 
 const WIDTH = 640;
-const HEIGHT = 220;
+// Hauteur plancher du viewBox, et seul ratio connu du serveur : le graphe
+// occupe 640x220 tant que la carte n'a pas été mesurée. Au-delà, la hauteur
+// suit celle du conteneur — voir useChartHeight().
+const BASE_HEIGHT = 220;
 const PADDING = 24;
 
 // Demi-largeur de la zone qui capte le survol d'un repère. Les barres font 1 px
@@ -69,16 +72,51 @@ function usableImage(imageUrl: string | null): string | null {
   return imageUrl?.startsWith("https://") ? imageUrl : null;
 }
 
+/**
+ * Hauteur du viewBox, en unités utilisateur, pour que le dessin remplisse
+ * exactement le cadre que le flex lui donne. La carte est étirée par la grille
+ * à la hauteur de sa voisine (Languages), hauteur qu'aucun rendu serveur ne
+ * connaît : sans cette mesure, le graphe garde son ratio 640x220 et laisse le
+ * reste de la carte vide.
+ *
+ * On garde `WIDTH` fixe et on n'ajuste que la hauteur : l'échelle reste donc
+ * uniforme (pas de `preserveAspectRatio="none"`), les traits gardent leur
+ * épaisseur et les points restent ronds.
+ */
+function useChartHeight(frameRef: React.RefObject<HTMLDivElement | null>): number {
+  const [height, setHeight] = useState(BASE_HEIGHT);
+
+  useLayoutEffect(() => {
+    const frame = frameRef.current;
+    if (!frame) return;
+
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height: pixelHeight } = entry.contentRect;
+      if (width === 0) return;
+      // Le cadre a un `aspect-[640/220]` en plancher, donc la mesure ne
+      // descend pas sous BASE_HEIGHT ; le max couvre les états transitoires.
+      setHeight(Math.max(BASE_HEIGHT, (WIDTH * pixelHeight) / width));
+    });
+
+    observer.observe(frame);
+    return () => observer.disconnect();
+  }, [frameRef]);
+
+  return height;
+}
+
 export function ScoreEvolutionChart({ trends, events = [] }: ScoreEvolutionChartProps) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [hoverGid, setHoverGid] = useState<string | null>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
+  const height = useChartHeight(frameRef);
 
   if (trends.length === 0) {
     return <p className="text-sm text-neutral-400">Not enough data yet.</p>;
   }
 
   const plotWidth = WIDTH - PADDING * 2;
-  const plotHeight = HEIGHT - PADDING * 2;
+  const plotHeight = height - PADDING * 2;
   const stepX = trends.length > 1 ? plotWidth / (trends.length - 1) : 0;
 
   const points = trends.map((trend, index) => ({
@@ -126,93 +164,98 @@ export function ScoreEvolutionChart({ trends, events = [] }: ScoreEvolutionChart
     x <= WIDTH / 2 ? { left: `${(x / WIDTH) * 100}%` } : { right: `${100 - (x / WIDTH) * 100}%` };
 
   return (
-    <div className="relative">
-      <svg
-        viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-        role="img"
-        aria-label="Positive score over time"
-        className="w-full"
-      >
-        {[0, 0.5, 1].map((fraction) => (
-          <line
-            key={fraction}
-            x1={PADDING}
-            x2={WIDTH - PADDING}
-            y1={PADDING + plotHeight * (1 - fraction)}
-            y2={PADDING + plotHeight * (1 - fraction)}
-            stroke="var(--gridline)"
-            strokeWidth={1}
-          />
-        ))}
-
-        {markers.map(({ event, x }) => (
-          <line
-            key={event.gid}
-            data-event-gid={event.gid}
-            x1={x}
-            x2={x}
-            y1={PADDING}
-            y2={HEIGHT - PADDING}
-            stroke={EVENT_STYLES[event.category].color}
-            strokeWidth={hoverGid === event.gid ? 2 : 1}
-            strokeDasharray="4 4"
-            opacity={hoverGid === event.gid ? 1 : 0.65}
-          />
-        ))}
-
-        <path d={linePath} fill="none" stroke="var(--series-1)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-
-        {points.map((p, i) =>
-          markedIndices.has(i) ? (
-            <circle
-              key={p.trend.periodMonth}
-              cx={p.x}
-              cy={p.y}
-              r={5}
-              fill="var(--series-1)"
-              stroke="var(--chart-surface)"
-              strokeWidth={2}
+    <div className="relative flex grow flex-col">
+      {/* Le cadre porte la hauteur : `aspect-[640/220]` en base, `grow` pour
+          prendre la place que la carte a en trop. Le SVG le remplit en absolu,
+          ce qui évite une hauteur en pourcentage sur un parent en aspect-ratio. */}
+      <div ref={frameRef} className="relative aspect-[640/220] w-full grow">
+        <svg
+          viewBox={`0 0 ${WIDTH} ${height}`}
+          role="img"
+          aria-label="Positive score over time"
+          className="absolute inset-0 h-full w-full"
+        >
+          {[0, 0.5, 1].map((fraction) => (
+            <line
+              key={fraction}
+              x1={PADDING}
+              x2={WIDTH - PADDING}
+              y1={PADDING + plotHeight * (1 - fraction)}
+              y2={PADDING + plotHeight * (1 - fraction)}
+              stroke="var(--gridline)"
+              strokeWidth={1}
             />
-          ) : null,
-        )}
+          ))}
 
-        {hovered && (
-          <line
-            x1={hovered.x}
-            x2={hovered.x}
-            y1={PADDING}
-            y2={HEIGHT - PADDING}
-            stroke="var(--ink-secondary)"
-            strokeWidth={1}
-            strokeDasharray="3 3"
-          />
-        )}
+          {markers.map(({ event, x }) => (
+            <line
+              key={event.gid}
+              data-event-gid={event.gid}
+              x1={x}
+              x2={x}
+              y1={PADDING}
+              y2={height - PADDING}
+              stroke={EVENT_STYLES[event.category].color}
+              strokeWidth={hoverGid === event.gid ? 2 : 1}
+              strokeDasharray="4 4"
+              opacity={hoverGid === event.gid ? 1 : 0.65}
+            />
+          ))}
 
-        <rect
-          data-month-hit=""
-          x={PADDING}
-          y={0}
-          width={plotWidth}
-          height={HEIGHT}
-          fill="transparent"
-          onPointerMove={handlePointerMove}
-          onPointerLeave={() => setHoverIndex(null)}
-        />
+          <path d={linePath} fill="none" stroke="var(--series-1)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
 
-        {markers.map(({ event, x }) => (
+          {points.map((p, i) =>
+            markedIndices.has(i) ? (
+              <circle
+                key={p.trend.periodMonth}
+                cx={p.x}
+                cy={p.y}
+                r={5}
+                fill="var(--series-1)"
+                stroke="var(--chart-surface)"
+                strokeWidth={2}
+              />
+            ) : null,
+          )}
+
+          {hovered && (
+            <line
+              x1={hovered.x}
+              x2={hovered.x}
+              y1={PADDING}
+              y2={height - PADDING}
+              stroke="var(--ink-secondary)"
+              strokeWidth={1}
+              strokeDasharray="3 3"
+            />
+          )}
+
           <rect
-            key={event.gid}
-            data-event-hit={event.gid}
-            x={x - EVENT_HIT_RADIUS}
+            data-month-hit=""
+            x={PADDING}
             y={0}
-            width={EVENT_HIT_RADIUS * 2}
-            height={HEIGHT}
+            width={plotWidth}
+            height={height}
             fill="transparent"
-            onPointerEnter={() => setHoverGid(event.gid)}
-            onPointerLeave={() => setHoverGid(null)}
+            onPointerMove={handlePointerMove}
+            onPointerLeave={() => setHoverIndex(null)}
           />
-        ))}
-      </svg>
+
+          {markers.map(({ event, x }) => (
+            <rect
+              key={event.gid}
+              data-event-hit={event.gid}
+              x={x - EVENT_HIT_RADIUS}
+              y={0}
+              width={EVENT_HIT_RADIUS * 2}
+              height={height}
+              fill="transparent"
+              onPointerEnter={() => setHoverGid(event.gid)}
+              onPointerLeave={() => setHoverGid(null)}
+            />
+          ))}
+        </svg>
+      </div>
 
       {legend.length > 0 && (
         <ul className="mt-1 flex gap-4 text-xs text-neutral-400">
