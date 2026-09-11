@@ -4,8 +4,8 @@ import { StatTile } from "@/components/StatTile";
 
 describe("StatTile", () => {
   it("renders the label and value", () => {
-    render(<StatTile label="Score positif" value="97%" />);
+    render(<StatTile label="Positive score" value="97%" />);
     expect(screen.getByText("97%")).toBeInTheDocument();
-    expect(screen.getByText("Score positif")).toBeInTheDocument();
+    expect(screen.getByText("Positive score")).toBeInTheDocument();
   });
 });

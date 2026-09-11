@@ -22,16 +22,16 @@ function getSteamRating(pctPositive: number, totalReviews: number): { label: str
   const pct = pctPositive * 100;
 
   if (pct < 20) {
-    if (totalReviews >= 500) return { label: "Extrêmement négatif", color: "var(--status-critical)" };
-    if (totalReviews >= 50) return { label: "Très négatif", color: "var(--status-critical)" };
-    return { label: "Négatif", color: "var(--status-critical)" };
+    if (totalReviews >= 500) return { label: "Overwhelmingly Negative", color: "var(--status-critical)" };
+    if (totalReviews >= 50) return { label: "Very Negative", color: "var(--status-critical)" };
+    return { label: "Negative", color: "var(--status-critical)" };
   }
-  if (pct < 40) return { label: "Plutôt négatif", color: "var(--status-critical)" };
-  if (pct < 70) return { label: "Moyenne", color: "var(--status-warning)" };
-  if (pct < 80) return { label: "Plutôt positif", color: "var(--status-good)" };
-  if (totalReviews >= 500) return { label: "Extrêmement positif", color: "var(--status-good)" };
-  if (totalReviews >= 50) return { label: "Très positif", color: "var(--status-good)" };
-  return { label: "Positif", color: "var(--status-good)" };
+  if (pct < 40) return { label: "Mostly Negative", color: "var(--status-critical)" };
+  if (pct < 70) return { label: "Mixed", color: "var(--status-warning)" };
+  if (pct < 80) return { label: "Mostly Positive", color: "var(--status-good)" };
+  if (totalReviews >= 500) return { label: "Overwhelmingly Positive", color: "var(--status-good)" };
+  if (totalReviews >= 50) return { label: "Very Positive", color: "var(--status-good)" };
+  return { label: "Positive", color: "var(--status-good)" };
 }
 
 export default async function GamePage({ params, searchParams }: GamePageProps) {
@@ -46,7 +46,7 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
       <div className="min-h-screen bg-[#0c1116] text-[#eef2f4]">
         <div className="mx-auto max-w-[1320px] px-5 py-8 sm:px-7">
           <Nav />
-          <p className="mt-12 text-center text-[#9fb2bd]">Ce jeu est introuvable.</p>
+          <p className="mt-12 text-center text-[#9fb2bd]">This game was not found.</p>
         </div>
       </div>
     );
@@ -81,13 +81,13 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
                 rel="noopener noreferrer"
                 className="text-xs text-brand-blue underline"
               >
-                Voir sur Steam ↗
+                View on Steam ↗
               </a>
             </div>
             <p className="text-xs text-neutral-400">
               {stats.developers.join(", ")}
-              {stats.firstReleaseDate ? ` · Sorti le ${new Date(stats.firstReleaseDate).toLocaleDateString("fr-FR")}` : ""} ·{" "}
-              {stats.totalReviews.toLocaleString("fr-FR")} reviews analysées
+              {stats.firstReleaseDate ? ` · Released ${new Date(stats.firstReleaseDate).toLocaleDateString("en-US")}` : ""} ·{" "}
+              {stats.totalReviews.toLocaleString("en-US")} reviews analyzed
             </p>
             <div className="mt-2 flex gap-2">
               <span
@@ -96,7 +96,7 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
                   background: `linear-gradient(135deg, color-mix(in srgb, ${rating.color} 65%, black), color-mix(in srgb, ${rating.color} 85%, white))`,
                 }}
               >
-                {Math.round(stats.pctPositive * 100)}% positif ({rating.label})
+                {Math.round(stats.pctPositive * 100)}% positive ({rating.label})
               </span>
               {stats.genres[0] && (
                 <span className="rounded-full bg-white/10 px-2.5 py-1 text-xs text-neutral-300">{stats.genres[0]}</span>
@@ -106,31 +106,31 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
         </div>
 
         <div className="mt-6 grid grid-cols-4 gap-3">
-          <StatTile label="Score positif" value={`${Math.round(stats.pctPositive * 100)}%`} />
-          <StatTile label="Playtime médian" value={`${Math.round(stats.playtimeMedianMinutes / 60)}h`} />
-          <StatTile label="Reviews Steam Deck" value={`${Math.round(stats.pctSteamDeck * 100)}%`} />
-          <StatTile label="Remboursées" value={`${(stats.pctRefunded * 100).toFixed(1)}%`} />
+          <StatTile label="Positive score" value={`${Math.round(stats.pctPositive * 100)}%`} />
+          <StatTile label="Median playtime" value={`${Math.round(stats.playtimeMedianMinutes / 60)}h`} />
+          <StatTile label="Steam Deck reviews" value={`${Math.round(stats.pctSteamDeck * 100)}%`} />
+          <StatTile label="Refunded" value={`${(stats.pctRefunded * 100).toFixed(1)}%`} />
         </div>
 
         <div className="mt-8 grid grid-cols-[1.4fr_1fr] gap-5">
           <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-            <h2 className="mb-2 text-xs uppercase tracking-wide text-neutral-400">Évolution du score positif</h2>
+            <h2 className="mb-2 text-xs uppercase tracking-wide text-neutral-400">Positive score over time</h2>
             <Suspense fallback={<TrendsSkeleton />}>
               <TrendsSection appId={numericAppId} />
             </Suspense>
           </div>
           <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-            <h2 className="mb-2 text-xs uppercase tracking-wide text-neutral-400">Langues</h2>
+            <h2 className="mb-2 text-xs uppercase tracking-wide text-neutral-400">Languages</h2>
             <Suspense fallback={<LanguagesSkeleton />}>
               <LanguagesSection appId={numericAppId} />
             </Suspense>
-            <Link href={`/carte?app=${stats.appId}`} className="mt-2 block text-center text-xs text-brand-blue">
-              Voir sur la carte →
+            <Link href={`/map?app=${stats.appId}`} className="mt-2 block text-center text-xs text-brand-blue">
+              View on the map →
             </Link>
           </div>
         </div>
 
-        <h2 className="mt-8 mb-3 text-xs uppercase tracking-wide text-neutral-400">Reviews les plus votées</h2>
+        <h2 className="mt-8 mb-3 text-xs uppercase tracking-wide text-neutral-400">Most upvoted reviews</h2>
         {/* Clé sur la langue : changer de langue remonte la boundary, donc le
             skeleton revient au lieu de figer la paire précédente pendant la
             requête. */}
@@ -140,11 +140,11 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
 
         <div className="mt-8 flex items-center justify-between rounded-xl bg-gradient-to-r from-brand-blue via-brand-glow to-brand-red p-5">
           <div>
-            <h3 className="font-bold text-white">⚔️ Comparer ce jeu</h3>
-            <p className="text-xs text-white/80">Voir {stats.name} face à un autre jeu, stat contre stat.</p>
+            <h3 className="font-bold text-white">⚔️ Compare this game</h3>
+            <p className="text-xs text-white/80">See {stats.name} against another game, stat for stat.</p>
           </div>
           <Link href={`/battle?game=${stats.appId}`} className="rounded-full bg-white px-4 py-2 text-xs font-extrabold text-black">
-            Lancer un Battle
+            Start a Battle
           </Link>
         </div>
       </div>

@@ -36,9 +36,9 @@ export function ReviewCard({ review }: { review: GameTopReview }) {
       <div className="mb-2 flex items-center justify-between text-xs text-neutral-400">
         <span className="flex items-center gap-1 font-bold" style={{ color }}>
           <ThumbIcon up={review.votedUp} className="h-4 w-4" />
-          {review.votedUp ? "Recommandé" : "Non recommandé"}
+          {review.votedUp ? "Recommended" : "Not recommended"}
         </span>
-        <span>{review.votesUp.toLocaleString("fr-FR")} votes utiles</span>
+        <span>{review.votesUp.toLocaleString("en-US")} helpful votes</span>
       </div>
       <div className="mb-2 flex items-center gap-2">
         <Image
@@ -62,23 +62,23 @@ export function ReviewCard({ review }: { review: GameTopReview }) {
           onClick={() => setExpanded((value) => !value)}
           className="mt-1 text-xs text-brand-blue hover:underline"
         >
-          {expanded ? "Lire moins" : "Lire plus"}
+          {expanded ? "Read less" : "Read more"}
         </button>
       )}
       <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-neutral-500">
-        <span>{Math.round(review.authorPlaytimeAtReviewMinutes / 60)}h jouées</span>
+        <span>{Math.round(review.authorPlaytimeAtReviewMinutes / 60)}h played</span>
         {review.votesFunny > 0 && (
           <>
             <span>·</span>
-            <span>{review.votesFunny.toLocaleString("fr-FR")} votes drôles</span>
+            <span>{review.votesFunny.toLocaleString("en-US")} funny votes</span>
           </>
         )}
         {review.authorLastPlayedAt && (
           <>
             <span>·</span>
             <span>
-              Dernière session le{" "}
-              {new Date(review.authorLastPlayedAt).toLocaleDateString("fr-FR")}
+              Last played on{" "}
+              {new Date(review.authorLastPlayedAt).toLocaleDateString("en-US")}
             </span>
           </>
         )}
@@ -89,7 +89,7 @@ export function ReviewCard({ review }: { review: GameTopReview }) {
           rel="noopener noreferrer"
           className="text-brand-blue hover:underline"
         >
-          Voir sur Steam
+          View on Steam
         </a>
       </div>
     </div>

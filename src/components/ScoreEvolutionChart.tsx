@@ -17,16 +17,16 @@ const PADDING = 24;
 const EVENT_HIT_RADIUS = 5;
 
 const EVENT_STYLES = {
-  update: { color: "var(--series-2)", label: "Mise à jour" },
-  news: { color: "var(--ink-muted)", label: "Annonce" },
+  update: { color: "var(--series-2)", label: "Update" },
+  news: { color: "var(--ink-muted)", label: "News" },
 } as const;
 
 function formatMonth(periodMonth: string): string {
-  return new Date(periodMonth).toLocaleDateString("fr-FR", { month: "short", year: "numeric" });
+  return new Date(periodMonth).toLocaleDateString("en-US", { month: "short", year: "numeric" });
 }
 
 function formatDay(startedOn: string): string {
-  return new Date(startedOn).toLocaleDateString("fr-FR", {
+  return new Date(startedOn).toLocaleDateString("en-US", {
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -74,7 +74,7 @@ export function ScoreEvolutionChart({ trends, events = [] }: ScoreEvolutionChart
   const [hoverGid, setHoverGid] = useState<string | null>(null);
 
   if (trends.length === 0) {
-    return <p className="text-sm text-neutral-400">Pas encore assez de données.</p>;
+    return <p className="text-sm text-neutral-400">Not enough data yet.</p>;
   }
 
   const plotWidth = WIDTH - PADDING * 2;
@@ -130,7 +130,7 @@ export function ScoreEvolutionChart({ trends, events = [] }: ScoreEvolutionChart
       <svg
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         role="img"
-        aria-label="Évolution du score positif dans le temps"
+        aria-label="Positive score over time"
         className="w-full"
       >
         {[0, 0.5, 1].map((fraction) => (
@@ -263,19 +263,19 @@ export function ScoreEvolutionChart({ trends, events = [] }: ScoreEvolutionChart
             // Sans ce chiffre, le contour rouge ne dit pas de combien l'annonce
             // a été rejetée : 26 % et 92 % de votes négatifs s'affichent pareil.
             <p className="mt-1 font-medium text-[color:var(--status-critical)]">
-              {Math.round(hoveredMarker.event.pctNegative * 100)} % de votes négatifs
+              {Math.round(hoveredMarker.event.pctNegative * 100)}% negative votes
             </p>
           )}
           <p className="mt-1 flex gap-3 text-neutral-300">
-            <span className="flex items-center gap-1" title="Votes positifs">
+            <span className="flex items-center gap-1" title="Upvotes">
               <span aria-hidden>▲</span>
               <span>{hoveredMarker.event.votesUp}</span>
             </span>
-            <span className="flex items-center gap-1" title="Votes négatifs">
+            <span className="flex items-center gap-1" title="Downvotes">
               <span aria-hidden>▼</span>
               <span>{hoveredMarker.event.votesDown}</span>
             </span>
-            <span className="flex items-center gap-1" title="Commentaires">
+            <span className="flex items-center gap-1" title="Comments">
               <span aria-hidden>💬</span>
               <span>{hoveredMarker.event.commentCount}</span>
             </span>

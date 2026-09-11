@@ -36,7 +36,7 @@ export function GameSearchBox({ placeholder, defaultValue, className, size = "lg
   return (
     <GameSearchCombobox
       placeholder={placeholder}
-      ariaLabel="Chercher un jeu"
+      ariaLabel="Search a game"
       defaultValue={defaultValue}
       busy={isNavigating}
       onSelect={(hit) => startNavigation(() => router.push(`/games/${hit.appId}`))}

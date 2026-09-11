@@ -22,7 +22,7 @@ type BattleStat = {
   rightWins: boolean;
 };
 
-const compactNumber = new Intl.NumberFormat("fr-FR", { notation: "compact", maximumFractionDigits: 1 });
+const compactNumber = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
 
 function buildStats(left: GameStats, right: GameStats): BattleStat[] {
   function stat(
@@ -46,9 +46,9 @@ function buildStats(left: GameStats, right: GameStats): BattleStat[] {
   }
 
   return [
-    stat("Score positif", left.pctPositive * 100, right.pctPositive * 100, (n) => `${Math.round(n)}%`, true),
+    stat("Positive score", left.pctPositive * 100, right.pctPositive * 100, (n) => `${Math.round(n)}%`, true),
     stat(
-      "Playtime médian",
+      "Median playtime",
       left.playtimeMedianMinutes,
       right.playtimeMedianMinutes,
       (n) => `${Math.round(n / 60)}h`,
@@ -56,14 +56,14 @@ function buildStats(left: GameStats, right: GameStats): BattleStat[] {
       Math.max(left.playtimeMedianMinutes, right.playtimeMedianMinutes),
     ),
     stat(
-      "Volume de reviews",
+      "Review volume",
       left.totalReviews,
       right.totalReviews,
       (n) => compactNumber.format(n),
       true,
       Math.max(left.totalReviews, right.totalReviews),
     ),
-    stat("Taux de remboursement", left.pctRefunded * 100, right.pctRefunded * 100, (n) => `${n.toFixed(1)}%`, false),
+    stat("Refund rate", left.pctRefunded * 100, right.pctRefunded * 100, (n) => `${n.toFixed(1)}%`, false),
   ];
 }
 
@@ -83,7 +83,7 @@ export default async function BattlePage({ searchParams }: BattlePageProps) {
       <div className="min-h-screen bg-[#0c1116] text-[#eef2f4]">
         <div className="mx-auto max-w-[1320px] px-5 py-8 sm:px-7">
           <Nav />
-          <p className="mt-12 text-center text-[#9fb2bd]">Un des deux jeux est introuvable.</p>
+          <p className="mt-12 text-center text-[#9fb2bd]">One of the two games was not found.</p>
         </div>
       </div>
     );
@@ -110,7 +110,7 @@ export default async function BattlePage({ searchParams }: BattlePageProps) {
         <Nav />
 
         <p className="mt-6 text-center text-sm text-[#9fb2bd]">
-          Face-à-face 100% calculé à partir des données existantes — pas de vote, pas de compte.
+          Head-to-head computed entirely from the data already collected — no vote, no account.
         </p>
 
         <div className="mt-6 flex items-center justify-center gap-8">
@@ -147,7 +147,7 @@ export default async function BattlePage({ searchParams }: BattlePageProps) {
             className="mx-auto mt-6 max-w-md rounded-lg border border-white/10 px-4 py-2 text-center text-sm"
             style={{ backgroundColor: "rgba(12,163,12,0.08)", color: "var(--status-good)" }}
           >
-            🏆 {winner.name} l&apos;emporte sur {Math.max(leftWinCount, rightWinCount)} critères sur {stats.length}
+            🏆 {winner.name} wins on {Math.max(leftWinCount, rightWinCount)} of {stats.length} stats
           </div>
         )}
 
@@ -178,7 +178,7 @@ export default async function BattlePage({ searchParams }: BattlePageProps) {
         </div>
 
         <h2 className="mx-auto mt-8 mb-3 max-w-2xl text-xs uppercase tracking-wide text-neutral-400">
-          Meilleure review de chaque côté
+          Best review from each side
         </h2>
         <div className="mx-auto grid max-w-2xl grid-cols-1 gap-3 sm:grid-cols-2">
           {[
@@ -187,7 +187,7 @@ export default async function BattlePage({ searchParams }: BattlePageProps) {
           ].map(({ game, review }) => (
             <div key={game.appId}>
               <div className="mb-1 text-xs text-neutral-400">{game.name}</div>
-              {review ? <ReviewCard review={review} /> : <EmptyReviewCard label="Pas de review positive disponible." />}
+              {review ? <ReviewCard review={review} /> : <EmptyReviewCard label="No positive review available." />}
             </div>
           ))}
         </div>
@@ -197,7 +197,7 @@ export default async function BattlePage({ searchParams }: BattlePageProps) {
             steam.reviews/battle?game={left.appId}&vs={right.appId}
           </div>
           <button className="rounded-full bg-gradient-to-r from-brand-blue to-brand-red px-4 py-2 text-xs font-bold text-black">
-            Copier le lien
+            Copy link
           </button>
         </div>
       </div>

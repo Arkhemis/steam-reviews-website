@@ -30,16 +30,16 @@ export default function Loading() {
 
         <div className="mt-8 grid grid-cols-[1.4fr_1fr] gap-5">
           <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-            <h2 className="mb-2 text-xs uppercase tracking-wide text-neutral-400">Évolution du score positif</h2>
+            <h2 className="mb-2 text-xs uppercase tracking-wide text-neutral-400">Positive score over time</h2>
             <TrendsSkeleton />
           </div>
           <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-            <h2 className="mb-2 text-xs uppercase tracking-wide text-neutral-400">Langues</h2>
+            <h2 className="mb-2 text-xs uppercase tracking-wide text-neutral-400">Languages</h2>
             <LanguagesSkeleton />
           </div>
         </div>
 
-        <h2 className="mt-8 mb-3 text-xs uppercase tracking-wide text-neutral-400">Reviews les plus votées</h2>
+        <h2 className="mt-8 mb-3 text-xs uppercase tracking-wide text-neutral-400">Most upvoted reviews</h2>
         <ReviewsSkeleton />
 
         <Skeleton className="mt-8 h-[86px] w-full rounded-xl" />

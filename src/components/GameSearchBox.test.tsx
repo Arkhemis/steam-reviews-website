@@ -67,7 +67,7 @@ describe("GameSearchBox", () => {
     render(<GameSearchBox placeholder="Search games…" />);
 
     await userEvent.type(screen.getByRole("combobox"), "zzzz");
-    await screen.findByText(/Aucun jeu ne correspond/);
+    await screen.findByText(/No game matches/);
 
     await userEvent.keyboard("{Enter}");
 

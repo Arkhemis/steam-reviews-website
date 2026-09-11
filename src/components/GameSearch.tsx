@@ -19,7 +19,7 @@ export function GameSearch({ selected }: GameSearchProps) {
   const [isNavigating, startNavigation] = useTransition();
 
   function applyGame(appId: number | null) {
-    startNavigation(() => router.push(appId === null ? "/carte" : `/carte?app=${appId}`));
+    startNavigation(() => router.push(appId === null ? "/map" : `/map?app=${appId}`));
   }
 
   return (
@@ -48,7 +48,7 @@ export function GameSearch({ selected }: GameSearchProps) {
           <button
             type="button"
             onClick={() => applyGame(null)}
-            aria-label={`Retirer le filtre ${selected.name}`}
+            aria-label={`Remove the ${selected.name} filter`}
             className="flex h-5 w-5 items-center justify-center rounded-full bg-black/25 leading-none hover:bg-black/45"
           >
             ✕
@@ -57,8 +57,8 @@ export function GameSearch({ selected }: GameSearchProps) {
       )}
 
       <GameSearchCombobox
-        ariaLabel="Filtrer la carte par jeu"
-        placeholder={selected ? "🔍 Filtrer par un autre jeu…" : "🔍 Filtrer la carte par jeu, ex. Baldur's Gate 3…"}
+        ariaLabel="Filter the map by game"
+        placeholder={selected ? "🔍 Filter by another game…" : "🔍 Filter the map by game, e.g. Baldur's Gate 3…"}
         busy={isNavigating}
         onSelect={(hit) => applyGame(hit.appId)}
         containerClassName="min-w-[15rem] flex-1"

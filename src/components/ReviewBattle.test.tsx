@@ -49,7 +49,7 @@ describe("ReviewBattle", () => {
   it("randomizes only the positive side when clicking its dice", () => {
     vi.spyOn(Math, "random").mockReturnValue(0.5); // 3 candidats -> index 1
     render(<ReviewBattle reviews={reviews} />);
-    const buttons = screen.getAllByRole("button", { name: /autre review/i });
+    const buttons = screen.getAllByRole("button", { name: /another .* review/i });
     fireEvent.click(buttons[0]);
 
     expect(screen.getByText("Positive rang 2")).toBeInTheDocument();
@@ -59,7 +59,7 @@ describe("ReviewBattle", () => {
   it("randomizes only the negative side when clicking its dice", () => {
     vi.spyOn(Math, "random").mockReturnValue(0.5);
     render(<ReviewBattle reviews={reviews} />);
-    const buttons = screen.getAllByRole("button", { name: /autre review/i });
+    const buttons = screen.getAllByRole("button", { name: /another .* review/i });
     fireEvent.click(buttons[1]);
 
     expect(screen.getByText("Positive rang 1")).toBeInTheDocument();
@@ -69,7 +69,7 @@ describe("ReviewBattle", () => {
   it("randomizes both sides at once", () => {
     vi.spyOn(Math, "random").mockReturnValue(0.5);
     render(<ReviewBattle reviews={reviews} />);
-    fireEvent.click(screen.getByRole("button", { name: /les deux/i }));
+    fireEvent.click(screen.getByRole("button", { name: /both/i }));
 
     expect(screen.getByText("Positive rang 2")).toBeInTheDocument();
     expect(screen.getByText("Négative rang 2")).toBeInTheDocument();
@@ -77,7 +77,7 @@ describe("ReviewBattle", () => {
 
   it("disables a side's dice when there is only one candidate on that side", () => {
     render(<ReviewBattle reviews={[reviews[0], reviews[3]]} />);
-    const buttons = screen.getAllByRole("button", { name: /autre review/i });
+    const buttons = screen.getAllByRole("button", { name: /another .* review/i });
     expect(buttons[0]).toBeDisabled();
     expect(buttons[1]).toBeDisabled();
   });

@@ -9,10 +9,10 @@ import { Skeleton } from "@/components/Skeleton";
 // n'arrive, et si les deux divergent le lecteur voit la page sauter.
 
 export const CHART_FILTERS = [
-  { label: "Trending", href: "/classements" },
-  { label: "Best rated", href: "/classements?filter=mieux-notes" },
-  { label: "Most reviewed", href: "/classements?filter=plus-commentes" },
-  { label: "Worst rated", href: "/classements?filter=pires-notes" },
+  { label: "Trending", href: "/charts" },
+  { label: "Best rated", href: "/charts?filter=best-rated" },
+  { label: "Most reviewed", href: "/charts?filter=most-reviewed" },
+  { label: "Worst rated", href: "/charts?filter=worst-rated" },
 ] as const;
 
 export const CHART_SIZE = 5;

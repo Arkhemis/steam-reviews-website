@@ -57,7 +57,7 @@ describe("GameSearch", () => {
     await userEvent.type(screen.getByRole("combobox"), "bal");
     await userEvent.click(await screen.findByRole("option", { name: /Baldur's Gate III/ }));
 
-    await waitFor(() => expect(push).toHaveBeenCalledWith("/carte?app=1086940"));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/map?app=1086940"));
   });
 
   it("moves through the suggestions with the arrow keys and validates with Enter", async () => {
@@ -70,7 +70,7 @@ describe("GameSearch", () => {
 
     await userEvent.keyboard("{ArrowDown}{Enter}");
 
-    await waitFor(() => expect(push).toHaveBeenCalledWith("/carte?app=292030"));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/map?app=292030"));
   });
 
   it("closes the suggestions on Escape", async () => {
@@ -91,7 +91,7 @@ describe("GameSearch", () => {
 
     await userEvent.type(screen.getByRole("combobox"), "zzzz");
 
-    expect(await screen.findByText(/Aucun jeu ne correspond/)).toBeInTheDocument();
+    expect(await screen.findByText(/No game matches/)).toBeInTheDocument();
   });
 
   it("shows the active game and clears the filter from its chip", async () => {
@@ -100,9 +100,9 @@ describe("GameSearch", () => {
 
     expect(screen.getByText("Baldur's Gate III")).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: /Retirer le filtre/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Remove the .* filter/ }));
 
-    await waitFor(() => expect(push).toHaveBeenCalledWith("/carte"));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/map"));
   });
 
   it("disables the Global pill when no game is selected", () => {

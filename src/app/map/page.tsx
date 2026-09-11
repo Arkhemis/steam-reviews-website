@@ -46,8 +46,8 @@ function WorldMap({ scores }: { scores: Record<string, number> }) {
         const color = getCountryScoreColor(p.id ?? "", scores);
         const title =
           lang && score !== undefined
-            ? `${p.name} — ${LANGUAGE_LABELS[lang]} — ${Math.round(score * 100)}% positif`
-            : `${p.name} — non classé`;
+            ? `${p.name} — ${LANGUAGE_LABELS[lang]} — ${Math.round(score * 100)}% positive`
+            : `${p.name} — unrated`;
         return (
           <path
             key={p.id ?? p.name}
@@ -76,24 +76,23 @@ function SelectedGameHeader({ game, scoreRows }: { game: GameStats; scoreRows: L
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-bold text-white">{game.name}</div>
         <div className="text-xs text-[#9fb2bd]">
-          {game.totalReviews.toLocaleString("fr-FR")} reviews ·{" "}
-          <span style={{ color: scoreToColor(game.pctPositive) }}>{Math.round(game.pctPositive * 100)}% positif</span>{" "}
-          au global · {coloredLanguages} langue{coloredLanguages > 1 ? "s" : ""} assez commentée
-          {coloredLanguages > 1 ? "s" : ""} pour colorer la carte
+          {game.totalReviews.toLocaleString("en-US")} reviews ·{" "}
+          <span style={{ color: scoreToColor(game.pctPositive) }}>{Math.round(game.pctPositive * 100)}% positive</span>{" "}
+          overall · {coloredLanguages} language{coloredLanguages === 1 ? "" : "s"} with enough reviews to color the map
         </div>
       </div>
       <Link href={`/games/${game.appId}`} className="text-xs whitespace-nowrap text-brand-blue underline">
-        Fiche du jeu ↗
+        Game page ↗
       </Link>
     </div>
   );
 }
 
-type CartePageProps = {
+type MapPageProps = {
   searchParams: Promise<{ app?: string }>;
 };
 
-export default async function CartePage({ searchParams }: CartePageProps) {
+export default async function MapPage({ searchParams }: MapPageProps) {
   const { app } = await searchParams;
   const requestedAppId = app && /^\d+$/.test(app) ? Number(app) : null;
 
@@ -110,7 +109,7 @@ export default async function CartePage({ searchParams }: CartePageProps) {
         <Nav />
 
         <h1 className="mt-6 text-2xl font-extrabold tracking-tight">
-          🌍 Score des reviews <span className="text-[#9fb2bd]">par langue</span>
+          🌍 Review score <span className="text-[#9fb2bd]">by language</span>
         </h1>
 
         <div className="mt-3">
@@ -129,16 +128,15 @@ export default async function CartePage({ searchParams }: CartePageProps) {
 
         {requestedAppId !== null && !game && (
           <p className="mt-4 rounded-r-md border-l-2 border-brand-red bg-white/5 px-3 py-2 text-xs text-[#9fb2bd]">
-            Jeu introuvable (app id {requestedAppId}) — affichage de la carte globale.
+            Game not found (app id {requestedAppId}) — showing the global map.
           </p>
         )}
 
         {game && <SelectedGameHeader game={game} scoreRows={scoreRows} />}
 
         <p className="mt-4 max-w-2xl rounded-r-md border-l-2 border-brand-red bg-white/5 px-3 py-2 text-xs text-[#9fb2bd]">
-          ⚠️ Chaque pays est coloré selon la note moyenne (% d&apos;avis positifs) de sa langue dominante déclarée
-          (champ Steam), pas selon une géolocalisation réelle des joueurs. L&apos;association pays↔langue reste
-          manuelle.
+          ⚠️ Each country is colored from the average score (% positive reviews) of its dominant declared language
+          (Steam field), not from any real geolocation of the players. The country↔language mapping stays manual.
         </p>
 
         <div className="mt-6 rounded-xl bg-gradient-to-b from-white/5 to-transparent p-4">
@@ -147,7 +145,7 @@ export default async function CartePage({ searchParams }: CartePageProps) {
 
         <div className="mt-5 flex items-center gap-3">
           <span className="text-xs font-semibold" style={{ color: "var(--status-critical)" }}>
-            Mal noté
+            Poorly rated
           </span>
           <div className="flex-1">
             <div
@@ -163,20 +161,20 @@ export default async function CartePage({ searchParams }: CartePageProps) {
             </div>
           </div>
           <span className="text-xs font-semibold" style={{ color: "var(--status-good)" }}>
-            Bien noté
+            Well rated
           </span>
         </div>
         <p className="mt-2 text-[0.65rem] text-[#5f7481]">
           <span className="mr-1.5 inline-block h-2 w-2 rounded-sm align-middle" style={{ backgroundColor: FALLBACK_COLOR }} />
-          Non classé — langue dominante non trackée ou trop incertaine pour être assignée
-          {game ? `, ou moins de ${MIN_REVIEWS_FOR_GAME_COLOR} avis dans cette langue pour ce jeu` : ""}
+          Unrated — dominant language not tracked, or too uncertain to assign
+          {game ? `, or fewer than ${MIN_REVIEWS_FOR_GAME_COLOR} reviews in that language for this game` : ""}
         </p>
 
         <h2 className="mt-8 mb-3 text-xs uppercase tracking-wide text-[#9fb2bd]">
-          {game ? `Répartition & note par langue — ${game.name}` : "Répartition & note, toutes les langues Steam"}
+          {game ? `Share & score by language — ${game.name}` : "Share & score, every Steam language"}
         </h2>
         {scoreRows.length === 0 ? (
-          <p className="text-sm text-[#9fb2bd]">Aucune review par langue pour ce jeu.</p>
+          <p className="text-sm text-[#9fb2bd]">No per-language review data for this game.</p>
         ) : (
           <div className="flex flex-col gap-2">
             {scoreRows.map((row) => {
@@ -195,7 +193,7 @@ export default async function CartePage({ searchParams }: CartePageProps) {
                 >
                   <span className="font-semibold text-white">{label}</span>
                   <span className="font-mono text-[0.7rem] text-[#5f7481] tabular-nums">
-                    {row.totalReviews.toLocaleString("fr-FR")} reviews
+                    {row.totalReviews.toLocaleString("en-US")} reviews
                   </span>
                   <div className="col-span-2 h-1.5 overflow-hidden rounded-full bg-white/5 sm:col-span-1">
                     <div
@@ -206,9 +204,9 @@ export default async function CartePage({ searchParams }: CartePageProps) {
                   <span
                     className="justify-self-end rounded-full border px-2.5 py-1 font-mono text-[0.68rem] font-semibold whitespace-nowrap"
                     style={badgeStyle}
-                    title={tooThin ? `Moins de ${MIN_REVIEWS_FOR_GAME_COLOR} avis : non coloré sur la carte` : undefined}
+                    title={tooThin ? `Fewer than ${MIN_REVIEWS_FOR_GAME_COLOR} reviews: not colored on the map` : undefined}
                   >
-                    {Math.round(row.pctPositive * 100)}% positif
+                    {Math.round(row.pctPositive * 100)}% positive
                   </span>
                 </div>
               );

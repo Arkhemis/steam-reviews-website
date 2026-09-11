@@ -6,7 +6,7 @@ import type { GameLanguageDistribution } from "@/lib/data/types";
 // Fixed language -> categorical slot mapping. Order never changes: it's the
 // CVD-safety mechanism from the dataviz skill's validated palette. A language
 // not in this list, or any language past the top 6 by share, folds into the
-// muted "Autres" bucket rather than generating a new hue.
+// muted "Other" bucket rather than generating a new hue.
 const LANGUAGE_SLOT_ORDER = ["english", "schinese", "french", "german", "russian", "brazilian"] as const;
 
 const CATEGORICAL_DARK = ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#008300"];
@@ -33,7 +33,7 @@ export function LanguageDistribution({ languages }: LanguageDistributionProps) {
           ...top,
           {
             appId: top[0]?.appId ?? 0,
-            language: "Autres",
+            language: "Other",
             reviewCount: rest.reduce((sum, l) => sum + l.reviewCount, 0),
             pctOfTotal: rest.reduce((sum, l) => sum + l.pctOfTotal, 0),
           },
@@ -76,7 +76,7 @@ export function LanguageDistribution({ languages }: LanguageDistributionProps) {
             </div>
             <span className="w-10 text-right font-semibold text-white">{Math.round(row.pctOfTotal * 100)}%</span>
             {hovered === row.language && (
-              <span className="text-neutral-400">{row.reviewCount.toLocaleString("fr-FR")} reviews</span>
+              <span className="text-neutral-400">{row.reviewCount.toLocaleString("en-US")} reviews</span>
             )}
           </div>
         ))}

@@ -1,8 +1,8 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import BattleLoading from "@/app/battle/loading";
-import CarteLoading from "@/app/carte/loading";
-import ClassementsLoading from "@/app/classements/loading";
+import ChartsLoading from "@/app/charts/loading";
+import MapLoading from "@/app/map/loading";
 import GameLoading from "@/app/games/[appId]/loading";
 import GamesLoading from "@/app/games/loading";
 import RootLoading from "@/app/loading";
@@ -23,8 +23,8 @@ vi.mock("next/navigation", () => ({
 const LOADINGS = [
   ["/", RootLoading],
   ["/battle", BattleLoading],
-  ["/carte", CarteLoading],
-  ["/classements", ClassementsLoading],
+  ["/charts", ChartsLoading],
+  ["/map", MapLoading],
   ["/games", GamesLoading],
   ["/games/[appId]", GameLoading],
 ] as const;

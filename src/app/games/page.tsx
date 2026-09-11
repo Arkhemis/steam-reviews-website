@@ -33,11 +33,11 @@ export default async function GamesIndexPage({ searchParams }: GamesIndexPagePro
       <div className="mx-auto max-w-[1320px] px-5 py-8 sm:px-7">
         <Nav />
 
-        <h1 className="mt-8 text-2xl font-extrabold tracking-tight">Jeux</h1>
-        <p className="mt-1 text-sm text-[#9fb2bd]">Les jeux les plus commentés sur Steam.</p>
+        <h1 className="mt-8 text-2xl font-extrabold tracking-tight">Games</h1>
+        <p className="mt-1 text-sm text-[#9fb2bd]">The most reviewed games on Steam.</p>
 
         <GameSearchForm
-          placeholder="Chercher un jeu, ex. Baldur's Gate 3…"
+          placeholder="Search a game, e.g. Baldur's Gate 3…"
           defaultValue={q}
           className="mt-6 max-w-md"
         />
@@ -46,13 +46,13 @@ export default async function GamesIndexPage({ searchParams }: GamesIndexPagePro
           <p className="mt-6 text-sm text-[#9fb2bd]">
             {q ? (
               <>
-                Aucun jeu ne correspond à « {q} ».{" "}
+                No game matches “{q}”.{" "}
                 <Link href="/games" className="text-brand-blue hover:underline">
-                  Voir tous les jeux →
+                  See every game →
                 </Link>
               </>
             ) : (
-              "Plus aucun jeu à cette page."
+              "No more games on this page."
             )}
           </p>
         ) : (
@@ -78,7 +78,7 @@ export default async function GamesIndexPage({ searchParams }: GamesIndexPagePro
                 href={pageHref(page - 1, q)}
                 className="rounded-full border border-[#24333f] px-4 py-2 text-[#9fb2bd] hover:border-white/30"
               >
-                ← Précédent
+                ← Previous
               </Link>
             ) : (
               <span />
@@ -89,7 +89,7 @@ export default async function GamesIndexPage({ searchParams }: GamesIndexPagePro
                 href={pageHref(page + 1, q)}
                 className="rounded-full border border-[#24333f] px-4 py-2 text-[#9fb2bd] hover:border-white/30"
               >
-                Suivant →
+                Next →
               </Link>
             ) : (
               <span />

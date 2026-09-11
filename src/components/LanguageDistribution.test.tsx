@@ -16,7 +16,7 @@ describe("LanguageDistribution", () => {
     expect(screen.getByText("50%")).toBeInTheDocument();
   });
 
-  it("folds languages beyond the top 6 into an Autres bucket", () => {
+  it("folds languages beyond the top 6 into an Other bucket", () => {
     const many: GameLanguageDistribution[] = Array.from({ length: 9 }, (_, i) => ({
       appId: 1,
       language: `lang${i}`,
@@ -24,6 +24,6 @@ describe("LanguageDistribution", () => {
       pctOfTotal: (10 - i) / 55,
     }));
     render(<LanguageDistribution languages={many} />);
-    expect(screen.getAllByText("Autres").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Other").length).toBeGreaterThan(0);
   });
 });

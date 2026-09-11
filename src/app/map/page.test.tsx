@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import CartePage from "@/app/carte/page";
+import MapPage from "@/app/map/page";
 import type { GameStats, LanguageReviewScore } from "@/lib/data/types";
 import { FALLBACK_COLOR, scoreToColor } from "@/lib/map";
 
@@ -62,46 +62,46 @@ beforeEach(() => {
   getGameLanguageReviewScores.mockResolvedValue([score("english", 45000, 0.94), score("french", 3, 0)]);
 });
 
-describe("CartePage", () => {
+describe("MapPage", () => {
   it("shows the global scores when no game is selected", async () => {
-    render(await CartePage({ searchParams: Promise.resolve({}) }));
+    render(await MapPage({ searchParams: Promise.resolve({}) }));
 
     expect(getLanguageReviewScores).toHaveBeenCalled();
     expect(getGameLanguageReviewScores).not.toHaveBeenCalled();
-    expect(screen.getByText(/toutes les langues Steam/)).toBeInTheDocument();
+    expect(screen.getByText(/every Steam language/)).toBeInTheDocument();
   });
 
   it("switches to the game's own scores when one is selected", async () => {
-    const { container } = render(await CartePage({ searchParams: Promise.resolve({ app: "1086940" }) }));
+    const { container } = render(await MapPage({ searchParams: Promise.resolve({ app: "1086940" }) }));
 
     expect(getGameLanguageReviewScores).toHaveBeenCalledWith(1086940);
     expect(getLanguageReviewScores).not.toHaveBeenCalled();
     expect(screen.getByRole("heading", { name: /Baldur's Gate III/ })).toBeInTheDocument();
 
     const usa = countryPath(container, "United States of America");
-    expect(usa?.textContent).toContain("94% positif");
+    expect(usa?.textContent).toContain("94% positive");
     expect(usa?.getAttribute("fill")).toBe(scoreToColor(0.94));
   });
 
   it("leaves a language with too few reviews uncolored on the map", async () => {
-    const { container } = render(await CartePage({ searchParams: Promise.resolve({ app: "1086940" }) }));
+    const { container } = render(await MapPage({ searchParams: Promise.resolve({ app: "1086940" }) }));
 
     // La France suit le français, qui n'a que 3 avis sur ce jeu.
     const france = countryPath(container, "France");
-    expect(france?.textContent).toBe("France — non classé");
+    expect(france?.textContent).toBe("France — unrated");
     expect(france?.getAttribute("fill")).toBe(FALLBACK_COLOR);
   });
 
   it("falls back to the global map for an unknown app id", async () => {
     getGameStats.mockResolvedValue(null);
-    render(await CartePage({ searchParams: Promise.resolve({ app: "999999999" }) }));
+    render(await MapPage({ searchParams: Promise.resolve({ app: "999999999" }) }));
 
     expect(getLanguageReviewScores).toHaveBeenCalled();
-    expect(screen.getByText(/Jeu introuvable/)).toBeInTheDocument();
+    expect(screen.getByText(/Game not found/)).toBeInTheDocument();
   });
 
   it("ignores a non-numeric app id without querying the game", async () => {
-    render(await CartePage({ searchParams: Promise.resolve({ app: "1086940; DROP TABLE" }) }));
+    render(await MapPage({ searchParams: Promise.resolve({ app: "1086940; DROP TABLE" }) }));
 
     expect(getGameStats).not.toHaveBeenCalled();
     expect(getLanguageReviewScores).toHaveBeenCalled();

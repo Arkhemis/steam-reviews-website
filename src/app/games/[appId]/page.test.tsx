@@ -165,7 +165,7 @@ describe("GamePage", () => {
     getGameStats.mockResolvedValue(null);
     render(await GamePage({ params: Promise.resolve({ appId: "999999999" }), searchParams: Promise.resolve({}) }));
 
-    expect(screen.getByText(/introuvable/i)).toBeInTheDocument();
+    expect(screen.getByText(/was not found/i)).toBeInTheDocument();
   });
 });
 
@@ -203,13 +203,13 @@ describe("GamePage sections", () => {
     );
 
     expect(await screen.findByRole("combobox")).toHaveValue("french");
-    expect(screen.getByRole("option", { name: /Anglais \(30\)/ })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /English \(30\)/ })).toBeInTheDocument();
   });
 
   it("renders the score chart once the section resolves", async () => {
     render(<Suspense fallback={null}>{await TrendsSection({ appId: BALDURS_GATE_3_APP_ID })}</Suspense>);
 
-    expect(await screen.findByRole("img", { name: /Évolution du score positif/ })).toBeInTheDocument();
+    expect(await screen.findByRole("img", { name: /Positive score over time/ })).toBeInTheDocument();
   });
 
   it("renders the language breakdown once the section resolves", async () => {

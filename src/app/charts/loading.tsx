@@ -24,7 +24,7 @@ export default function Loading() {
 
         <div className="mt-6 overflow-x-auto">
           <div className="min-w-[560px]">
-            <ChartRowHeader reviewsLabel="avis" positiveLabel="positif" shiftLabel="évolution" />
+            <ChartRowHeader reviewsLabel="reviews" positiveLabel="positive" shiftLabel="shift" />
             {Array.from({ length: ROWS }, (_, i) => (
               <div key={i} className="border-t border-[#16202a] py-3.5">
                 <Skeleton className="h-[34px] w-full rounded-[3px]" />

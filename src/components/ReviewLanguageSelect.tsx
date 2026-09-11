@@ -30,7 +30,7 @@ export function ReviewLanguageSelect({ languages, selected }: ReviewLanguageSele
   return (
     <span className="flex items-center gap-2">
       <label id={labelId} htmlFor={`${labelId}-select`} className="sr-only">
-        Langue des reviews
+        Review language
       </label>
       <select
         id={`${labelId}-select`}
@@ -42,7 +42,7 @@ export function ReviewLanguageSelect({ languages, selected }: ReviewLanguageSele
         }}
         className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-300 disabled:opacity-40"
       >
-        <option value={ALL_LANGUAGES}>🌐 Toutes les langues</option>
+        <option value={ALL_LANGUAGES}>🌐 All languages</option>
         {languages.map((entry) => (
           <option key={entry.language} value={entry.language}>
             {labelFor(entry.language)} ({entry.reviewCount})

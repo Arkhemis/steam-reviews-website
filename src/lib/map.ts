@@ -1,6 +1,6 @@
 // Steam's review-language codes (matches the `language` column in
-// stg_steam_review / marts.language_review_score_global), plus the French label
-// shown for each in the ranking list and map tooltips.
+// stg_steam_review / marts.language_review_score_global), plus the English
+// label shown for each in the ranking list and map tooltips.
 export type LanguageKey =
   | "arabic"
   | "bulgarian"
@@ -33,35 +33,35 @@ export type LanguageKey =
   | "vietnamese";
 
 export const LANGUAGE_LABELS: Record<LanguageKey, string> = {
-  arabic: "Arabe",
-  bulgarian: "Bulgare",
-  schinese: "Chinois simplifié",
-  tchinese: "Chinois traditionnel",
-  czech: "Tchèque",
-  danish: "Danois",
-  dutch: "Néerlandais",
-  english: "Anglais",
-  finnish: "Finnois",
-  french: "Français",
-  german: "Allemand",
-  greek: "Grec",
-  hungarian: "Hongrois",
-  italian: "Italien",
-  japanese: "Japonais",
-  koreana: "Coréen",
-  norwegian: "Norvégien",
-  polish: "Polonais",
-  portuguese: "Portugais",
-  brazilian: "Portugais (Brésil)",
-  romanian: "Roumain",
-  russian: "Russe",
-  spanish: "Espagnol",
-  latam: "Espagnol (Amérique latine)",
-  swedish: "Suédois",
-  thai: "Thaï",
-  turkish: "Turc",
-  ukrainian: "Ukrainien",
-  vietnamese: "Vietnamien",
+  arabic: "Arabic",
+  bulgarian: "Bulgarian",
+  schinese: "Simplified Chinese",
+  tchinese: "Traditional Chinese",
+  czech: "Czech",
+  danish: "Danish",
+  dutch: "Dutch",
+  english: "English",
+  finnish: "Finnish",
+  french: "French",
+  german: "German",
+  greek: "Greek",
+  hungarian: "Hungarian",
+  italian: "Italian",
+  japanese: "Japanese",
+  koreana: "Korean",
+  norwegian: "Norwegian",
+  polish: "Polish",
+  portuguese: "Portuguese",
+  brazilian: "Portuguese (Brazil)",
+  romanian: "Romanian",
+  russian: "Russian",
+  spanish: "Spanish",
+  latam: "Spanish (Latin America)",
+  swedish: "Swedish",
+  thai: "Thai",
+  turkish: "Turkish",
+  ukrainian: "Ukrainian",
+  vietnamese: "Vietnamese",
 };
 
 export const FALLBACK_COLOR = "var(--series-fallback)";
@@ -92,7 +92,7 @@ export function scoreToColor(pctPositive: number): string {
 
 // ISO 3166-1 numeric id (matches world-atlas country ids) -> dominant Steam
 // review language. A country is left unmapped, falling back to the neutral
-// "non classé" color, when: its dominant language genuinely isn't tracked
+// "unrated" color, when: its dominant language genuinely isn't tracked
 // (rare — most countries have one clear official language), the pick would
 // be inaccurate (e.g. Taiwan is Traditional not Simplified Chinese, Portugal
 // is European not Brazilian Portuguese), or a language split would track a
@@ -237,7 +237,7 @@ export const COUNTRY_LANGUAGE: Record<string, LanguageKey> = {
 
 // A language with a handful of reviews for one game would otherwise paint a
 // whole country red or green off pure noise, so per-game coloring ignores
-// languages under this many reviews (they stay "non classé"). The global map
+// languages under this many reviews (they stay "unrated"). The global map
 // never needs it: every tracked language has thousands of reviews site-wide.
 export const MIN_REVIEWS_FOR_GAME_COLOR = 10;
 

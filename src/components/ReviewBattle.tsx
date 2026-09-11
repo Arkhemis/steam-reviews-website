@@ -35,7 +35,7 @@ export function ReviewBattle({ reviews, languages = [], selectedLanguage = null 
     return (
       <div>
         <div className="mb-3">{languageSelect}</div>
-        <p className="text-sm text-neutral-400">Aucune review disponible pour ce jeu.</p>
+        <p className="text-sm text-neutral-400">No review available for this game.</p>
       </div>
     );
   }
@@ -56,7 +56,7 @@ export function ReviewBattle({ reviews, languages = [], selectedLanguage = null 
           disabled={positives.length <= 1}
           className="flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-300 disabled:opacity-40"
         >
-          🎲 Autre review positive <ThumbIcon up className="h-3 w-3" />
+          🎲 Another positive review <ThumbIcon up className="h-3 w-3" />
         </button>
         <button
           type="button"
@@ -64,7 +64,7 @@ export function ReviewBattle({ reviews, languages = [], selectedLanguage = null 
           disabled={negatives.length <= 1}
           className="flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-300 disabled:opacity-40"
         >
-          🎲 Autre review négative <ThumbIcon up={false} className="h-3 w-3" />
+          🎲 Another negative review <ThumbIcon up={false} className="h-3 w-3" />
         </button>
         <button
           type="button"
@@ -72,7 +72,7 @@ export function ReviewBattle({ reviews, languages = [], selectedLanguage = null 
           disabled={positives.length <= 1 && negatives.length <= 1}
           className="rounded-full bg-gradient-to-r from-brand-blue to-brand-red px-3 py-1 text-xs font-bold text-black disabled:opacity-40"
         >
-          🎲 Les deux
+          🎲 Both
         </button>
         {languageSelect}
       </div>
@@ -80,12 +80,12 @@ export function ReviewBattle({ reviews, languages = [], selectedLanguage = null 
         {positives[positiveIndex] ? (
           <ReviewCard review={positives[positiveIndex]} />
         ) : (
-          <EmptyReviewCard label="Pas de review positive." />
+          <EmptyReviewCard label="No positive review." />
         )}
         {negatives[negativeIndex] ? (
           <ReviewCard review={negatives[negativeIndex]} />
         ) : (
-          <EmptyReviewCard label="Pas de review négative." />
+          <EmptyReviewCard label="No negative review." />
         )}
       </div>
     </div>

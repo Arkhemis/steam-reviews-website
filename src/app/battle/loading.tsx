@@ -13,7 +13,7 @@ export default function Loading() {
         <Nav />
 
         <p className="mt-6 text-center text-sm text-[#9fb2bd]">
-          Face-à-face 100% calculé à partir des données existantes — pas de vote, pas de compte.
+          Head-to-head computed entirely from the data already collected — no vote, no account.
         </p>
 
         <div className="mt-6 flex items-center justify-center gap-8">

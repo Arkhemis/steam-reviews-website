@@ -157,12 +157,12 @@ export function GameSearchCombobox({
         <ul
           id={listboxId}
           role="listbox"
-          aria-label="Résultats"
+          aria-label="Results"
           className="absolute z-20 mt-1 max-h-80 w-full overflow-y-auto rounded-xl border border-white/10 bg-brand-bg p-1 shadow-xl shadow-black/60"
         >
           {hits.length === 0 ? (
             <li className="px-3 py-2 text-xs text-neutral-500">
-              {loading ? "Recherche…" : `Aucun jeu ne correspond à « ${term} ».`}
+              {loading ? "Searching…" : `No game matches “${term}”.`}
             </li>
           ) : (
             hits.map((hit, index) => (
@@ -185,7 +185,7 @@ export function GameSearchCombobox({
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-xs font-semibold text-white">{hit.name}</span>
                   <span className="block text-[0.65rem] text-neutral-500">
-                    {hit.totalReviews.toLocaleString("fr-FR")} reviews · {Math.round(hit.pctPositive * 100)}% positif
+                    {hit.totalReviews.toLocaleString("en-US")} reviews · {Math.round(hit.pctPositive * 100)}% positive
                   </span>
                 </span>
               </li>

@@ -44,7 +44,7 @@ function hitArea(container: HTMLElement, gid: string) {
 describe("ScoreEvolutionChart", () => {
   it("renders an SVG line chart", () => {
     render(<ScoreEvolutionChart trends={trends} />);
-    expect(screen.getByRole("img", { name: /évolution du score positif/i })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /positive score over time/i })).toBeInTheDocument();
   });
 
   it("places an event between the two months that bracket it", () => {
@@ -90,14 +90,14 @@ describe("ScoreEvolutionChart", () => {
     );
     const [maj, actu] = bars(container);
     expect(maj.getAttribute("stroke")).not.toBe(actu.getAttribute("stroke"));
-    expect(screen.getByText("Mise à jour")).toBeInTheDocument();
-    expect(screen.getByText("Annonce")).toBeInTheDocument();
+    expect(screen.getByText("Update")).toBeInTheDocument();
+    expect(screen.getByText("News")).toBeInTheDocument();
   });
 
   it("only legends the categories actually present", () => {
     render(<ScoreEvolutionChart trends={trends} events={[makeEvent({ category: "update" })]} />);
-    expect(screen.getByText("Mise à jour")).toBeInTheDocument();
-    expect(screen.queryByText("Annonce")).not.toBeInTheDocument();
+    expect(screen.getByText("Update")).toBeInTheDocument();
+    expect(screen.queryByText("News")).not.toBeInTheDocument();
   });
 
   it("shows the headline, stats and image of the hovered event", () => {
@@ -158,18 +158,18 @@ describe("ScoreEvolutionChart", () => {
       />
     );
     fireEvent.pointerEnter(hitArea(container, "e1"));
-    expect(screen.getByTestId("event-tooltip")).toHaveTextContent("92 % de votes négatifs");
+    expect(screen.getByTestId("event-tooltip")).toHaveTextContent("92% negative votes");
   });
 
   it("keeps the negative share out of a well-received tooltip", () => {
     const { container } = render(<ScoreEvolutionChart trends={trends} events={[makeEvent()]} />);
     fireEvent.pointerEnter(hitArea(container, "e1"));
-    expect(screen.getByTestId("event-tooltip")).not.toHaveTextContent("de votes négatifs");
+    expect(screen.getByTestId("event-tooltip")).not.toHaveTextContent("negative votes");
   });
 
   it("lets the event tooltip win over the month tooltip", () => {
     const { container } = render(<ScoreEvolutionChart trends={trends} events={[makeEvent()]} />);
-    const svg = screen.getByRole("img", { name: /évolution du score positif/i });
+    const svg = screen.getByRole("img", { name: /positive score over time/i });
     const pointerRect = svg.querySelector<SVGRectElement>("rect[data-month-hit]");
     if (!pointerRect) throw new Error("pas de zone de survol des mois");
     // jsdom ne fait aucune mise en page : sans ça le SVG mesure 0 et la

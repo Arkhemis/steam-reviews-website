@@ -21,20 +21,20 @@ beforeEach(() => {
 });
 
 describe("ReviewLanguageSelect", () => {
-  it("lists every available language under its French label, plus an all-languages option", () => {
+  it("lists every available language under its English label, plus an all-languages option", () => {
     render(<ReviewLanguageSelect languages={languages} selected="english" />);
 
     const options = screen.getAllByRole("option").map((o) => o.textContent);
-    expect(options[0]).toMatch(/Toutes les langues/);
-    expect(options[1]).toMatch(/^Anglais/);
-    expect(options[2]).toMatch(/^Chinois simplifié/);
-    expect(options[3]).toMatch(/^Français/);
+    expect(options[0]).toMatch(/All languages/);
+    expect(options[1]).toMatch(/^English/);
+    expect(options[2]).toMatch(/^Simplified Chinese/);
+    expect(options[3]).toMatch(/^French/);
   });
 
   it("shows how many highlighted reviews each language has", () => {
     render(<ReviewLanguageSelect languages={languages} selected="english" />);
 
-    expect(screen.getByRole("option", { name: /Anglais \(60\)/ })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /English \(60\)/ })).toBeInTheDocument();
   });
 
   it("falls back to the raw Steam code for a language it has no label for", () => {

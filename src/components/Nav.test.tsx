@@ -18,6 +18,6 @@ describe("Nav", () => {
 
   it("offers the game search next to the brand", () => {
     render(<Nav />);
-    expect(screen.getByRole("combobox", { name: "Chercher un jeu" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Search a game" })).toBeInTheDocument();
   });
 });

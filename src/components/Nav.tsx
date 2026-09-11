@@ -13,15 +13,15 @@ export function Nav() {
         </Link>
         {/* Sous `sm`, la nav n'a plus la largeur pour les deux : les liens priment. */}
         <GameSearchBox
-          placeholder="Chercher un jeu…"
+          placeholder="Search a game…"
           size="sm"
           className="hidden w-full max-w-[280px] sm:block"
         />
       </div>
       <div className="flex items-center gap-5 text-sm whitespace-nowrap text-neutral-300">
         <Link href="/games">Games</Link>
-        <Link href="/classements">Charts</Link>
-        <Link href="/carte">Language map</Link>
+        <Link href="/charts">Charts</Link>
+        <Link href="/map">Language map</Link>
         <Link
           href="/battle"
           className="rounded-full bg-gradient-to-r from-brand-blue to-brand-red px-3 py-1 font-bold text-black"
