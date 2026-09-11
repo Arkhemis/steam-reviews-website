@@ -9,6 +9,7 @@ import {
   LanguagesSkeleton,
   ReviewsSection,
   ReviewsSkeleton,
+  TrendsHeading,
   TrendsSection,
   TrendsSkeleton,
 } from "./sections";
@@ -114,7 +115,7 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
 
         <div className="mt-8 grid grid-cols-[1.4fr_1fr] gap-5">
           <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-            <h2 className="mb-2 text-xs uppercase tracking-wide text-neutral-400">Positive score over time</h2>
+            <TrendsHeading />
             <Suspense fallback={<TrendsSkeleton />}>
               <TrendsSection appId={numericAppId} />
             </Suspense>

@@ -1,3 +1,4 @@
+import { InfoHint } from "@/components/InfoHint";
 import { LanguageDistribution } from "@/components/LanguageDistribution";
 import { ReviewBattle } from "@/components/ReviewBattle";
 import { ScoreEvolutionChart } from "@/components/ScoreEvolutionChart";
@@ -20,6 +21,21 @@ import { resolveReviewLanguage } from "@/lib/reviewLanguage";
 // produced the exact same 15 chunks and 17 KB *more* JS: Turbopack already
 // merges this route's client components into one group and the lazy boundary
 // doesn't override that. Static imports it is.
+
+// Le titre de la carte, rendu à l'identique par la page et par son loading
+// state — d'où sa place ici, à côté des skeletons. Il porte l'explication de la
+// courbe parce que rien dans le graphe ne la donne : un point de mars 2024 ne
+// parle que des reviews écrites en mars 2024, alors que le `%` de la fiche juste
+// au-dessus est le cumul depuis la sortie. Deux chiffres qui ne se ressemblent
+// pas et que rien ne distinguait.
+export function TrendsHeading() {
+  return (
+    <h2 className="mb-2 flex items-center gap-1.5 text-xs uppercase tracking-wide text-neutral-400">
+      Positive score over time
+      <InfoHint text="Share of the reviews written that month that are positive." />
+    </h2>
+  );
+}
 
 // The chart's viewBox is 640x220, rendered full-width — same aspect here so the
 // card doesn't resize when the series lands.

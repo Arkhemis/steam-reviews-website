@@ -1,6 +1,6 @@
 import { Nav } from "@/components/Nav";
 import { Skeleton } from "@/components/Skeleton";
-import { LanguagesSkeleton, ReviewsSkeleton, TrendsSkeleton } from "./sections";
+import { LanguagesSkeleton, ReviewsSkeleton, TrendsHeading, TrendsSkeleton } from "./sections";
 
 // Affiché pendant que `getGameStats` résout. Ensuite la page elle-même stream et
 // ses trois sections gardent leurs propres boundaries — d'où les mêmes
@@ -30,7 +30,7 @@ export default function Loading() {
 
         <div className="mt-8 grid grid-cols-[1.4fr_1fr] gap-5">
           <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-            <h2 className="mb-2 text-xs uppercase tracking-wide text-neutral-400">Positive score over time</h2>
+            <TrendsHeading />
             <TrendsSkeleton />
           </div>
           <div className="rounded-xl border border-white/10 bg-white/5 p-4">
