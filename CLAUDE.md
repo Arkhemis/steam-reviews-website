@@ -17,6 +17,28 @@ is a presentation layer only — it must not reimplement data collection or
 transformation logic, which belongs to the sibling project
 `steam-reviews-analysis` (`../steam-reviews-analysis`).
 
+## Site language
+
+The site is in English by default. Every user-facing string is written in
+English: page copy, section titles, column headers, button and link labels,
+placeholders, empty and error states, `aria-label`/`title` attributes, and
+the `metadata` exported by `layout.tsx` (which also sets `<html lang="en">`).
+
+- Dates and numbers use the `en-US` locale — `Intl.NumberFormat("en-US")`,
+  `toLocaleString("en-US")`, `toLocaleDateString("en-US")`. Never `fr-FR`.
+- Routes and query-param values are English too: `/map`, `/charts`,
+  `?filter=best-rated`, `?filter=most-reviewed`, `?filter=worst-rated`.
+- Reader-facing language names live in `LANGUAGE_LABELS` (`src/lib/map.ts`)
+  and are English ("Simplified Chinese", not "Chinois simplifié").
+- Game rating labels reuse Steam's own English wording ("Overwhelmingly
+  Positive", "Mixed", "Mostly Negative"…).
+
+There is no i18n layer — strings sit inline in the components, so adding a
+second locale would be a real project, not a config change.
+
+Code comments, JSDoc and test names are in French. That is deliberate: leave
+them in French when you touch a file.
+
 ## Upstream data source
 
 `steam-reviews-analysis` is a Dagster + dbt pipeline that loads a PostgreSQL
