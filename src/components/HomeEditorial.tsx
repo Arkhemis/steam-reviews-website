@@ -143,7 +143,7 @@ export function PulseBand({ sentiment, volume, totals }: Pick<HomeData, "sentime
             preserveAspectRatio="none"
             className="mt-2 block h-[54px] w-full"
             role="img"
-            aria-label={`Share of positive reviews across the catalogue, from ${Math.round(sentiment[0] * 100)}% twelve months ago to ${Math.round(sentiment[sentiment.length - 1] * 100)}% today`}
+            aria-label={`Share of positive reviews across the catalogue over the last 12 months, from ${Math.round(sentiment[0] * 100)}% in the earliest month to ${Math.round(sentiment[sentiment.length - 1] * 100)}% in the latest`}
           >
             <path d={c.fill} fill="#e8622a" fillOpacity={0.15} />
             <path d={c.line} fill="none" stroke="#e8622a" strokeWidth={2} />

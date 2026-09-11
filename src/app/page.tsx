@@ -2,6 +2,7 @@ import { unstable_cache } from "next/cache";
 import { HomeEditorial, type HomeData, type ListBlock, type PodiumGame } from "@/components/HomeEditorial";
 import { dailyVolume, monthlySentiment, reviewsInLastDays } from "@/lib/cataloguePulse";
 import { CHART_FILTERS } from "@/lib/charts";
+import { formatReviewWindow } from "@/lib/reviewWindow";
 import {
   getCatalogueTrend,
   getGameTopReviews,
@@ -10,7 +11,7 @@ import {
   getSiteStats,
   getTopRatedGamesInWindow,
 } from "@/lib/data/gameData";
-import type { GameStats, RankedWindow, WindowedGame } from "@/lib/data/types";
+import type { GameStats, WindowedGame } from "@/lib/data/types";
 
 // La base n'est pas joignable au build (image buildée hors du réseau docker
 // compose), donc rien n'est prérendu. Les agrégats, eux, ne bougent qu'au
@@ -57,15 +58,6 @@ const siteStats = cached("home-site-stats", getSiteStats);
 const languageScores = cached("home-language-scores", getLanguageReviewScores);
 
 const enFull = new Intl.NumberFormat("en-US");
-const dayAndMonth = new Intl.DateTimeFormat("en-US", { day: "2-digit", month: "short", timeZone: "UTC" });
-
-/** « 07 Sep – 13 Sep », ou `null` tant que la fenêtre n'a sacré personne. */
-function formatWindow({ startsOn, endsOn }: RankedWindow): string | null {
-  if (!startsOn || !endsOn) return null;
-  const from = dayAndMonth.format(new Date(`${startsOn}T00:00:00Z`));
-  const to = dayAndMonth.format(new Date(`${endsOn}T00:00:00Z`));
-  return `${from} – ${to}`;
-}
 
 function toPodium(game: WindowedGame, period: string): PodiumGame {
   return {
@@ -158,7 +150,7 @@ export default async function HomePage() {
   const data: HomeData = {
     week: {
       label: isWeek ? "best of the week" : "best of the last 30 days",
-      range: formatWindow(podium),
+      range: formatReviewWindow(podium.startsOn, podium.endsOn),
       games,
     },
     lists,
