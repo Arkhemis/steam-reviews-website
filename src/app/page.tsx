@@ -65,11 +65,11 @@ async function HeroCopy() {
       <div>
         <h1 className="m-0 text-4xl leading-[0.95] font-extrabold tracking-tight text-balance sm:text-5xl lg:text-[56px]">
           {enCompact.format(stats.totalReviews)} reviews,{" "}
-          <span className="text-brand-blue">one shelf.</span>
+          <span className="text-brand-blue">analyzed.</span>
         </h1>
-        <p className="mt-4 max-w-[50ch] text-base leading-relaxed text-[#9fb2bd]">
-          Every cover hangs at its real approval rating. Below: the charts, the full
-          catalogue, and what players actually wrote.
+        <p className="mt-4 max-w-[44ch] text-lg leading-snug font-medium text-[#cfdae1] sm:text-xl">
+          Discover what people who actually played the games{" "}
+          <span className="font-semibold text-[#eef2f4]">really say</span> about them.
         </p>
         <GameSearchBox placeholder={`Search ${enFull.format(stats.totalGames)} games…`} className="mt-5 max-w-[420px]" />
       </div>

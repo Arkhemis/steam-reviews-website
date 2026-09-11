@@ -65,7 +65,7 @@ export function HeroCopyFallback() {
     <div className="mt-4 grid grid-cols-1 items-end gap-8 lg:grid-cols-[minmax(0,620px)_minmax(0,1fr)] lg:gap-10">
       <div>
         <Skeleton className="h-[54px] w-full max-w-[560px] sm:h-[60px] lg:h-[106px]" />
-        <Skeleton className="mt-4 h-12 w-full max-w-[50ch]" />
+        <Skeleton className="mt-4 h-14 w-full max-w-[44ch]" />
         <Skeleton className="mt-5 h-10 w-full max-w-[420px]" />
       </div>
       <div className="flex justify-start gap-8 pb-1.5 lg:justify-end">
