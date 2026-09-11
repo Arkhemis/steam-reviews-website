@@ -96,16 +96,24 @@ function excerpt(text: string): string {
   return `${trimmed.replace(/\[[^\]]*$/, "").trimEnd()}…`;
 }
 
-// TODO(data) : la citation du héros devrait être la review la plus utile *de
-// la semaine*. `marts.review_highlight` ne porte aucune date, donc on prend
-// pour l'instant la meilleure review positive du gagnant, toutes périodes
-// confondues. Voir `docs/home-data.md` (modèle `review_of_the_week`).
+// La citation est en anglais, comme le reste du site : sans filtre, la
+// meilleure review d'un jeu est souvent chinoise ou russe, et le héros
+// afficherait un paragraphe que son lecteur ne peut pas lire. Un jeu sans
+// review anglaise retenue par le mart passe donc sans citation, plutôt
+// qu'avec une citation illisible.
+//
+// TODO(data) : ce devrait être la review la plus utile *de la semaine*.
+// `marts.review_highlight` ne porte aucune date, donc on prend pour l'instant
+// la meilleure review positive du gagnant, toutes périodes confondues. Voir
+// `docs/home-data.md` (modèle `review_of_the_week`).
 //
 // Le gagnant ne change qu'avec le podium, lui-même caché : la citation se
 // cache donc sous son `appId`, sans quoi elle serait la seule lecture SQL que
 // chaque visiteur paierait.
 async function heroQuote(appId: number): Promise<string | undefined> {
-  const reviews = await cached(`home-quote-${appId}`, () => getGameTopReviews(appId, { perSide: 1 }))();
+  const reviews = await cached(`home-quote-en-${appId}`, () =>
+    getGameTopReviews(appId, { language: "english", perSide: 1 }),
+  )();
   const positive = reviews.find((review) => review.votedUp);
   return positive ? excerpt(positive.reviewText) : undefined;
 }

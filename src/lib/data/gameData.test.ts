@@ -189,6 +189,15 @@ describe("gameData", () => {
     expect(games.every((g) => g.reviews >= floor)).toBe(true);
   });
 
+  // La home montre le gagnant en grand : un jeu sans jaquette y laisserait un
+  // cadre vide, héros compris.
+  it("ne sacre que des jeux qui ont une jaquette", async () => {
+    const { games } = await getTopRatedGamesInWindow("month", 5, 100);
+
+    expect(games.length).toBeGreaterThan(0);
+    expect(games.every((g) => g.coverUrl !== null)).toBe(true);
+  });
+
   it("rend la fenêtre du podium, ancrée sur la dernière date du mart", async () => {
     const window = await getTopRatedGamesInWindow("month", 1, 100);
 
@@ -214,6 +223,7 @@ describe("gameData", () => {
     const distances = games.map((g) => Math.abs(g.pctPositive * 100 - 50));
     expect(distances).toEqual([...distances].sort((a, b) => a - b));
     expect(games.every((g) => g.totalReviews >= 1000)).toBe(true);
+    expect(games.every((g) => g.coverUrl !== null)).toBe(true);
   });
 
   it("rend le pouls du catalogue jour par jour, sans trou d'ordre", async () => {

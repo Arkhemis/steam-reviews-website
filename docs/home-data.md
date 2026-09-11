@@ -25,6 +25,16 @@ temporelle est ancrée sur `MAX(review_date)` du mart, jamais sur
 Tout est caché par `unstable_cache` pendant 900 s : la home ne déclenche au
 plus qu'une passe de chaque requête par quart d'heure.
 
+Deux filtres valent d'être connus, parce qu'ils écartent des jeux que les
+données contiennent pourtant :
+
+- **jaquette obligatoire** sur les podiums et sur « Nobody agrees » — une
+  fenêtre courte fait remonter des titres qu'IGDB ne couvre pas encore, et le
+  héros les affichait sur un cadre vide ;
+- **citation en anglais uniquement** — sans filtre de langue, la review la plus
+  utile d'un jeu est souvent chinoise ou russe. Un jeu dont le mart n'a retenu
+  aucune review anglaise passe donc sans citation.
+
 ## Modèles manquants, par ordre d'utilité
 
 ### 1. `marts.review_of_the_week` — citation du héros *(placeholder en place)*

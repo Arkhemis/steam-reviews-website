@@ -615,6 +615,10 @@ type RankedWindowRow = {
  *
  * `minReviews` est le garde-fou habituel : sur sept jours, une poignée d'avis
  * suffirait sinon à sacrer un jeu confidentiel à 100 %.
+ *
+ * Les jeux sans jaquette sont écartés : la home est une vitrine, et une
+ * fenêtre courte fait remonter des titres qu'IGDB ne couvre pas encore — le
+ * héros et les tuiles du podium se retrouvaient alors sur un cadre vide.
  */
 export async function getTopRatedGamesInWindow(
   window: ReviewWindow,
@@ -649,6 +653,7 @@ export async function getTopRatedGamesInWindow(
      FROM scored s
      JOIN marts.game_stats g ON g.steam_app_id = s.app_id
      CROSS JOIN win w
+     WHERE g.cover_url IS NOT NULL
      ORDER BY pct_positive DESC, s.reviews DESC, s.app_id
      LIMIT $1`,
     [limit, minReviews],
@@ -671,11 +676,14 @@ export async function getTopRatedGamesInWindow(
  * Les jeux qui divisent : score le plus proche de 50 %, à gros volume. Le
  * seuil compte double ici — un jeu à 12 avis tombe sur 50 % par hasard, un jeu
  * à 50 000 avis y tombe parce que ses joueurs ne sont vraiment pas d'accord.
+ *
+ * Jaquette obligatoire, comme pour les podiums : la rubrique montre le n°1 en
+ * grand, cadre vide compris s'il n'en a pas.
  */
 export async function getPolarisedGames(limit: number, minReviews = 5000): Promise<GameStats[]> {
   const { rows } = await pool.query(
     `SELECT ${GAME_STATS_COLUMNS} FROM marts.game_stats
-     WHERE total_reviews >= $2
+     WHERE total_reviews >= $2 AND cover_url IS NOT NULL
      ORDER BY ABS(pct_positive_reviews - 50), total_reviews DESC, steam_app_id
      LIMIT $1`,
     [limit, minReviews],
