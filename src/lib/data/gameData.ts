@@ -1,5 +1,6 @@
 import { pool } from "@/lib/db";
 import type {
+  CatalogueTrendDay,
   GameEvent,
   GameLanguageDistribution,
   GameReviewLanguage,
@@ -7,7 +8,9 @@ import type {
   GameStats,
   GameTopReview,
   LanguageReviewScore,
+  RankedWindow,
   ReviewDuel,
+  ReviewWindow,
   SiteStats,
   TrendingGame,
   TrendingGames,
@@ -574,5 +577,140 @@ export async function getGameTopReviews(
       : null,
     reviewUrl: `${row.author_profile_url}recommended/${row.app_id}`,
     rankInGame: Number(row.rank_in_game),
+  }));
+}
+
+// --- Home éditoriale -------------------------------------------------------
+//
+// Les trois requêtes ci-dessous n'alimentent que la home : un podium sur une
+// fenêtre glissante, le pouls du catalogue, et les jeux qui divisent. Toutes
+// lisent des marts existants ; voir `docs/home-data.md` pour les modèles qui
+// manquent encore en amont et ce qu'ils feraient gagner.
+
+// Chaque fenêtre est ancrée sur la dernière date du mart, jamais sur
+// `CURRENT_DATE` : le pipeline peut avoir plusieurs jours de retard, et une
+// fenêtre calée sur « aujourd'hui » renverrait alors un podium vide.
+// Valeurs internes, jamais dérivées d'une entrée utilisateur : leur
+// interpolation dans le SQL est sûre.
+const WINDOW_STARTS_ON: Record<ReviewWindow, string> = {
+  week: "(b.latest - INTERVAL '6 days')::date",
+  month: "(b.latest - INTERVAL '29 days')::date",
+  "year-to-date": "DATE_TRUNC('year', b.latest)::date",
+};
+
+type RankedWindowRow = {
+  app_id: string;
+  game_name: string;
+  cover_url: string | null;
+  reviews: string;
+  pct_positive: string;
+  starts_on: string;
+  ends_on: string;
+};
+
+/**
+ * Le meilleur de la fenêtre : les jeux dont les avis *reçus pendant la
+ * fenêtre* sont les plus positifs. Rien à voir avec `getRankedGames`, qui
+ * classe sur le score cumulé depuis la sortie du jeu.
+ *
+ * `minReviews` est le garde-fou habituel : sur sept jours, une poignée d'avis
+ * suffirait sinon à sacrer un jeu confidentiel à 100 %.
+ */
+export async function getTopRatedGamesInWindow(
+  window: ReviewWindow,
+  limit: number,
+  minReviews: number,
+): Promise<RankedWindow> {
+  const { rows } = await pool.query<RankedWindowRow>(
+    `WITH bounds AS (
+       SELECT MAX(review_date) AS latest FROM marts.game_review_trend_daily
+     ),
+     win AS (
+       SELECT ${WINDOW_STARTS_ON[window]} AS starts_on, b.latest AS ends_on FROM bounds b
+     ),
+     scored AS (
+       SELECT
+         t.app_id,
+         SUM(t.total_reviews) AS reviews,
+         SUM(t.total_positive) AS positive
+       FROM marts.game_review_trend_daily t, win w
+       WHERE t.review_date BETWEEN w.starts_on AND w.ends_on
+       GROUP BY t.app_id
+       HAVING SUM(t.total_reviews) >= $2
+     )
+     SELECT
+       s.app_id,
+       g.game_name,
+       g.cover_url,
+       s.reviews,
+       ROUND(s.positive::numeric / NULLIF(s.reviews, 0) * 100, 1) AS pct_positive,
+       TO_CHAR(w.starts_on, 'YYYY-MM-DD') AS starts_on,
+       TO_CHAR(w.ends_on, 'YYYY-MM-DD') AS ends_on
+     FROM scored s
+     JOIN marts.game_stats g ON g.steam_app_id = s.app_id
+     CROSS JOIN win w
+     ORDER BY pct_positive DESC, s.reviews DESC, s.app_id
+     LIMIT $1`,
+    [limit, minReviews],
+  );
+
+  return {
+    startsOn: rows[0]?.starts_on ?? null,
+    endsOn: rows[0]?.ends_on ?? null,
+    games: rows.map((row) => ({
+      appId: Number(row.app_id),
+      name: row.game_name,
+      coverUrl: row.cover_url,
+      reviews: Number(row.reviews),
+      pctPositive: Number(row.pct_positive) / 100,
+    })),
+  };
+}
+
+/**
+ * Les jeux qui divisent : score le plus proche de 50 %, à gros volume. Le
+ * seuil compte double ici — un jeu à 12 avis tombe sur 50 % par hasard, un jeu
+ * à 50 000 avis y tombe parce que ses joueurs ne sont vraiment pas d'accord.
+ */
+export async function getPolarisedGames(limit: number, minReviews = 5000): Promise<GameStats[]> {
+  const { rows } = await pool.query(
+    `SELECT ${GAME_STATS_COLUMNS} FROM marts.game_stats
+     WHERE total_reviews >= $2
+     ORDER BY ABS(pct_positive_reviews - 50), total_reviews DESC, steam_app_id
+     LIMIT $1`,
+    [limit, minReviews],
+  );
+
+  return rows.map(mapGameStatsRow);
+}
+
+/**
+ * Le pouls du catalogue : une ligne par jour, tous jeux confondus, sur les
+ * douze derniers mois calendaires. Le bandeau de la home en tire trois choses
+ * (courbe de sentiment mensuelle, barres des 31 derniers jours, avis de la
+ * semaine) — d'où une seule requête plutôt que trois : l'agrégation balaie la
+ * même tranche de `game_review_trend_daily` à chaque fois, et c'est elle qui
+ * coûte. Le découpage se fait ensuite en mémoire, dans `@/lib/cataloguePulse`.
+ */
+export async function getCatalogueTrend(): Promise<CatalogueTrendDay[]> {
+  const { rows } = await pool.query<{ review_date: string; reviews: string; positive: string }>(
+    `WITH bounds AS (
+       SELECT MAX(review_date) AS latest FROM marts.game_review_trend_daily
+     )
+     SELECT
+       TO_CHAR(t.review_date, 'YYYY-MM-DD') AS review_date,
+       SUM(t.total_reviews) AS reviews,
+       SUM(t.total_positive) AS positive
+     FROM marts.game_review_trend_daily t, bounds b
+     WHERE t.review_date >= (DATE_TRUNC('month', b.latest) - INTERVAL '11 months')::date
+       AND t.review_date <= b.latest
+     GROUP BY t.review_date
+     ORDER BY t.review_date`,
+  );
+
+  return rows.map((row) => ({
+    date: row.review_date,
+    reviews: Number(row.reviews),
+    positive: Number(row.positive),
   }));
 }

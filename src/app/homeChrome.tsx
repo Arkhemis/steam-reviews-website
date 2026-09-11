@@ -1,140 +1,148 @@
-import Link from "next/link";
+import { SectionHead } from "@/components/HomeEditorial";
 import { Nav } from "@/components/Nav";
-import { SectionHeading } from "@/components/SectionHeading";
-import { Skeleton } from "@/components/Skeleton";
+import { Skeleton, SkeletonLines } from "@/components/Skeleton";
 
-// La partie statique de la home — titres de section, filtres, gabarits d'attente
-// — partagée entre `page.tsx` et son `loading.tsx`. Les deux doivent réserver
-// exactement les mêmes boîtes : le loading state s'affiche avant que le flux RSC
-// n'arrive, et si les deux divergent le lecteur voit la page sauter.
+// Le squelette de la home, monté par `loading.tsx`. La home est
+// `force-dynamic` : sans lui, le navigateur reste sur un document vide le
+// temps que Postgres réponde. Il doit réserver les mêmes boîtes que
+// `HomeEditorial`, sinon la page saute quand le flux RSC arrive — nav à fond
+// perdu comprise, puis héros, bandeau de pouls, podium et rubriques.
 
-export const CHART_FILTERS = [
-  { label: "Trending", href: "/charts" },
-  { label: "Best rated", href: "/charts?filter=best-rated" },
-  { label: "Most reviewed", href: "/charts?filter=most-reviewed" },
-  { label: "Worst rated", href: "/charts?filter=worst-rated" },
-] as const;
+const PODIUM_SIZE = 5;
 
-export const CHART_SIZE = 5;
-export const GRID_SIZE = 20;
-
-export function ChartsHeading() {
+function HeroFallback() {
   return (
-    <SectionHeading
-      number="01"
-      title="Charts"
-      note="rising over 30 days · 1,000-review floor"
-      action={
-        <div className="flex flex-wrap gap-1.5">
-          {CHART_FILTERS.map((f) => (
-            <Link
-              key={f.label}
-              href={f.href}
-              className="rounded-full border border-[#24333f] px-3 py-1 text-xs font-semibold text-[#9fb2bd]"
-            >
-              {f.label}
-            </Link>
-          ))}
+    <div className="grid grid-cols-1 bg-[linear-gradient(115deg,#2a1206_0%,#0c1116_62%)] lg:grid-cols-[minmax(0,1fr)_300px]">
+      <div className="px-6 py-9 sm:px-8">
+        <Skeleton className="h-3 w-56" />
+        <Skeleton className="mt-3 h-[44px] w-full max-w-[520px] sm:h-12 lg:h-[58px]" />
+        <div className="mt-4 flex items-baseline gap-[18px]">
+          <Skeleton className="h-[44px] w-32" />
+          <Skeleton className="h-3 w-40" />
         </div>
-      }
-    />
-  );
-}
-
-export function GamesHeading({ note }: { note: React.ReactNode }) {
-  return (
-    <SectionHeading
-      number="02"
-      title="Games"
-      note={note}
-      action={
-        <Link href="/games" className="font-mono text-[10px] tracking-[0.12em] text-brand-blue uppercase">
-          browse all →
-        </Link>
-      }
-    />
-  );
-}
-
-export function GamesCountFallback() {
-  return <Skeleton className="inline-block h-3 w-64 align-middle" />;
-}
-
-export function HeroCopyFallback() {
-  return (
-    <div className="mt-4 grid grid-cols-1 items-end gap-8 lg:grid-cols-[minmax(0,620px)_minmax(0,1fr)] lg:gap-10">
-      <div>
-        <Skeleton className="h-[54px] w-full max-w-[560px] sm:h-[60px] lg:h-[106px]" />
-        <Skeleton className="mt-4 h-14 w-full max-w-[44ch]" />
-        <Skeleton className="mt-5 h-10 w-full max-w-[420px]" />
+        <div className="mt-[18px] max-w-[52ch] border-l-[3px] border-[#1e2b36] pl-4">
+          <SkeletonLines widths={["100%", "96%", "88%"]} />
+        </div>
+        <div className="mt-6 flex flex-wrap gap-2.5">
+          <Skeleton className="h-[42px] w-40 rounded-full" />
+          <Skeleton className="h-[42px] w-44 rounded-full" />
+        </div>
       </div>
-      <div className="flex justify-start gap-8 pb-1.5 lg:justify-end">
-        {[0, 1, 2].map((i) => (
-          <div key={i}>
-            <Skeleton className="h-8 w-16" />
-            <Skeleton className="mt-1 h-2.5 w-12" />
-          </div>
-        ))}
-      </div>
+      <div className="hidden min-h-[240px] lg:block" />
     </div>
   );
 }
 
-// L'étagère se dessine par-dessus un dégradé plein cadre : un placeholder gris
-// serait plus voyant que le trou. On réserve juste sa hauteur.
-export function ShelfFallback() {
-  return <div className="mt-4 h-[300px] sm:h-[380px] lg:h-[430px]" />;
-}
+// Les deux graphes n'ont pas de placeholder : une boîte grise de la taille
+// d'une courbe est plus voyante que le trou qu'elle bouche. On garde les
+// intitulés, qui ne dépendent d'aucune requête, et la hauteur des cellules.
+function PulseBandFallback() {
+  const cells = ["catalogue sentiment · 12 mo", "reviews / day · 31d", "this week", "catalogue"];
 
-export function ChartsFallback() {
   return (
-    <div className="overflow-x-auto">
-      <div className="min-w-[560px] space-y-2">
-        {Array.from({ length: CHART_SIZE }, (_, i) => (
-          <Skeleton key={i} className="h-14 w-full" />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-export function GamesGridFallback() {
-  return (
-    <div className="grid grid-cols-4 gap-2.5 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10">
-      {Array.from({ length: GRID_SIZE }, (_, i) => (
-        <Skeleton key={i} className="aspect-[2/3] w-full rounded-[3px]" />
+    <div className="grid grid-cols-2 border-y border-[#1a2530] lg:grid-cols-4">
+      {cells.map((label, i) => (
+        <div key={label} className={`px-5 py-4 ${i < cells.length - 1 ? "border-r border-[#16202a]" : ""}`}>
+          <div className="font-mono text-[9px] tracking-[0.12em] text-[#7d919c] uppercase">{label}</div>
+          <div className="mt-2 h-[54px]" />
+        </div>
       ))}
     </div>
   );
 }
 
-// Le squelette complet de la home, monté par `loading.tsx`. Il reprend le même
-// wrapper que `page.tsx` : `min-h-screen bg-[#0c1116]` sur la racine, `mx-auto`
-// seulement sur le conteneur interne. La racine est un enfant direct du `body`
-// en `flex flex-col`, et un flex item avec `margin-inline: auto` perd son
-// `align-self: stretch` — il se ratatinerait en `fit-content`.
+function RunnersUpFallback() {
+  return (
+    <div className="px-6 py-8 sm:px-8">
+      <div className="mx-auto max-w-[1320px]">
+        <SectionHead title="Runners-up" note="the rest of the podium" />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: PODIUM_SIZE - 1 }, (_, i) => (
+            <div key={i} className="grid grid-cols-[70px_minmax(0,1fr)] items-center gap-3.5 rounded-[5px] border border-[#1e2b36] p-3.5">
+              <Skeleton className="aspect-[2/3] w-[70px] rounded-[3px]" />
+              <div>
+                <Skeleton className="h-2.5 w-6" />
+                <Skeleton className="mt-1.5 h-4 w-full max-w-[140px]" />
+                <Skeleton className="mt-1.5 h-5 w-14" />
+                <Skeleton className="mt-1.5 h-2.5 w-24" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ListsFallback() {
+  return (
+    <div className="border-t border-[#1a2530] px-6 py-8 sm:px-8">
+      <div className="mx-auto max-w-[1320px]">
+        <SectionHead title="Two more questions" note="best of the year · and the games nobody agrees on" />
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+          {[0, 1].map((column) => (
+            <div key={column}>
+              <div className="flex items-baseline justify-between gap-2.5 border-b border-[#24333f] pb-2.5">
+                <Skeleton className="h-6 w-44" />
+                <Skeleton className="h-2.5 w-24" />
+              </div>
+              <div className="mt-2.5 mb-4 max-w-[46ch]">
+                <SkeletonLines widths={["100%", "72%"]} />
+              </div>
+              <div className="grid grid-cols-[120px_minmax(0,1fr)] gap-[18px]">
+                <Skeleton className="aspect-[2/3] w-[120px] rounded-[4px]" />
+                <div>
+                  <Skeleton className="h-2.5 w-6" />
+                  <Skeleton className="mt-2 h-6 w-full max-w-[220px]" />
+                  <Skeleton className="mt-2.5 h-7 w-20" />
+                </div>
+              </div>
+              <div className="mt-4">
+                {Array.from({ length: PODIUM_SIZE - 1 }, (_, i) => (
+                  <div key={i} className="border-t border-[#16202a] py-2.5">
+                    <Skeleton className="h-4 w-full" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DigDeeperFallback() {
+  return (
+    <div className="border-t border-[#1a2530] bg-[#0e141a] px-6 py-8 sm:px-8">
+      <div className="mx-auto max-w-[1320px]">
+        <SectionHead title="Dig deeper" note="three ways into the same catalogue" />
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="rounded-md border border-[#1e2b36] bg-[#0c1116] p-[22px]">
+              <Skeleton className="h-2.5 w-20" />
+              <Skeleton className="mt-2.5 h-6 w-40" />
+              <div className="mt-2.5">
+                <SkeletonLines widths={["100%", "90%"]} />
+              </div>
+              <Skeleton className="mt-4 h-7 w-28" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function HomeSkeleton() {
   return (
     <div className="min-h-screen bg-[#0c1116] text-[#eef2f4]">
-      <div className="mx-auto max-w-[1320px] px-5 sm:px-7">
-        <Nav />
-        <HeroCopyFallback />
-        <ShelfFallback />
-      </div>
-
-      <div className="border-t border-[#1a2530] px-5 py-9 sm:px-7">
-        <div className="mx-auto max-w-[1320px]">
-          <ChartsHeading />
-          <ChartsFallback />
-        </div>
-      </div>
-
-      <div className="border-t border-[#1a2530] px-5 py-9 sm:px-7">
-        <div className="mx-auto max-w-[1320px]">
-          <GamesHeading note={<GamesCountFallback />} />
-          <GamesGridFallback />
-        </div>
-      </div>
+      <Nav variant="banded" />
+      <HeroFallback />
+      <PulseBandFallback />
+      <RunnersUpFallback />
+      <ListsFallback />
+      <DigDeeperFallback />
     </div>
   );
 }

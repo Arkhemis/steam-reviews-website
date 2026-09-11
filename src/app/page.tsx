@@ -1,243 +1,177 @@
-import { cache, Suspense } from "react";
 import { unstable_cache } from "next/cache";
-import Link from "next/link";
-import { BBCodeText } from "@/components/BBCodeText";
-import { ChartRow, ChartRowHeader } from "@/components/ChartRow";
-import { GameCoverTile } from "@/components/GameCoverTile";
-import { GameSearchBox } from "@/components/GameSearchBox";
-import { HeroShelf } from "@/components/HeroShelf";
-import { Nav } from "@/components/Nav";
-import { SectionHeading } from "@/components/SectionHeading";
+import { HomeEditorial, type HomeData, type ListBlock, type PodiumGame } from "@/components/HomeEditorial";
+import { dailyVolume, monthlySentiment, reviewsInLastDays } from "@/lib/cataloguePulse";
+import { CHART_FILTERS } from "@/lib/charts";
 import {
-  CHART_SIZE,
-  ChartsFallback,
-  ChartsHeading,
-  GRID_SIZE,
-  GamesCountFallback,
-  GamesGridFallback,
-  GamesHeading,
-  HeroCopyFallback,
-  ShelfFallback,
-} from "@/app/homeChrome";
-import {
+  getCatalogueTrend,
+  getGameTopReviews,
   getLanguageReviewScores,
-  getReviewDuel,
+  getPolarisedGames,
   getSiteStats,
-  getTopGames,
-  getTrendingGames,
+  getTopRatedGamesInWindow,
 } from "@/lib/data/gameData";
+import type { GameStats, RankedWindow, WindowedGame } from "@/lib/data/types";
 
-// La review du jour est tirée au sort à chaque visite, donc la page reste
-// dynamique ; les agrégats coûteux sont cachés individuellement ci-dessous.
+// La base n'est pas joignable au build (image buildée hors du réseau docker
+// compose), donc rien n'est prérendu. Les agrégats, eux, ne bougent qu'au
+// rythme du pipeline : chacun est caché à part, et la page n'attend plus que
+// le cache. Voir `docs/home-data.md` pour ce que chaque bloc lit vraiment.
 export const dynamic = "force-dynamic";
 
-const enCompact = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
-const enFull = new Intl.NumberFormat("en-US");
+const REVALIDATE_SECONDS = 900;
 
-const SHELF_SIZE = 10;
+const PODIUM_SIZE = 5;
 
-// Volume minimum sur chacune des deux fenêtres de 30 jours. La home est la
-// vitrine : on ne veut que des jeux dont le mouvement est réel, pas des titres
-// confidentiels qu'une poignée d'avis fait bondir de trente points.
-const HOME_TRENDING_MIN_REVIEWS = 1000;
+// Seuils de volume, par fenêtre. Ils font le même travail qu'ailleurs sur le
+// site — empêcher qu'une poignée d'avis sacre un jeu confidentiel — mais une
+// semaine ne brasse pas les volumes d'une année : un seuil unique viderait le
+// podium hebdomadaire ou laisserait passer n'importe quoi sur l'année.
+const WEEK_MIN_REVIEWS = 100;
+const MONTH_MIN_REVIEWS = 500;
+const YEAR_MIN_REVIEWS = 1000;
 
-// L'étagère et les charts lisent la même comparaison 30j/30j : `cache` la
-// déduplique au sein d'une requête, `unstable_cache` évite de la recalculer à
-// chaque visiteur. C'est de loin la requête la plus lourde de la page, et son
-// contenu ne bouge qu'au rythme du pipeline. Le seuil fait partie de la clé de
-// cache : le changer doit invalider l'entrée, pas resservir l'ancien palmarès.
-const trending = cache(
-  unstable_cache(
-    () => getTrendingGames(SHELF_SIZE / 2, HOME_TRENDING_MIN_REVIEWS),
-    ["home-trending", String(HOME_TRENDING_MIN_REVIEWS)],
-    { revalidate: 900 },
-  ),
+// Ici le seuil compte double : un jeu à douze avis tombe à 50 % par hasard, un
+// jeu à cinquante mille avis y tombe parce que ses joueurs se déchirent.
+const POLARISED_MIN_REVIEWS = 5000;
+
+// Les seuils font partie de la clé : les changer doit invalider l'entrée, pas
+// resservir l'ancien palmarès.
+function cached<T>(key: string, read: () => Promise<T>) {
+  return unstable_cache(read, [key], { revalidate: REVALIDATE_SECONDS });
+}
+
+const weekPodium = cached(`home-week-${WEEK_MIN_REVIEWS}`, () =>
+  getTopRatedGamesInWindow("week", PODIUM_SIZE, WEEK_MIN_REVIEWS),
 );
+const monthPodium = cached(`home-month-${MONTH_MIN_REVIEWS}`, () =>
+  getTopRatedGamesInWindow("month", PODIUM_SIZE, MONTH_MIN_REVIEWS),
+);
+const yearPodium = cached(`home-year-${YEAR_MIN_REVIEWS}`, () =>
+  getTopRatedGamesInWindow("year-to-date", PODIUM_SIZE, YEAR_MIN_REVIEWS),
+);
+const polarisedGames = cached(`home-polarised-${POLARISED_MIN_REVIEWS}`, () =>
+  getPolarisedGames(PODIUM_SIZE, POLARISED_MIN_REVIEWS),
+);
+const catalogueTrend = cached("home-catalogue-trend", getCatalogueTrend);
+const siteStats = cached("home-site-stats", getSiteStats);
+const languageScores = cached("home-language-scores", getLanguageReviewScores);
 
-// Deux sections affichent ces totaux ; une seule requête doit suffire.
-const siteStats = cache(getSiteStats);
+const enFull = new Intl.NumberFormat("en-US");
+const dayAndMonth = new Intl.DateTimeFormat("en-US", { day: "2-digit", month: "short", timeZone: "UTC" });
 
-async function HeroCopy() {
-  const [stats, languages] = await Promise.all([siteStats(), getLanguageReviewScores()]);
-
-  return (
-    <div className="mt-4 grid grid-cols-1 items-end gap-8 lg:grid-cols-[minmax(0,620px)_minmax(0,1fr)] lg:gap-10">
-      <div>
-        <h1 className="m-0 text-4xl leading-[0.95] font-extrabold tracking-tight text-balance sm:text-5xl lg:text-[56px]">
-          {enCompact.format(stats.totalReviews)} reviews,{" "}
-          <span className="text-brand-blue">analyzed.</span>
-        </h1>
-        <p className="mt-4 max-w-[44ch] text-lg leading-snug font-medium text-[#cfdae1] sm:text-xl">
-          Discover what people who actually played the games{" "}
-          <span className="font-semibold text-[#eef2f4]">really say</span> about them.
-        </p>
-        <GameSearchBox placeholder={`Search ${enFull.format(stats.totalGames)} games…`} className="mt-5 max-w-[420px]" />
-      </div>
-      <div className="flex justify-start gap-8 pb-1.5 font-mono lg:justify-end">
-        <div>
-          <div className="text-2xl font-medium">{enCompact.format(stats.totalReviews)}</div>
-          <div className="text-[10px] tracking-[0.12em] text-[#7d919c] uppercase">reviews</div>
-        </div>
-        <div>
-          <div className="text-2xl font-medium">{enFull.format(stats.totalGames)}</div>
-          <div className="text-[10px] tracking-[0.12em] text-[#7d919c] uppercase">games</div>
-        </div>
-        <div>
-          <div className="text-2xl font-medium">{languages.length}</div>
-          <div className="text-[10px] tracking-[0.12em] text-[#7d919c] uppercase">languages</div>
-        </div>
-      </div>
-    </div>
-  );
+/** « 07 Sep – 13 Sep », ou `null` tant que la fenêtre n'a sacré personne. */
+function formatWindow({ startsOn, endsOn }: RankedWindow): string | null {
+  if (!startsOn || !endsOn) return null;
+  const from = dayAndMonth.format(new Date(`${startsOn}T00:00:00Z`));
+  const to = dayAndMonth.format(new Date(`${endsOn}T00:00:00Z`));
+  return `${from} – ${to}`;
 }
 
-async function Shelf() {
-  const { up, down } = await trending();
-
-  const games = [...up, ...down]
-    .map((g) => ({
-      appId: g.appId,
-      name: g.name,
-      coverUrl: g.coverUrl,
-      pct: g.recentPctPositive * 100,
-      deltaPct: g.deltaPct,
-    }))
-    .sort((a, b) => b.pct - a.pct)
-    .slice(0, SHELF_SIZE);
-
-  return <HeroShelf games={games} />;
+function toPodium(game: WindowedGame, period: string): PodiumGame {
+  return {
+    appId: game.appId,
+    name: game.name,
+    coverUrl: game.coverUrl,
+    pct: game.pctPositive * 100,
+    meta: `${enFull.format(game.reviews)} reviews ${period}`,
+  };
 }
 
-async function Charts() {
-  const { up } = await trending();
-
-  return (
-    <div className="overflow-x-auto">
-      <div className="min-w-[560px]">
-        <ChartRowHeader reviewsLabel="reviews 30d" positiveLabel="positive" shiftLabel="shift" />
-        {up.slice(0, CHART_SIZE).map((game, i) => (
-          <ChartRow
-            key={game.appId}
-            rank={i + 1}
-            appId={game.appId}
-            name={game.name}
-            coverUrl={game.coverUrl}
-            reviews={enFull.format(game.recentReviews)}
-            pct={game.recentPctPositive * 100}
-            delta={{
-              formatted: `${game.deltaPct >= 0 ? "+" : ""}${game.deltaPct.toFixed(1)}`,
-              rising: game.deltaPct >= 0,
-            }}
-          />
-        ))}
-      </div>
-    </div>
-  );
+function toPolarisedPodium(game: GameStats): PodiumGame {
+  return {
+    appId: game.appId,
+    name: game.name,
+    coverUrl: game.coverUrl,
+    pct: game.pctPositive * 100,
+    meta: `${enFull.format(game.totalReviews)} reviews · all time`,
+  };
 }
 
-async function GamesGrid() {
-  const games = await getTopGames(GRID_SIZE);
+const QUOTE_MAX_CHARS = 420;
 
-  return (
-    <div className="grid grid-cols-4 gap-2.5 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10">
-      {games.map((game) => (
-        <GameCoverTile
-          key={game.appId}
-          appId={game.appId}
-          name={game.name}
-          coverUrl={game.coverUrl}
-          pct={game.pctPositive * 100}
-          reviews={game.totalReviews}
-          sizes="10vw"
-        />
-      ))}
-    </div>
-  );
+// La review la plus utile d'un jeu fait parfois plusieurs milliers de
+// caractères : on coupe côté serveur pour ne pas embarquer le roman entier
+// dans le flux RSC, `line-clamp` fait le reste à l'écran. La coupe tombe sur
+// une espace, et on jette un éventuel `[spoiler` resté ouvert pour ne pas
+// afficher un bout de balise BBCode.
+function excerpt(text: string): string {
+  const clean = text.trim();
+  if (clean.length <= QUOTE_MAX_CHARS) return clean;
+
+  const cut = clean.slice(0, QUOTE_MAX_CHARS);
+  const lastSpace = cut.lastIndexOf(" ");
+  const trimmed = lastSpace > 0 ? cut.slice(0, lastSpace) : cut;
+  return `${trimmed.replace(/\[[^\]]*$/, "").trimEnd()}…`;
 }
 
-async function GamesCount() {
-  const stats = await siteStats();
-  return <>{enFull.format(stats.totalGames)} tracked, hover for the numbers</>;
+// TODO(data) : la citation du héros devrait être la review la plus utile *de
+// la semaine*. `marts.review_highlight` ne porte aucune date, donc on prend
+// pour l'instant la meilleure review positive du gagnant, toutes périodes
+// confondues. Voir `docs/home-data.md` (modèle `review_of_the_week`).
+//
+// Le gagnant ne change qu'avec le podium, lui-même caché : la citation se
+// cache donc sous son `appId`, sans quoi elle serait la seule lecture SQL que
+// chaque visiteur paierait.
+async function heroQuote(appId: number): Promise<string | undefined> {
+  const reviews = await cached(`home-quote-${appId}`, () => getGameTopReviews(appId, { perSide: 1 }))();
+  const positive = reviews.find((review) => review.votedUp);
+  return positive ? excerpt(positive.reviewText) : undefined;
 }
 
-async function Duel() {
-  const duel = await getReviewDuel();
-  if (!duel) return null;
+export default async function HomePage() {
+  const [week, year, polarised, trend, stats, languages] = await Promise.all([
+    weekPodium(),
+    yearPodium(),
+    polarisedGames(),
+    catalogueTrend(),
+    siteStats(),
+    languageScores(),
+  ]);
 
-  return (
-    <div className="border-t border-[#1a2530] bg-[#0e141a] px-5 py-9 sm:px-7">
-      <div className="mx-auto max-w-[1320px]">
-        <SectionHeading number="03" title="Two sides" note="one game, two players, no middle ground" />
-        <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2">
-          {[duel.positive, duel.negative].map(({ game, review }) => (
-            <div
-              key={review.recommendationId}
-              className="rounded-[5px] border border-[#1e2b36] p-5"
-              style={{ borderLeft: `3px solid ${review.votedUp ? "var(--status-good)" : "var(--status-critical)"}` }}
-            >
-              <div className="line-clamp-6 text-[17px] leading-relaxed text-[#dfe7eb]">
-                <BBCodeText text={review.reviewText} />
-              </div>
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 font-mono text-[11px] text-[#7d919c]">
-                <span>
-                  {review.authorPersonaname} ·{" "}
-                  <Link href={`/games/${game.appId}`} className="hover:underline">
-                    {game.name}
-                  </Link>{" "}
-                  · {Math.round(review.authorPlaytimeAtReviewMinutes / 60)}h
-                </span>
-                <span>{enFull.format(review.votesUp)} helpful</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
+  // Une semaine creuse — pipeline en retard, ou seuil trop haut pour la
+  // période — ne doit pas laisser la home sans héros : on élargit alors à
+  // trente jours, et le kicker dit laquelle des deux fenêtres est affichée.
+  const podium = week.games.length > 0 ? week : await monthPodium();
+  const isWeek = podium === week;
 
-// Chaque section attend sa propre requête : la plus lente ne retient plus les
-// autres, et la coquille (nav, titres, gabarit) part avant toute lecture SQL.
-export default function HomePage() {
-  return (
-    <div className="min-h-screen bg-[#0c1116] text-[#eef2f4]">
-      <div className="mx-auto max-w-[1320px] px-5 sm:px-7">
-        <Nav />
-        <Suspense fallback={<HeroCopyFallback />}>
-          <HeroCopy />
-        </Suspense>
-        <Suspense fallback={<ShelfFallback />}>
-          <Shelf />
-        </Suspense>
-      </div>
+  const games = podium.games.map((game) => toPodium(game, isWeek ? "this week" : "in the last 30 days"));
+  const winner = games[0];
+  if (winner) winner.quote = await heroQuote(winner.appId);
 
-      <div className="border-t border-[#1a2530] px-5 py-9 sm:px-7">
-        <div className="mx-auto max-w-[1320px]">
-          <ChartsHeading />
-          <Suspense fallback={<ChartsFallback />}>
-            <Charts />
-          </Suspense>
-        </div>
-      </div>
+  const yearLabel = year.endsOn?.slice(0, 4) ?? String(new Date().getUTCFullYear());
 
-      <div className="border-t border-[#1a2530] px-5 py-9 sm:px-7">
-        <div className="mx-auto max-w-[1320px]">
-          <GamesHeading
-            note={
-              <Suspense fallback={<GamesCountFallback />}>
-                <GamesCount />
-              </Suspense>
-            }
-          />
-          <Suspense fallback={<GamesGridFallback />}>
-            <GamesGrid />
-          </Suspense>
-        </div>
-      </div>
+  const lists: [ListBlock, ListBlock] = [
+    {
+      title: `Best of ${yearLabel}`,
+      unit: "year to date",
+      blurb: `Highest positive share among games with at least ${enFull.format(YEAR_MIN_REVIEWS)} reviews this year.`,
+      games: year.games.map((game) => toPodium(game, "this year")),
+    },
+    {
+      title: "Nobody agrees",
+      unit: "most polarised",
+      blurb: "Games whose reviews split hardest — read both camps before you buy.",
+      games: polarised.map(toPolarisedPodium),
+    },
+  ];
 
-      <Suspense fallback={null}>
-        <Duel />
-      </Suspense>
-    </div>
-  );
+  const data: HomeData = {
+    week: {
+      label: isWeek ? "best of the week" : "best of the last 30 days",
+      range: formatWindow(podium),
+      games,
+    },
+    lists,
+    sentiment: monthlySentiment(trend).map((point) => point.pctPositive),
+    volume: dailyVolume(trend),
+    totals: {
+      reviews: stats.totalReviews,
+      games: stats.totalGames,
+      languages: languages.length,
+      weekReviews: reviewsInLastDays(trend),
+      lists: CHART_FILTERS.length,
+    },
+  };
+
+  return <HomeEditorial data={data} />;
 }
