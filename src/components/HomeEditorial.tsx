@@ -39,6 +39,8 @@ export type HomeData = {
     range: string | null;
     /** Méthode du classement, en une phrase, pour la bulle du kicker. */
     hint: string;
+    /** Illustration panoramique du gagnant, `null` quand Steam n'en a pas. */
+    art: string | null;
     games: PodiumGame[]; // [0] = winner, puis les dauphins
   };
   lists: [ListBlock, ListBlock];
@@ -85,52 +87,64 @@ function Cover({ game, sizes, radius = "rounded-[3px]" }: { game: PodiumGame; si
 }
 
 // La jaquette du mart est servie en `t_cover_big` (264 x 374) : juste assez
-// pour une vignette, trop peu pour le héros, qui l'affiche en grand et la
-// reprend floutée en fond. IGDB rend la même image en retina quand on suffixe
-// la taille ; une URL d'une autre forme passe telle quelle.
+// pour une vignette, trop peu pour couvrir le bandeau du héros quand Steam n'a
+// pas d'illustration. IGDB rend la même image en retina quand on suffixe la
+// taille ; une URL d'une autre forme passe telle quelle.
 function retinaCover(url: string): string {
   return url.replace("/t_cover_big/", "/t_cover_big_2x/");
 }
 
 function Hero({
   winner,
+  art,
   label,
   range,
   hint,
 }: {
   winner: PodiumGame;
+  art: string | null;
   label: string;
   range: string | null;
   hint: string;
 }) {
+  // L'illustration Steam fait 1920 x 620, soit presque exactement le rapport
+  // du bandeau : elle le couvre en entier, nette et sans recadrage notable.
+  // La jaquette ne la remplace pas — 2:3 étirée sur un bandeau trois fois plus
+  // large que haut, il n'en resterait qu'une bande centrale sans motif — elle
+  // sert de repli flouté, pour la couleur seulement.
+  const backdrop = art ?? (winner.coverUrl && retinaCover(winner.coverUrl));
+
   return (
-    <div className="relative overflow-hidden bg-[#0c1116]">
-      {/* Fond atmosphérique : la même jaquette, floutée et débordante, pour que
-          le héros prenne les couleurs du jeu. Elle est décorative — le vrai
-          sujet, c'est la jaquette nette à droite. Étirer une image 2:3 sur un
-          bandeau deux fois plus large que haut n'en laissait qu'une bande
-          centrale sans motif, que le masque éteignait ensuite presque
-          entièrement : à 15 pouces, plus rien ne se voyait. */}
-      {winner.coverUrl && (
+    <div className="relative overflow-hidden bg-brand-bg lg:min-h-[460px]">
+      {backdrop && (
         <div aria-hidden className="pointer-events-none absolute inset-0">
           <Image
-            src={retinaCover(winner.coverUrl)}
+            src={backdrop}
             alt=""
             fill
             sizes="100vw"
-            className="scale-125 object-cover object-center opacity-40 blur-3xl"
             priority
+            className={
+              art
+                ? "object-cover object-[70%_center]"
+                : "scale-125 object-cover object-center opacity-45 blur-3xl"
+            }
           />
-          {/* Le dégradé chaud du héros repasse ici, par-dessus le flou, et fait
-              aussi office de voile : opaque sous la colonne de texte, il s'ouvre
-              à droite pour laisser monter la lueur de la jaquette. Le bas se
-              referme sur le fond de page, sans couture avec le bandeau de pouls. */}
-          <span className="absolute inset-0 bg-[linear-gradient(115deg,rgba(42,18,6,0.93)_0%,rgba(12,17,22,0.85)_62%,rgba(12,17,22,0.5)_100%)]" />
-          <span className="absolute inset-x-0 bottom-0 h-24 bg-[linear-gradient(180deg,transparent_0%,#0c1116_100%)]" />
+          {/* Fondu horizontal, à partir de `lg` : le texte repose sur un aplat
+              opaque, l'illustration se découvre entièrement sur le flanc droit.
+              Les arrêts sont serrés à gauche pour que la colonne de texte ne
+              mange pas le sujet, qui est au centre de l'image. */}
+          <span className="absolute inset-0 hidden bg-[linear-gradient(90deg,#0c1116_0%,#0c1116_28%,rgba(12,17,22,0.9)_46%,rgba(12,17,22,0.5)_64%,rgba(12,17,22,0.1)_80%,transparent_92%)] lg:block" />
+          {/* En colonne, le texte passe sur toute la largeur : le fondu devient
+              vertical, sinon il n'y a plus un pixel de fond lisible. */}
+          <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(12,17,22,0.55)_0%,rgba(12,17,22,0.9)_46%,#0c1116_88%)] lg:hidden" />
+          {/* Le bas se referme sur le fond de page, sans couture avec le
+              bandeau de pouls qui suit immédiatement. */}
+          <span className="absolute inset-x-0 bottom-0 h-20 bg-[linear-gradient(180deg,transparent_0%,#0c1116_100%)]" />
         </div>
       )}
-      <div className="relative mx-auto flex max-w-[1320px] flex-col-reverse items-start gap-7 px-6 py-9 sm:px-8 lg:min-h-[440px] lg:flex-row lg:items-center lg:justify-between lg:gap-14">
-        <div className="w-full min-w-0 lg:max-w-[58%]">
+      <div className="relative mx-auto flex max-w-[1320px] items-center px-6 py-12 sm:px-8 lg:min-h-[460px] lg:py-16">
+        <div className="w-full min-w-0 lg:max-w-[52%]">
           {/* Le kicker annonce la fenêtre ; la bulle dit comment on y classe,
               parce que « best of » ne trahit ni le seuil de volume ni le fait
               que le palmarès ne juge que les avis écrits dans la fenêtre. */}
@@ -138,7 +152,7 @@ function Hero({
             <span>{range ? `${label} · ${range}` : label}</span>
             <InfoHint text={hint} />
           </div>
-          <h1 className="mt-3 mb-0 max-w-[20ch] text-4xl leading-[0.95] font-extrabold tracking-tight text-balance sm:text-5xl lg:text-[58px]">
+          <h1 className="mt-3 mb-0 max-w-[16ch] text-4xl leading-[0.95] font-extrabold tracking-tight text-balance drop-shadow-[0_2px_24px_rgba(12,17,22,0.9)] sm:text-5xl lg:text-[58px]">
             {winner.name}
           </h1>
           <div className="mt-4 flex items-baseline gap-[18px] font-mono">
@@ -148,7 +162,7 @@ function Hero({
             <span className="text-xs text-[#9fb2bd]">{winner.meta}</span>
           </div>
           {winner.quote && (
-            <blockquote className="mt-[18px] line-clamp-4 max-w-[52ch] border-l-[3px] border-brand-blue pl-4 text-[19px] leading-relaxed text-[#dfe7eb]">
+            <blockquote className="mt-[18px] line-clamp-4 max-w-[46ch] border-l-[3px] border-brand-blue pl-4 text-[19px] leading-relaxed text-[#dfe7eb]">
               <BBCodeText text={winner.quote} />
             </blockquote>
           )}
@@ -161,34 +175,12 @@ function Hero({
             </Link>
             <Link
               href="/charts"
-              className="rounded-full border border-[#24333f] px-[18px] py-2.5 text-sm font-semibold text-[#cfdae1]"
+              className="rounded-full border border-[#24333f] bg-[#0c1116]/60 px-[18px] py-2.5 text-sm font-semibold text-[#cfdae1] backdrop-blur-sm"
             >
               See the full podium
             </Link>
           </div>
         </div>
-        {/* La jaquette à son format, 2:3, plutôt qu'en fond recadré : c'est la
-            seule image du mart, autant la montrer entière. Le liseré du verdict
-            rejoue celui des vignettes du reste de la page. */}
-        {winner.coverUrl && (
-          <Link
-            href={`/games/${winner.appId}`}
-            aria-label={`${winner.name} — read the reviews`}
-            className="relative block w-[132px] shrink-0 sm:w-[168px] lg:w-[248px]"
-          >
-            <span className="relative block aspect-[2/3] overflow-hidden rounded-md bg-white/5 shadow-[0_28px_70px_rgba(0,0,0,0.6)] ring-1 ring-white/10">
-              <Image
-                src={retinaCover(winner.coverUrl)}
-                alt=""
-                fill
-                sizes="(min-width: 1024px) 248px, (min-width: 640px) 168px, 132px"
-                className="object-cover"
-                priority
-              />
-              <span className="absolute inset-x-0 top-0 h-[3px]" style={{ backgroundColor: verdictColor(winner.pct) }} />
-            </span>
-          </Link>
-        )}
       </div>
     </div>
   );
@@ -404,7 +396,15 @@ export function HomeEditorial({ data }: { data: HomeData }) {
       <Nav variant="banded" searchPlaceholder={`Search ${enFull.format(data.totals.games)} games…`} />
       <ScaleBand totals={data.totals} />
 
-      {winner && <Hero winner={winner} label={data.week.label} range={data.week.range} hint={data.week.hint} />}
+      {winner && (
+        <Hero
+          winner={winner}
+          art={data.week.art}
+          label={data.week.label}
+          range={data.week.range}
+          hint={data.week.hint}
+        />
+      )}
       <PulseBand sentiment={data.sentiment} volume={data.volume} totals={data.totals} />
 
       {runnersUp.length > 0 && (

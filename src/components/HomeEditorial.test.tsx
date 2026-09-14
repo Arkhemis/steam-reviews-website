@@ -18,6 +18,7 @@ function homeData(overrides: Partial<HomeData> = {}): HomeData {
       label: "best of last 7 days",
       range: "07 Sep – 13 Sep",
       hint: "Highest share of positive reviews written in the last 7 days, among games with at least 100 reviews.",
+      art: "https://cdn.cloudflare.steamstatic.com/steam/apps/1/library_hero.jpg",
       games: [
         game(1, "Winner", 96, { quote: "Best [b]thing[/b] I played all year." }),
         game(2, "Second", 88),
@@ -62,6 +63,25 @@ describe("HomeEditorial", () => {
     expect(quote?.querySelector("strong")).toHaveTextContent("thing");
   });
 
+  it("couvre le héros de l'illustration panoramique du gagnant", () => {
+    const { container } = render(<HomeEditorial data={homeData()} />);
+
+    const art = container.querySelector('img[src*="library_hero.jpg"]');
+    expect(art).toBeInTheDocument();
+    // Nette et cadrée, pas le repli flouté.
+    expect(art).not.toHaveClass("blur-3xl");
+  });
+
+  it("retombe sur la jaquette floutée quand Steam n'a pas d'illustration", () => {
+    const data = homeData();
+    data.week.art = null;
+    data.week.games[0].coverUrl = "https://images.igdb.com/igdb/image/upload/t_cover_big/abc.jpg";
+    const { container } = render(<HomeEditorial data={data} />);
+
+    expect(container.querySelector('img[src*="library_hero.jpg"]')).not.toBeInTheDocument();
+    expect(container.querySelector(".blur-3xl")).toBeInTheDocument();
+  });
+
   it("laisse tomber la fenêtre du kicker quand elle est inconnue", () => {
     const data = homeData();
     data.week.range = null;
@@ -88,8 +108,9 @@ describe("HomeEditorial", () => {
     expect(screen.getByRole("heading", { name: "Two more questions" })).toBeInTheDocument();
   });
 
-  it("tire la jaquette du héros en retina, puisqu'elle tient tout le flanc du bandeau", () => {
+  it("tire la jaquette de repli en retina, puisqu'elle couvre tout le bandeau", () => {
     const data = homeData();
+    data.week.art = null;
     data.week.games[0].coverUrl = "https://images.igdb.com/igdb/image/upload/t_cover_big/co670h.jpg";
     const { container } = render(<HomeEditorial data={data} />);
 

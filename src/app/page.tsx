@@ -3,6 +3,7 @@ import { HomeEditorial, type HomeData, type ListBlock, type PodiumGame } from "@
 import { dailyVolume, monthlySentiment, reviewsInLastDays } from "@/lib/cataloguePulse";
 import { CHART_FILTERS } from "@/lib/charts";
 import { formatReviewWindow } from "@/lib/reviewWindow";
+import { resolveSteamHeroArt } from "@/lib/steamArtwork";
 import {
   getCatalogueTrend,
   getGameTopReviews,
@@ -110,6 +111,13 @@ function excerpt(text: string): string {
 // Le gagnant ne change qu'avec le podium, lui-même caché : la citation se
 // cache donc sous son `appId`, sans quoi elle serait la seule lecture SQL que
 // chaque visiteur paierait.
+// L'illustration panoramique n'est qu'un HEAD vers le CDN de Steam, mais elle
+// ne change jamais pour un `appId` donné : la cacher comme le reste évite de
+// tâter Steam à chaque visite, et de retarder la home quand il traîne.
+async function heroArt(appId: number): Promise<string | null> {
+  return cached(`home-hero-art-${appId}`, () => resolveSteamHeroArt(appId))();
+}
+
 async function heroQuote(appId: number): Promise<string | undefined> {
   const reviews = await cached(`home-quote-en-${appId}`, () =>
     getGameTopReviews(appId, { language: "english", perSide: 1 }),
@@ -139,7 +147,10 @@ export default async function HomePage() {
 
   const games = podium.games.map((game) => toPodium(game, `in the last ${windowDays} days`));
   const winner = games[0];
-  if (winner) winner.quote = await heroQuote(winner.appId);
+  const [quote, art] = winner
+    ? await Promise.all([heroQuote(winner.appId), heroArt(winner.appId)])
+    : [undefined, null];
+  if (winner) winner.quote = quote;
 
   const yearLabel = year.endsOn?.slice(0, 4) ?? String(new Date().getUTCFullYear());
 
@@ -166,6 +177,7 @@ export default async function HomePage() {
         `Highest share of positive reviews written in the last ${windowDays} days, among games with at least ` +
         `${enFull.format(windowMinReviews)} reviews over that window. The window ends on the most recent day of ` +
         `reviews we have loaded, not today.`,
+      art,
       games,
     },
     lists,
