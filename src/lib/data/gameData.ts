@@ -154,14 +154,31 @@ export async function getRankedGames(
   return rows.map(mapGameStatsRow);
 }
 
+/**
+ * Les deux nombres que la home annonce en ouverture. Ils ne sortent pas du
+ * même mart, parce qu'ils ne comptent pas la même chose :
+ *
+ * - `game_stats.total_reviews` est ce que Steam *déclare* pour chaque jeu,
+ *   avis jamais téléchargés compris. Bon pour situer un jeu, faux pour
+ *   annoncer la taille du corpus.
+ * - `game_review_trend_daily` agrège les lignes de `steam_review` : sa somme
+ *   est le nombre d'avis réellement en base, au jour près.
+ *
+ * D'où la somme sur le mart quotidien, déjà agrégé, plutôt qu'un `COUNT(*)`
+ * sur la table d'avis elle-même. Elle balaie quand même tout le mart : c'est
+ * la lecture la plus chère de la home après `getCatalogueTrend()`, et elle ne
+ * tient que parce que la page la cache un quart d'heure.
+ */
 export async function getSiteStats(): Promise<SiteStats> {
   const { rows } = await pool.query(
-    `SELECT SUM(total_reviews) AS total_reviews, COUNT(*) AS total_games
+    `SELECT
+       (SELECT SUM(total_reviews) FROM marts.game_review_trend_daily) AS stored_reviews,
+       COUNT(*) AS total_games
      FROM marts.game_stats WHERE total_reviews > 0`,
   );
 
   return {
-    totalReviews: Number(rows[0]?.total_reviews ?? 0),
+    storedReviews: Number(rows[0]?.stored_reviews ?? 0),
     totalGames: Number(rows[0]?.total_games ?? 0),
   };
 }

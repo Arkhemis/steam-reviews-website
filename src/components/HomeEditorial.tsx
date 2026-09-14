@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { BBCodeText } from "@/components/BBCodeText";
+import { InfoHint } from "@/components/InfoHint";
 import { Nav } from "@/components/Nav";
 
 // Home éditoriale : le meilleur jeu de la semaine EST le héros, les classements
@@ -32,15 +33,18 @@ export type ListBlock = {
 
 export type HomeData = {
   week: {
-    /** Kicker du héros, e.g. « best of the week ». */
+    /** Kicker du héros, e.g. « best of last 7 days ». */
     label: string;
     /** Dates de la fenêtre, `null` quand le podium est vide. */
     range: string | null;
+    /** Méthode du classement, en une phrase, pour la bulle du kicker. */
+    hint: string;
     games: PodiumGame[]; // [0] = winner, puis les dauphins
   };
   lists: [ListBlock, ListBlock];
   sentiment: number[]; // 12 points, part d'avis positifs (0..1)
   volume: number[]; // 31 points, volume d'avis / jour
+  /** `reviews` : avis chargés en base, pas le total déclaré par Steam. */
   totals: { reviews: number; games: number; languages: number; weekReviews: number; lists: number };
 };
 
@@ -80,12 +84,54 @@ function Cover({ game, sizes, radius = "rounded-[3px]" }: { game: PodiumGame; si
   );
 }
 
-function Hero({ winner, label, range }: { winner: PodiumGame; label: string; range: string | null }) {
+// La jaquette du mart est servie en `t_cover_big` (264 x 374) : de quoi tenir
+// une vignette, pas le fond du héros, qui l'étire sur plus de la moitié de la
+// page. IGDB rend la même image en retina quand on suffixe la taille ; une URL
+// d'une autre forme passe telle quelle.
+function retinaCover(url: string): string {
+  return url.replace("/t_cover_big/", "/t_cover_big_2x/");
+}
+
+function Hero({
+  winner,
+  label,
+  range,
+  hint,
+}: {
+  winner: PodiumGame;
+  label: string;
+  range: string | null;
+  hint: string;
+}) {
   return (
-    <div className="grid grid-cols-1 bg-[linear-gradient(115deg,#2a1206_0%,#0c1116_62%)] lg:grid-cols-[minmax(0,1fr)_300px]">
-      <div className="px-6 py-9 sm:px-8">
-        <div className="font-mono text-[11px] tracking-[0.16em] text-brand-blue uppercase">
-          {range ? `${label} · ${range}` : label}
+    <div className="relative overflow-hidden bg-[linear-gradient(115deg,#2a1206_0%,#0c1116_62%)] lg:flex lg:min-h-[440px] lg:items-center">
+      {/* La jaquette tient tout le flanc droit et passe sous le texte, où un
+          masque l'éteint : c'est la seule image large dont on dispose, le mart
+          ne porte pas d'artwork 16:9. Le masque, plutôt qu'un aplat par-dessus,
+          laisse le dégradé chaud du héros transparaître dans le fondu. */}
+      {winner.coverUrl && (
+        <div className="absolute inset-y-0 right-0 hidden w-[58%] lg:block">
+          <Image
+            src={retinaCover(winner.coverUrl)}
+            alt=""
+            fill
+            sizes="(min-width: 1024px) 58vw, 0px"
+            className="object-cover object-[50%_38%] [mask-image:linear-gradient(90deg,transparent_0%,rgba(0,0,0,0.1)_26%,rgba(0,0,0,0.45)_52%,rgba(0,0,0,0.78)_78%,rgba(0,0,0,0.88)_100%)]"
+            priority
+          />
+          {/* Voile vertical : il rattrape les jaquettes claires, qui sinon
+              cognent contre la barre du pouls juste en dessous. Masqué comme
+              l'image, pour ne pas assombrir le fond là où elle a disparu. */}
+          <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(12,17,22,0.3)_0%,rgba(12,17,22,0)_40%,rgba(12,17,22,0.45)_100%)] [mask-image:linear-gradient(90deg,transparent_0%,#000_50%)]" />
+        </div>
+      )}
+      <div className="relative w-full px-6 py-9 sm:px-8 lg:max-w-[60%]">
+        {/* Le kicker annonce la fenêtre ; la bulle dit comment on y classe,
+            parce que « best of » ne trahit ni le seuil de volume ni le fait
+            que le palmarès ne juge que les avis écrits dans la fenêtre. */}
+        <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] tracking-[0.16em] text-brand-blue uppercase">
+          <span>{range ? `${label} · ${range}` : label}</span>
+          <InfoHint text={hint} />
         </div>
         <h1 className="mt-3 mb-0 max-w-[20ch] text-4xl leading-[0.95] font-extrabold tracking-tight text-balance sm:text-5xl lg:text-[58px]">
           {winner.name}
@@ -116,14 +162,23 @@ function Hero({ winner, label, range }: { winner: PodiumGame; label: string; ran
           </Link>
         </div>
       </div>
-      {/* Le panneau de droite reprend la jaquette : c'est la seule image large
-          dont on dispose, le mart ne porte pas d'artwork 16:9. */}
-      <div className="relative hidden min-h-[240px] overflow-hidden lg:block">
-        {winner.coverUrl && (
-          <Image src={winner.coverUrl} alt="" fill sizes="300px" className="object-cover" priority />
-        )}
-        <span className="absolute inset-0 bg-[linear-gradient(90deg,#0c1116_0%,rgba(12,17,22,0.1)_55%)]" />
-      </div>
+    </div>
+  );
+}
+
+// La taille du corpus, annoncée avant tout le reste : c'est le premier
+// argument du site, et il n'apparaissait qu'en pied de page, dans une note de
+// section. Une seule ligne, à fond perdu, entre la nav et le héros.
+//
+// Le compteur dit « collected » parce qu'il compte les avis réellement en
+// base (cf. `getSiteStats`), pas ceux que Steam déclare pour les mêmes jeux.
+export function ScaleBand({ totals }: { totals: HomeData["totals"] }) {
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 border-b border-[#16202a] bg-[#0a0f14] px-6 py-2.5 sm:px-8">
+      <span className="font-mono text-[17px] leading-none text-[#eef2f4]">{enFull.format(totals.reviews)}</span>
+      <span className="font-mono text-[10px] tracking-[0.12em] text-[#7d919c] uppercase">
+        steam reviews collected · {enFull.format(totals.games)} games · {totals.languages} languages
+      </span>
     </div>
   );
 }
@@ -319,8 +374,9 @@ export function HomeEditorial({ data }: { data: HomeData }) {
   return (
     <div className="min-h-screen bg-[#0c1116] text-[#eef2f4]">
       <Nav variant="banded" searchPlaceholder={`Search ${enFull.format(data.totals.games)} games…`} />
+      <ScaleBand totals={data.totals} />
 
-      {winner && <Hero winner={winner} label={data.week.label} range={data.week.range} />}
+      {winner && <Hero winner={winner} label={data.week.label} range={data.week.range} hint={data.week.hint} />}
       <PulseBand sentiment={data.sentiment} volume={data.volume} totals={data.totals} />
 
       {runnersUp.length > 0 && (

@@ -57,7 +57,8 @@ export type LanguageReviewScore = {
 };
 
 export type SiteStats = {
-  totalReviews: number;
+  /** Avis réellement chargés en base, et non le total que Steam déclare. */
+  storedReviews: number;
   totalGames: number;
 };
 

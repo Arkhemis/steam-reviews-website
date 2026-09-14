@@ -134,7 +134,10 @@ export default async function HomePage() {
   const podium = week.games.length > 0 ? week : await monthPodium();
   const isWeek = podium === week;
 
-  const games = podium.games.map((game) => toPodium(game, isWeek ? "this week" : "in the last 30 days"));
+  const windowDays = isWeek ? 7 : 30;
+  const windowMinReviews = isWeek ? WEEK_MIN_REVIEWS : MONTH_MIN_REVIEWS;
+
+  const games = podium.games.map((game) => toPodium(game, `in the last ${windowDays} days`));
   const winner = games[0];
   if (winner) winner.quote = await heroQuote(winner.appId);
 
@@ -157,15 +160,19 @@ export default async function HomePage() {
 
   const data: HomeData = {
     week: {
-      label: isWeek ? "best of the week" : "best of the last 30 days",
+      label: `best of last ${windowDays} days`,
       range: formatReviewWindow(podium.startsOn, podium.endsOn),
+      hint:
+        `Highest share of positive reviews written in the last ${windowDays} days, among games with at least ` +
+        `${enFull.format(windowMinReviews)} reviews over that window. The window ends on the most recent day of ` +
+        `reviews we have loaded, not today.`,
       games,
     },
     lists,
     sentiment: monthlySentiment(trend).map((point) => point.pctPositive),
     volume: dailyVolume(trend),
     totals: {
-      reviews: stats.totalReviews,
+      reviews: stats.storedReviews,
       games: stats.totalGames,
       languages: languages.length,
       weekReviews: reviewsInLastDays(trend),

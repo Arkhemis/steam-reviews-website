@@ -9,14 +9,15 @@ vi.mock("next/navigation", () => ({
 }));
 
 function game(appId: number, name: string, pct: number, extra: Partial<PodiumGame> = {}): PodiumGame {
-  return { appId, name, coverUrl: null, pct, meta: `${appId} reviews this week`, ...extra };
+  return { appId, name, coverUrl: null, pct, meta: `${appId} reviews in the last 7 days`, ...extra };
 }
 
 function homeData(overrides: Partial<HomeData> = {}): HomeData {
   return {
     week: {
-      label: "best of the week",
+      label: "best of last 7 days",
       range: "07 Sep – 13 Sep",
+      hint: "Highest share of positive reviews written in the last 7 days, among games with at least 100 reviews.",
       games: [
         game(1, "Winner", 96, { quote: "Best [b]thing[/b] I played all year." }),
         game(2, "Second", 88),
@@ -49,7 +50,7 @@ describe("HomeEditorial", () => {
     render(<HomeEditorial data={homeData()} />);
 
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Winner");
-    expect(screen.getByText("best of the week · 07 Sep – 13 Sep")).toBeInTheDocument();
+    expect(screen.getByText("best of last 7 days · 07 Sep – 13 Sep")).toBeInTheDocument();
     expect(screen.getByText("96%")).toBeInTheDocument();
   });
 
@@ -66,7 +67,7 @@ describe("HomeEditorial", () => {
     data.week.range = null;
     render(<HomeEditorial data={data} />);
 
-    expect(screen.getByText("best of the week")).toBeInTheDocument();
+    expect(screen.getByText("best of last 7 days")).toBeInTheDocument();
   });
 
   it("numérote les dauphins à partir de 02", () => {
@@ -85,6 +86,33 @@ describe("HomeEditorial", () => {
     expect(screen.queryByRole("heading", { name: "Runners-up" })).not.toBeInTheDocument();
     // Le reste de la page tient debout : les rubriques ne dépendent pas du héros.
     expect(screen.getByRole("heading", { name: "Two more questions" })).toBeInTheDocument();
+  });
+
+  it("tire la jaquette du héros en retina, puisqu'elle tient tout le flanc du bandeau", () => {
+    const data = homeData();
+    data.week.games[0].coverUrl = "https://images.igdb.com/igdb/image/upload/t_cover_big/co670h.jpg";
+    const { container } = render(<HomeEditorial data={data} />);
+
+    const hero = [...container.querySelectorAll("img")].find((img) => img.src.includes("co670h"));
+    expect(hero?.src).toContain("t_cover_big_2x");
+  });
+
+  it("explique la méthode du classement dans la bulle du kicker", () => {
+    const data = homeData();
+    render(<HomeEditorial data={data} />);
+
+    expect(screen.getByRole("button", { name: data.week.hint })).toBeInTheDocument();
+    expect(screen.getByTestId("info-hint-bubble")).toHaveTextContent(data.week.hint);
+  });
+
+  it("annonce la taille du corpus avant tout le reste", () => {
+    render(<HomeEditorial data={homeData()} />);
+
+    const count = screen.getByText("182,000,000");
+    expect(screen.getByText(/steam reviews collected · 4,300 games · 29 languages/)).toBeInTheDocument();
+    // Avant le héros : c'est la première chose que le lecteur lit de la page.
+    const title = screen.getByRole("heading", { level: 1 });
+    expect(count.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("mène chaque jeu cité vers sa fiche", () => {

@@ -19,11 +19,18 @@ temporelle est ancrée sur `MAX(review_date)` du mart, jamais sur
 | « Best of \<année\> » | `getTopRatedGamesInWindow("year-to-date", …)` | idem | ✅ réel |
 | « Nobody agrees » | `getPolarisedGames()` | `game_stats` | ✅ réel |
 | Courbe de sentiment, barres/jour, compteur de la semaine | `getCatalogueTrend()` + `@/lib/cataloguePulse` | `game_review_trend_daily` | ✅ réel, mais coûteux (cf. plus bas) |
-| Compteurs catalogue / langues | `getSiteStats`, `getLanguageReviewScores` | `game_stats`, `language_review_score_global` | ✅ réel |
+| Compteurs catalogue / langues (bande d'échelle et bandeau de pouls) | `getSiteStats`, `getLanguageReviewScores` | `game_review_trend_daily`, `game_stats`, `language_review_score_global` | ✅ réel, mais `getSiteStats` balaie tout le mart quotidien |
 | Citation du héros | `getGameTopReviews(appId, { perSide: 1 })` | `review_highlight` | ⚠️ placeholder (cf. `review_of_the_week`) |
 
 Tout est caché par `unstable_cache` pendant 900 s : la home ne déclenche au
 plus qu'une passe de chaque requête par quart d'heure.
+
+Le compteur d'ouverture (« 182,431,904 steam reviews collected ») est la
+somme des `total_reviews` de `game_review_trend_daily`, qui agrège les lignes
+de `steam_review` : c'est le corpus réellement chargé. Surtout pas la somme
+des `total_reviews` de `game_stats`, qui est ce que **Steam déclare** pour les
+mêmes jeux, avis jamais téléchargés compris — un nombre plus gros, et faux
+pour annoncer la taille de la base.
 
 Deux filtres valent d'être connus, parce qu'ils écartent des jeux que les
 données contiennent pourtant :
@@ -42,7 +49,7 @@ données contiennent pourtant :
 `review_highlight` ne porte aucune date : impossible d'y demander « la review
 la plus utile publiée cette semaine ». La home affiche donc la meilleure
 review positive du gagnant, toutes périodes confondues — un texte qui peut
-dater de trois ans sous un bandeau « best of the week ». C'est le seul écart
+dater de trois ans sous un bandeau « best of last 7 days ». C'est le seul écart
 assumé entre ce que la page dit et ce qu'elle montre.
 
 Deux façons de le combler, par ordre de coût :
@@ -74,6 +81,12 @@ GROUP BY review_date
 Environ 4 000 lignes pour dix ans d'historique, contre plusieurs millions
 balayées aujourd'hui. Le site remplacerait le corps de `getCatalogueTrend()`
 par un `SELECT … WHERE review_date >= …`, sans rien changer au reste.
+
+Ce mart réglerait aussi le compteur d'ouverture : `getSiteStats()` somme
+aujourd'hui `total_reviews` sur tout `game_review_trend_daily`, sans filtre de
+date, donc un balayage complet à chaque recalcul de cache. Sur le mart agrégé,
+la même somme porterait sur quelques milliers de lignes — ou sur une seule, si
+le modèle expose en plus un total courant.
 
 ### 3. `marts.game_window_score` — podiums de fenêtre
 

@@ -10,10 +10,20 @@ import { Skeleton, SkeletonLines } from "@/components/Skeleton";
 
 const PODIUM_SIZE = 5;
 
+// La bande d'échelle ne tient qu'un compteur : on réserve sa hauteur, sans
+// quoi le héros remonterait d'une ligne à l'arrivée du flux.
+function ScaleBandFallback() {
+  return (
+    <div className="border-b border-[#16202a] bg-[#0a0f14] px-6 py-2.5 sm:px-8">
+      <Skeleton className="h-[17px] w-72 max-w-full" />
+    </div>
+  );
+}
+
 function HeroFallback() {
   return (
-    <div className="grid grid-cols-1 bg-[linear-gradient(115deg,#2a1206_0%,#0c1116_62%)] lg:grid-cols-[minmax(0,1fr)_300px]">
-      <div className="px-6 py-9 sm:px-8">
+    <div className="bg-[linear-gradient(115deg,#2a1206_0%,#0c1116_62%)] lg:flex lg:min-h-[440px] lg:items-center">
+      <div className="w-full px-6 py-9 sm:px-8 lg:max-w-[60%]">
         <Skeleton className="h-3 w-56" />
         <Skeleton className="mt-3 h-[44px] w-full max-w-[520px] sm:h-12 lg:h-[58px]" />
         <div className="mt-4 flex items-baseline gap-[18px]">
@@ -28,7 +38,6 @@ function HeroFallback() {
           <Skeleton className="h-[42px] w-44 rounded-full" />
         </div>
       </div>
-      <div className="hidden min-h-[240px] lg:block" />
     </div>
   );
 }
@@ -138,6 +147,7 @@ export function HomeSkeleton() {
   return (
     <div className="min-h-screen bg-[#0c1116] text-[#eef2f4]">
       <Nav variant="banded" />
+      <ScaleBandFallback />
       <HeroFallback />
       <PulseBandFallback />
       <RunnersUpFallback />

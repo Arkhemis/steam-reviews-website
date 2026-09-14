@@ -9,6 +9,7 @@ import {
   getGameTopReviews,
   getPolarisedGames,
   getReviewDuel,
+  getSiteStats,
   getTopGames,
   getTopRatedGamesInWindow,
   getTrendingGames,
@@ -22,6 +23,17 @@ describe("gameData", () => {
     const stats = await getGameStats(BALDURS_GATE_3_APP_ID);
     expect(stats).not.toBeNull();
     expect(stats?.name).toBe("Baldur's Gate III");
+  });
+
+  it("compte les avis réellement chargés, pas ceux que Steam déclare", async () => {
+    const stats = await getSiteStats();
+
+    // `SUM()` sur des entiers revient en `numeric`, donc en chaîne côté pg :
+    // l'entier garantit que la conversion est bien faite avant le rendu.
+    expect(Number.isInteger(stats.storedReviews)).toBe(true);
+    expect(stats.storedReviews).toBeGreaterThan(0);
+    expect(Number.isInteger(stats.totalGames)).toBe(true);
+    expect(stats.totalGames).toBeGreaterThan(0);
   });
 
   it("returns null stats for an unknown game", async () => {
