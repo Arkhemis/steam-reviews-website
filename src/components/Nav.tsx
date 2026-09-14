@@ -11,13 +11,22 @@ const LAYOUTS = {
   banded: "border-b border-[#16202a] px-6 py-3.5 sm:px-8",
 } as const;
 
+// Les sections que la barre peut souligner. La home n'en fait pas partie :
+// elle est déjà signée par la marque, à gauche.
+const SECTIONS = [
+  { key: "charts", href: "/charts", label: "Charts" },
+  { key: "map", href: "/map", label: "Language map" },
+] as const;
+
 type NavProps = {
   variant?: keyof typeof LAYOUTS;
   /** La home annonce la taille du catalogue dans le champ ; ailleurs, générique. */
   searchPlaceholder?: string;
+  /** Section courante, soulignée dans la barre. */
+  active?: (typeof SECTIONS)[number]["key"];
 };
 
-export function Nav({ variant = "inline", searchPlaceholder = "Search a game…" }: NavProps) {
+export function Nav({ variant = "inline", searchPlaceholder = "Search a game…", active }: NavProps) {
   return (
     <nav className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5 ${LAYOUTS[variant]}`}>
       {/* Sur un téléphone, marque et liens ne tiennent pas sur la même ligne :
@@ -35,9 +44,20 @@ export function Nav({ variant = "inline", searchPlaceholder = "Search a game…"
         <GameSearchBox placeholder={searchPlaceholder} size="sm" className="w-full max-w-[280px]" />
       </div>
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm whitespace-nowrap text-neutral-300">
-        <Link href="/games">Games</Link>
-        <Link href="/charts">Charts</Link>
-        <Link href="/map">Language map</Link>
+        {SECTIONS.map((section) => (
+          <Link
+            key={section.key}
+            href={section.href}
+            aria-current={active === section.key ? "page" : undefined}
+            className={
+              active === section.key
+                ? "border-b-2 border-brand-blue pb-0.5 font-bold text-[#eef2f4]"
+                : "hover:text-[#eef2f4]"
+            }
+          >
+            {section.label}
+          </Link>
+        ))}
         <Link
           href="/battle"
           className="rounded-full bg-gradient-to-r from-brand-blue to-brand-red px-3 py-1 font-bold text-black"

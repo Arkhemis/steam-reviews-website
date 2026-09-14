@@ -192,7 +192,7 @@ function Hero({
 //
 // Le compteur dit « collected » parce qu'il compte les avis réellement en
 // base (cf. `getSiteStats`), pas ceux que Steam déclare pour les mêmes jeux.
-export function ScaleBand({ totals }: { totals: HomeData["totals"] }) {
+export function ScaleBand({ totals }: { totals: Pick<HomeData["totals"], "reviews" | "games" | "languages"> }) {
   return (
     <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 border-b border-[#16202a] bg-[#0a0f14] px-6 py-2.5 sm:px-8">
       <span className="font-mono text-[17px] leading-none text-[#eef2f4]">{enFull.format(totals.reviews)}</span>
@@ -355,7 +355,7 @@ function DigDeeper({ totals }: { totals: HomeData["totals"] }) {
     {
       kicker: "browse",
       title: "All lists",
-      blurb: "Trending, best rated, most reviewed, worst rated — every ranking in one place.",
+      blurb: "Most reviewed, best and worst rated, trending, most polarised — every ranking in one place.",
       stat: String(totals.lists),
       statLabel: "rankings",
       href: "/charts",

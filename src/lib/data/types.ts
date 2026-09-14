@@ -140,3 +140,41 @@ export type CatalogueTrendDay = {
   reviews: number;
   positive: number;
 };
+
+/**
+ * Les entrées du catalogue proposées par `/charts`. Toutes se lisent dans
+ * `marts.game_stats` d'un seul ORDER BY ; `trending` seul doit comparer deux
+ * fenêtres de `game_review_trend_daily`.
+ */
+export type CatalogueSort =
+  | "most-reviewed"
+  | "best-rated"
+  | "worst-rated"
+  | "trending"
+  | "polarised"
+  | "recent";
+
+/** Une vignette de la grille : de quoi dessiner la jaquette et son verdict. */
+export type CatalogueGame = {
+  appId: number;
+  name: string;
+  coverUrl: string | null;
+  totalReviews: number;
+  /** Part d'avis positifs, de 0 à 1. */
+  pctPositive: number;
+  /**
+   * Variation de la part positive sur 30 jours, en points. Absente quand le
+   * jeu n'a pas assez d'avis de part et d'autre de la bascule pour qu'une
+   * comparaison veuille dire quelque chose.
+   */
+  deltaPct?: number;
+};
+
+/**
+ * Une page de la grille. `hasNext` vient d'une ligne lue en trop, et non d'un
+ * COUNT(*) sur tout le catalogue.
+ */
+export type CataloguePage = {
+  games: CatalogueGame[];
+  hasNext: boolean;
+};
