@@ -84,10 +84,10 @@ function Cover({ game, sizes, radius = "rounded-[3px]" }: { game: PodiumGame; si
   );
 }
 
-// La jaquette du mart est servie en `t_cover_big` (264 x 374) : de quoi tenir
-// une vignette, pas le fond du héros, qui l'étire sur plus de la moitié de la
-// page. IGDB rend la même image en retina quand on suffixe la taille ; une URL
-// d'une autre forme passe telle quelle.
+// La jaquette du mart est servie en `t_cover_big` (264 x 374) : juste assez
+// pour une vignette, trop peu pour le héros, qui l'affiche en grand et la
+// reprend floutée en fond. IGDB rend la même image en retina quand on suffixe
+// la taille ; une URL d'une autre forme passe telle quelle.
 function retinaCover(url: string): string {
   return url.replace("/t_cover_big/", "/t_cover_big_2x/");
 }
@@ -104,63 +104,91 @@ function Hero({
   hint: string;
 }) {
   return (
-    <div className="relative overflow-hidden bg-[linear-gradient(115deg,#2a1206_0%,#0c1116_62%)] lg:flex lg:min-h-[440px] lg:items-center">
-      {/* La jaquette tient tout le flanc droit et passe sous le texte, où un
-          masque l'éteint : c'est la seule image large dont on dispose, le mart
-          ne porte pas d'artwork 16:9. Le masque, plutôt qu'un aplat par-dessus,
-          laisse le dégradé chaud du héros transparaître dans le fondu. */}
+    <div className="relative overflow-hidden bg-[#0c1116]">
+      {/* Fond atmosphérique : la même jaquette, floutée et débordante, pour que
+          le héros prenne les couleurs du jeu. Elle est décorative — le vrai
+          sujet, c'est la jaquette nette à droite. Étirer une image 2:3 sur un
+          bandeau deux fois plus large que haut n'en laissait qu'une bande
+          centrale sans motif, que le masque éteignait ensuite presque
+          entièrement : à 15 pouces, plus rien ne se voyait. */}
       {winner.coverUrl && (
-        <div className="absolute inset-y-0 right-0 hidden w-[58%] lg:block">
+        <div aria-hidden className="pointer-events-none absolute inset-0">
           <Image
             src={retinaCover(winner.coverUrl)}
             alt=""
             fill
-            sizes="(min-width: 1024px) 58vw, 0px"
-            className="object-cover object-[50%_38%] [mask-image:linear-gradient(90deg,transparent_0%,rgba(0,0,0,0.1)_26%,rgba(0,0,0,0.45)_52%,rgba(0,0,0,0.78)_78%,rgba(0,0,0,0.88)_100%)]"
+            sizes="100vw"
+            className="scale-125 object-cover object-center opacity-40 blur-3xl"
             priority
           />
-          {/* Voile vertical : il rattrape les jaquettes claires, qui sinon
-              cognent contre la barre du pouls juste en dessous. Masqué comme
-              l'image, pour ne pas assombrir le fond là où elle a disparu. */}
-          <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(12,17,22,0.3)_0%,rgba(12,17,22,0)_40%,rgba(12,17,22,0.45)_100%)] [mask-image:linear-gradient(90deg,transparent_0%,#000_50%)]" />
+          {/* Le dégradé chaud du héros repasse ici, par-dessus le flou, et fait
+              aussi office de voile : opaque sous la colonne de texte, il s'ouvre
+              à droite pour laisser monter la lueur de la jaquette. Le bas se
+              referme sur le fond de page, sans couture avec le bandeau de pouls. */}
+          <span className="absolute inset-0 bg-[linear-gradient(115deg,rgba(42,18,6,0.93)_0%,rgba(12,17,22,0.85)_62%,rgba(12,17,22,0.5)_100%)]" />
+          <span className="absolute inset-x-0 bottom-0 h-24 bg-[linear-gradient(180deg,transparent_0%,#0c1116_100%)]" />
         </div>
       )}
-      <div className="relative w-full px-6 py-9 sm:px-8 lg:max-w-[60%]">
-        {/* Le kicker annonce la fenêtre ; la bulle dit comment on y classe,
-            parce que « best of » ne trahit ni le seuil de volume ni le fait
-            que le palmarès ne juge que les avis écrits dans la fenêtre. */}
-        <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] tracking-[0.16em] text-brand-blue uppercase">
-          <span>{range ? `${label} · ${range}` : label}</span>
-          <InfoHint text={hint} />
+      <div className="relative mx-auto flex max-w-[1320px] flex-col-reverse items-start gap-7 px-6 py-9 sm:px-8 lg:min-h-[440px] lg:flex-row lg:items-center lg:justify-between lg:gap-14">
+        <div className="w-full min-w-0 lg:max-w-[58%]">
+          {/* Le kicker annonce la fenêtre ; la bulle dit comment on y classe,
+              parce que « best of » ne trahit ni le seuil de volume ni le fait
+              que le palmarès ne juge que les avis écrits dans la fenêtre. */}
+          <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] tracking-[0.16em] text-brand-blue uppercase">
+            <span>{range ? `${label} · ${range}` : label}</span>
+            <InfoHint text={hint} />
+          </div>
+          <h1 className="mt-3 mb-0 max-w-[20ch] text-4xl leading-[0.95] font-extrabold tracking-tight text-balance sm:text-5xl lg:text-[58px]">
+            {winner.name}
+          </h1>
+          <div className="mt-4 flex items-baseline gap-[18px] font-mono">
+            <span className="text-[44px] leading-none" style={{ color: verdictColor(winner.pct) }}>
+              {Math.round(winner.pct)}%
+            </span>
+            <span className="text-xs text-[#9fb2bd]">{winner.meta}</span>
+          </div>
+          {winner.quote && (
+            <blockquote className="mt-[18px] line-clamp-4 max-w-[52ch] border-l-[3px] border-brand-blue pl-4 text-[19px] leading-relaxed text-[#dfe7eb]">
+              <BBCodeText text={winner.quote} />
+            </blockquote>
+          )}
+          <div className="mt-6 flex flex-wrap gap-2.5">
+            <Link
+              href={`/games/${winner.appId}`}
+              className="rounded-full bg-brand-blue px-[18px] py-2.5 text-sm font-bold text-[#0c1116]"
+            >
+              Read the reviews
+            </Link>
+            <Link
+              href="/charts"
+              className="rounded-full border border-[#24333f] px-[18px] py-2.5 text-sm font-semibold text-[#cfdae1]"
+            >
+              See the full podium
+            </Link>
+          </div>
         </div>
-        <h1 className="mt-3 mb-0 max-w-[20ch] text-4xl leading-[0.95] font-extrabold tracking-tight text-balance sm:text-5xl lg:text-[58px]">
-          {winner.name}
-        </h1>
-        <div className="mt-4 flex items-baseline gap-[18px] font-mono">
-          <span className="text-[44px] leading-none" style={{ color: verdictColor(winner.pct) }}>
-            {Math.round(winner.pct)}%
-          </span>
-          <span className="text-xs text-[#9fb2bd]">{winner.meta}</span>
-        </div>
-        {winner.quote && (
-          <blockquote className="mt-[18px] line-clamp-4 max-w-[52ch] border-l-[3px] border-brand-blue pl-4 text-[19px] leading-relaxed text-[#dfe7eb]">
-            <BBCodeText text={winner.quote} />
-          </blockquote>
-        )}
-        <div className="mt-6 flex flex-wrap gap-2.5">
+        {/* La jaquette à son format, 2:3, plutôt qu'en fond recadré : c'est la
+            seule image du mart, autant la montrer entière. Le liseré du verdict
+            rejoue celui des vignettes du reste de la page. */}
+        {winner.coverUrl && (
           <Link
             href={`/games/${winner.appId}`}
-            className="rounded-full bg-brand-blue px-[18px] py-2.5 text-sm font-bold text-[#0c1116]"
+            aria-label={`${winner.name} — read the reviews`}
+            className="relative block w-[132px] shrink-0 sm:w-[168px] lg:w-[248px]"
           >
-            Read the reviews
+            <span className="relative block aspect-[2/3] overflow-hidden rounded-md bg-white/5 shadow-[0_28px_70px_rgba(0,0,0,0.6)] ring-1 ring-white/10">
+              <Image
+                src={retinaCover(winner.coverUrl)}
+                alt=""
+                fill
+                sizes="(min-width: 1024px) 248px, (min-width: 640px) 168px, 132px"
+                className="object-cover"
+                priority
+              />
+              <span className="absolute inset-x-0 top-0 h-[3px]" style={{ backgroundColor: verdictColor(winner.pct) }} />
+            </span>
           </Link>
-          <Link
-            href="/charts"
-            className="rounded-full border border-[#24333f] px-[18px] py-2.5 text-sm font-semibold text-[#cfdae1]"
-          >
-            See the full podium
-          </Link>
-        </div>
+        )}
       </div>
     </div>
   );
