@@ -1,5 +1,8 @@
 import { pool } from "@/lib/db";
 import type {
+  CatalogueGame,
+  CataloguePage,
+  CatalogueSort,
   CatalogueTrendDay,
   GameEvent,
   GameLanguageDistribution,
@@ -738,4 +741,205 @@ export async function getCatalogueTrend(): Promise<CatalogueTrendDay[]> {
     reviews: Number(row.reviews),
     positive: Number(row.positive),
   }));
+}
+
+// --- Catalogue de `/charts` ------------------------------------------------
+//
+// La page de classements montre le catalogue en grille de jaquettes, trié
+// selon l'une des cinq entrées de `CHART_FILTERS`. Quatre d'entre elles ne
+// sont qu'un ORDER BY sur `marts.game_stats` ; `trending` doit comparer deux
+// fenêtres de trente jours, donc part de `game_review_trend_daily`.
+
+// Clés internes, jamais dérivées d'une entrée utilisateur (`isChartFilterKey`
+// valide la query string en amont) : leur interpolation dans le SQL est sûre.
+const CATALOGUE_ORDER: Record<Exclude<CatalogueSort, "trending">, string> = {
+  "most-reviewed": "total_reviews DESC, steam_app_id",
+  "best-rated": "pct_positive_reviews DESC, total_reviews DESC, steam_app_id",
+  "worst-rated": "pct_positive_reviews ASC, total_reviews DESC, steam_app_id",
+  polarised: "ABS(pct_positive_reviews - 50), total_reviews DESC, steam_app_id",
+  recent: "first_release_date DESC NULLS LAST, total_reviews DESC, steam_app_id",
+};
+
+type CatalogueRow = {
+  steam_app_id: string;
+  game_name: string;
+  cover_url: string | null;
+  total_reviews: string;
+  pct_positive_reviews: string;
+  delta_pct?: string | null;
+};
+
+function mapCatalogueRow(row: CatalogueRow): CatalogueGame {
+  return {
+    appId: Number(row.steam_app_id),
+    name: row.game_name,
+    coverUrl: row.cover_url,
+    totalReviews: Number(row.total_reviews),
+    pctPositive: Number(row.pct_positive_reviews) / 100,
+    ...(row.delta_pct == null ? {} : { deltaPct: Number(row.delta_pct) }),
+  };
+}
+
+// Le classement `trending` et le héros de `/charts` posent la même question —
+// de combien la part positive d'un jeu a bougé en trente jours — donc le même
+// CTE. `$1` reste le LIMIT, `$2` l'OFFSET et `$3` le plancher de volume, exigé
+// des deux côtés de la bascule pour qu'une poignée d'avis ne fasse pas un
+// écart de vingt points.
+//
+// Comme ailleurs, la fenêtre s'ancre sur la dernière date du mart et non sur
+// `CURRENT_DATE` : le pipeline peut avoir des jours de retard, et un ancrage
+// sur « aujourd'hui » renverrait un classement vide dès qu'il en a.
+const TRENDING_DELTAS_CTE = `
+  WITH bounds AS (
+    SELECT MAX(review_date) AS latest FROM marts.game_review_trend_daily
+  ),
+  windows AS (
+    SELECT
+      t.app_id,
+      SUM(t.total_reviews) FILTER (WHERE t.review_date > b.latest - INTERVAL '30 days') AS recent_reviews,
+      SUM(t.total_positive) FILTER (WHERE t.review_date > b.latest - INTERVAL '30 days') AS recent_positive,
+      SUM(t.total_reviews) FILTER (WHERE t.review_date <= b.latest - INTERVAL '30 days') AS previous_reviews,
+      SUM(t.total_positive) FILTER (WHERE t.review_date <= b.latest - INTERVAL '30 days') AS previous_positive
+    FROM marts.game_review_trend_daily t, bounds b
+    WHERE t.review_date > b.latest - INTERVAL '60 days'
+    GROUP BY t.app_id
+  ),
+  deltas AS (
+    SELECT
+      w.app_id,
+      g.game_name,
+      g.cover_url,
+      g.total_reviews,
+      w.recent_reviews,
+      ROUND(w.recent_positive::numeric / w.recent_reviews * 100, 1) AS recent_pct,
+      ROUND(
+        (w.recent_positive::numeric / w.recent_reviews
+          - w.previous_positive::numeric / w.previous_reviews) * 100,
+        1
+      ) AS delta_pct
+    FROM windows w
+    JOIN marts.game_stats g ON g.steam_app_id = w.app_id
+    WHERE w.recent_reviews >= $3 AND w.previous_reviews >= $3 AND g.cover_url IS NOT NULL
+  )
+`;
+
+export type CatalogueQuery = {
+  sort: CatalogueSort;
+  limit: number;
+  offset?: number;
+  /** Filtre sur le nom du jeu, tel que saisi dans le champ de la page. */
+  search?: string;
+  /** Plancher de volume : au-dessous, un score ne dit plus rien du jeu. */
+  minReviews?: number;
+  /** Plafond de volume, pour la rubrique « Hidden gems » seulement. */
+  maxReviews?: number;
+  /**
+   * Plancher de score, de 0 à 100. « Hidden gems » s'en sert pour ne montrer
+   * que des jeux réellement adorés : sans lui, la rubrique remplit ses huit
+   * cases coûte que coûte et finit par y mettre un jeu à 34 %, sous un titre
+   * qui promet le contraire.
+   */
+  minPct?: number;
+};
+
+/**
+ * Une page de la grille. On lit toujours une ligne de plus que demandé : elle
+ * ne sert qu'à savoir s'il existe une page suivante, et évite un COUNT(*) sur
+ * tout le catalogue à chaque changement de tri.
+ *
+ * Jaquette obligatoire, comme sur les podiums de la home : une grille de
+ * jaquettes n'a rien à faire d'un jeu qui n'en a pas, il n'y laisserait qu'un
+ * rectangle vide.
+ */
+export async function getCataloguePage({
+  sort,
+  limit,
+  offset = 0,
+  search,
+  minReviews = 1,
+  maxReviews,
+  minPct,
+}: CatalogueQuery): Promise<CataloguePage> {
+  const query = search?.trim() || null;
+  const probe = limit + 1;
+
+  const { rows } = sort === "trending"
+    ? await pool.query<CatalogueRow>(
+        `${TRENDING_DELTAS_CTE}
+         SELECT
+           app_id AS steam_app_id,
+           game_name,
+           cover_url,
+           total_reviews,
+           recent_pct AS pct_positive_reviews,
+           delta_pct
+         FROM deltas
+         WHERE ($4::text IS NULL OR game_name ILIKE '%' || $4 || '%')
+           AND ($5::numeric IS NULL OR recent_pct >= $5)
+         ORDER BY delta_pct DESC, recent_reviews DESC, app_id
+         LIMIT $1 OFFSET $2`,
+        [probe, offset, minReviews, query, minPct ?? null],
+      )
+    : await pool.query<CatalogueRow>(
+        `SELECT steam_app_id, game_name, cover_url, total_reviews, pct_positive_reviews
+         FROM marts.game_stats
+         WHERE total_reviews >= $3
+           AND ($5::bigint IS NULL OR total_reviews <= $5)
+           AND ($6::numeric IS NULL OR pct_positive_reviews >= $6)
+           AND cover_url IS NOT NULL
+           AND ($4::text IS NULL OR game_name ILIKE '%' || $4 || '%')
+         ORDER BY ${CATALOGUE_ORDER[sort]}
+         LIMIT $1 OFFSET $2`,
+        [probe, offset, minReviews, query, maxReviews ?? null, minPct ?? null],
+      );
+
+  return { games: rows.slice(0, limit).map(mapCatalogueRow), hasNext: rows.length > limit };
+}
+
+/**
+ * La variation sur trente jours des seuls jeux affichés. La grille la montre
+ * sur chaque vignette, tous tris confondus, mais la calculer pour tout le
+ * catalogue coûterait une agrégation complète du mart quotidien à chaque
+ * chargement : bornée aux vingt-quatre `app_id` de la page, elle passe par
+ * l'index `app_id` et ne coûte rien.
+ *
+ * Un jeu absent de la réponse n'a pas assez d'avis de part et d'autre de la
+ * bascule : sa vignette s'affiche alors sans variation, plutôt qu'avec un
+ * écart tiré de trois avis.
+ */
+export async function getRecentDeltas(
+  appIds: number[],
+  minReviewsPerWindow = 30,
+): Promise<Map<number, number>> {
+  if (appIds.length === 0) return new Map();
+
+  const { rows } = await pool.query<{ app_id: string; delta_pct: string }>(
+    `WITH bounds AS (
+       SELECT MAX(review_date) AS latest FROM marts.game_review_trend_daily
+     ),
+     windows AS (
+       SELECT
+         t.app_id,
+         SUM(t.total_reviews) FILTER (WHERE t.review_date > b.latest - INTERVAL '30 days') AS recent_reviews,
+         SUM(t.total_positive) FILTER (WHERE t.review_date > b.latest - INTERVAL '30 days') AS recent_positive,
+         SUM(t.total_reviews) FILTER (WHERE t.review_date <= b.latest - INTERVAL '30 days') AS previous_reviews,
+         SUM(t.total_positive) FILTER (WHERE t.review_date <= b.latest - INTERVAL '30 days') AS previous_positive
+       FROM marts.game_review_trend_daily t, bounds b
+       WHERE t.app_id = ANY($1::bigint[])
+         AND t.review_date > b.latest - INTERVAL '60 days'
+       GROUP BY t.app_id
+     )
+     SELECT
+       app_id,
+       ROUND(
+         (recent_positive::numeric / recent_reviews
+           - previous_positive::numeric / previous_reviews) * 100,
+         1
+       ) AS delta_pct
+     FROM windows
+     WHERE recent_reviews >= $2 AND previous_reviews >= $2`,
+    [appIds, minReviewsPerWindow],
+  );
+
+  return new Map(rows.map((row) => [Number(row.app_id), Number(row.delta_pct)]));
 }
