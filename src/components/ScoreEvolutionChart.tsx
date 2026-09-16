@@ -30,25 +30,27 @@ function formatMonth(periodMonth: string): string {
 
 // Cinq repères sous la courbe, pas un par mois : le graphe couvre parfois
 // soixante-dix mois, et autant d'étiquettes ne se lisent plus. Ils tombent sur
-// des points réels (premier, dernier, et trois entre les deux), et le padding
-// du bloc reprend celui du dessin pour que le premier et le dernier s'alignent
-// sur leur point.
+// des points réels (premier, dernier, et trois entre les deux), d'où l'indice
+// rendu avec le libellé : l'arrondi ne donne pas des indices régulièrement
+// espacés (douze points donnent 0, 3, 6, 8, 11), donc seule la position du
+// point lui-même place l'étiquette au bon endroit.
 const TICK_COUNT = 5;
 
-function monthTicks(trends: GameReviewTrend[]): string[] {
+function monthTicks(trends: GameReviewTrend[]): { index: number; label: string }[] {
   if (trends.length < 2) return [];
 
   const count = Math.min(TICK_COUNT, trends.length);
   const last = trends.length - 1;
   const indices = new Set(Array.from({ length: count }, (_, i) => Math.round((i * last) / (count - 1))));
 
-  return [...indices].map((index) =>
-    new Date(`${trends[index].periodMonth}T00:00:00Z`).toLocaleDateString("en-US", {
+  return [...indices].map((index) => ({
+    index,
+    label: new Date(`${trends[index].periodMonth}T00:00:00Z`).toLocaleDateString("en-US", {
       timeZone: "UTC",
       month: "short",
       year: "2-digit",
     }),
-  );
+  }));
 }
 
 function formatDay(startedOn: string): string {
@@ -283,12 +285,18 @@ export function ScoreEvolutionChart({ trends, events = [] }: ScoreEvolutionChart
       </div>
 
       {ticks.length > 0 && (
-        <div
-          className="mt-1.5 flex justify-between font-mono text-[10px] tracking-[0.1em] text-[#5f7481] uppercase"
-          style={{ paddingInline: `${(PADDING / WIDTH) * 100}%` }}
-        >
+        // Chaque étiquette est posée sur l'abscisse de son point, centrée
+        // dessus, et non répartie à intervalle régulier : le bloc a donc une
+        // hauteur explicite, ses enfants étant tous en absolu.
+        <div className="relative mt-1.5 h-3.5 font-mono text-[10px] tracking-[0.1em] text-[#5f7481] uppercase">
           {ticks.map((tick) => (
-            <span key={tick}>{tick}</span>
+            <span
+              key={tick.index}
+              className="absolute -translate-x-1/2 whitespace-nowrap"
+              style={{ left: `${((PADDING + tick.index * stepX) / WIDTH) * 100}%` }}
+            >
+              {tick.label}
+            </span>
           ))}
         </div>
       )}
