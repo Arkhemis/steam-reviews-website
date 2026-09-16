@@ -47,3 +47,27 @@ export function dailyVolume(days: CatalogueTrendDay[], count = 31): number[] {
 export function reviewsInLastDays(days: CatalogueTrendDay[], count = 7): number {
   return days.slice(-count).reduce((total, day) => total + day.reviews, 0);
 }
+
+const DAY_MS = 86_400_000;
+
+/**
+ * Les `count` derniers jours de la série, trous compris, du plus ancien au plus
+ * récent. `dailyVolume` suffit au catalogue entier, qui reçoit des avis tous
+ * les jours ; la fiche d'un jeu, non : le mart n'écrit pas de ligne pour un
+ * jour sans avis, et sans remplissage un jeu à trois avis dans le mois
+ * afficherait trois barres pleines côte à côte au lieu d'un plat.
+ *
+ * La fenêtre se termine sur le dernier jour reçu — celui du jeu, pas celui du
+ * catalogue.
+ */
+export function paddedDailyVolume(days: CatalogueTrendDay[], count = 31): number[] {
+  if (days.length === 0) return [];
+
+  const byDate = new Map(days.map((day) => [day.date, day.reviews]));
+  const endsOn = Date.parse(`${days[days.length - 1].date}T00:00:00Z`);
+
+  return Array.from({ length: count }, (_, index) => {
+    const date = new Date(endsOn - (count - 1 - index) * DAY_MS).toISOString().slice(0, 10);
+    return byDate.get(date) ?? 0;
+  });
+}

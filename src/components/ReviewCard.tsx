@@ -32,27 +32,30 @@ export function ReviewCard({ review }: { review: GameTopReview }) {
   }, [review.reviewText]);
 
   return (
-    <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-      <div className="mb-2 flex items-center justify-between text-xs text-neutral-400">
-        <span className="flex items-center gap-1 font-bold" style={{ color }}>
+    <div className="rounded-md border border-[#1e2b36] bg-[#0a0f14] p-5">
+      <div className="flex items-center justify-between gap-3 font-mono text-[11px] tracking-[0.1em] text-[#7d919c] uppercase">
+        <span className="flex items-center gap-2 font-bold" style={{ color }}>
           <ThumbIcon up={review.votedUp} className="h-4 w-4" />
           {review.votedUp ? "Recommended" : "Not recommended"}
         </span>
-        <span>{review.votesUp.toLocaleString("en-US")} helpful votes</span>
+        <span className="whitespace-nowrap">{review.votesUp.toLocaleString("en-US")} helpful votes</span>
       </div>
-      <div className="mb-2 flex items-center gap-2">
+      <div className="mt-4 flex items-center gap-2.5">
         <Image
           src={review.authorAvatarUrl}
           alt=""
           width={32}
           height={32}
-          className="h-8 w-8 rounded-full object-cover"
+          className="h-8 w-8 rounded-full border border-[#24333f] object-cover"
         />
-        <span className="text-sm font-medium text-neutral-200">{review.authorPersonaname}</span>
+        <span className="text-sm font-semibold text-[#dfe7eb]">{review.authorPersonaname}</span>
+        <span className="font-mono text-[10px] text-[#5f7481]">
+          {Math.round(review.authorPlaytimeAtReviewMinutes / 60)}h played
+        </span>
       </div>
       <div
         ref={textRef}
-        className={`text-sm text-neutral-200 ${!expanded ? "line-clamp-16" : ""}`}
+        className={`mt-3.5 max-w-[54ch] text-base leading-relaxed text-[#dfe7eb] ${!expanded ? "line-clamp-16" : ""}`}
       >
         <BBCodeText text={review.reviewText} />
       </div>
@@ -60,36 +63,23 @@ export function ReviewCard({ review }: { review: GameTopReview }) {
         <button
           type="button"
           onClick={() => setExpanded((value) => !value)}
-          className="mt-1 text-xs text-brand-blue hover:underline"
+          className="mt-1.5 font-mono text-[10px] tracking-[0.1em] text-brand-blue uppercase hover:underline"
         >
           {expanded ? "Read less" : "Read more"}
         </button>
       )}
-      <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-neutral-500">
-        <span>{Math.round(review.authorPlaytimeAtReviewMinutes / 60)}h played</span>
-        {review.votesFunny > 0 && (
-          <>
-            <span>·</span>
-            <span>{review.votesFunny.toLocaleString("en-US")} funny votes</span>
-          </>
-        )}
+      <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[10px] text-[#5f7481]">
+        {review.votesFunny > 0 && <span>{review.votesFunny.toLocaleString("en-US")} funny votes</span>}
         {review.authorLastPlayedAt && (
-          <>
-            <span>·</span>
-            <span>
-              Last played on{" "}
-              {new Date(review.authorLastPlayedAt).toLocaleDateString("en-US")}
-            </span>
-          </>
+          <span>Last played on {new Date(review.authorLastPlayedAt).toLocaleDateString("en-US")}</span>
         )}
-        <span>·</span>
         <a
           href={review.reviewUrl}
           target="_blank"
           rel="noopener noreferrer"
           className="text-brand-blue hover:underline"
         >
-          View on Steam
+          view on steam ↗
         </a>
       </div>
     </div>
@@ -98,7 +88,7 @@ export function ReviewCard({ review }: { review: GameTopReview }) {
 
 export function EmptyReviewCard({ label }: { label: string }) {
   return (
-    <div className="flex items-center justify-center rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-neutral-500">
+    <div className="flex items-center justify-center rounded-md border border-[#1e2b36] bg-[#0a0f14] p-5 text-sm text-[#5f7481]">
       {label}
     </div>
   );

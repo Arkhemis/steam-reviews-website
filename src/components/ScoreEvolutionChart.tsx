@@ -28,6 +28,29 @@ function formatMonth(periodMonth: string): string {
   return new Date(periodMonth).toLocaleDateString("en-US", { month: "short", year: "numeric" });
 }
 
+// Cinq repères sous la courbe, pas un par mois : le graphe couvre parfois
+// soixante-dix mois, et autant d'étiquettes ne se lisent plus. Ils tombent sur
+// des points réels (premier, dernier, et trois entre les deux), et le padding
+// du bloc reprend celui du dessin pour que le premier et le dernier s'alignent
+// sur leur point.
+const TICK_COUNT = 5;
+
+function monthTicks(trends: GameReviewTrend[]): string[] {
+  if (trends.length < 2) return [];
+
+  const count = Math.min(TICK_COUNT, trends.length);
+  const last = trends.length - 1;
+  const indices = new Set(Array.from({ length: count }, (_, i) => Math.round((i * last) / (count - 1))));
+
+  return [...indices].map((index) =>
+    new Date(`${trends[index].periodMonth}T00:00:00Z`).toLocaleDateString("en-US", {
+      timeZone: "UTC",
+      month: "short",
+      year: "2-digit",
+    }),
+  );
+}
+
 function formatDay(startedOn: string): string {
   return new Date(startedOn).toLocaleDateString("en-US", {
     day: "numeric",
@@ -137,6 +160,8 @@ export function ScoreEvolutionChart({ trends, events = [] }: ScoreEvolutionChart
   const legend = (["update", "news"] as const).filter((category) =>
     markers.some((marker) => marker.event.category === category),
   );
+
+  const ticks = monthTicks(trends);
 
   function handlePointerMove(event: React.PointerEvent<SVGRectElement>) {
     const svg = event.currentTarget.ownerSVGElement;
@@ -257,8 +282,19 @@ export function ScoreEvolutionChart({ trends, events = [] }: ScoreEvolutionChart
         </svg>
       </div>
 
+      {ticks.length > 0 && (
+        <div
+          className="mt-1.5 flex justify-between font-mono text-[10px] tracking-[0.1em] text-[#5f7481] uppercase"
+          style={{ paddingInline: `${(PADDING / WIDTH) * 100}%` }}
+        >
+          {ticks.map((tick) => (
+            <span key={tick}>{tick}</span>
+          ))}
+        </div>
+      )}
+
       {legend.length > 0 && (
-        <ul className="mt-1 flex gap-4 text-xs text-neutral-400">
+        <ul className="mt-2 flex gap-4 font-mono text-[10px] tracking-[0.1em] text-[#5f7481] uppercase">
           {legend.map((category) => (
             <li key={category} className="flex items-center gap-1.5">
               <svg width={18} height={8} aria-hidden className="shrink-0">

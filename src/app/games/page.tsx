@@ -31,7 +31,7 @@ export default async function GamesIndexPage({ searchParams }: GamesIndexPagePro
   return (
     <div className="min-h-screen bg-[#0c1116] text-[#eef2f4]">
       <div className="mx-auto max-w-[1320px] px-5 py-8 sm:px-7">
-        <Nav />
+        <Nav active="games" />
 
         <h1 className="mt-8 text-2xl font-extrabold tracking-tight">Games</h1>
         <p className="mt-1 text-sm text-[#9fb2bd]">The most reviewed games on Steam.</p>

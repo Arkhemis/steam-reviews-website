@@ -35,7 +35,7 @@ export function ReviewBattle({ reviews, languages = [], selectedLanguage = null 
     return (
       <div>
         <div className="mb-3">{languageSelect}</div>
-        <p className="text-sm text-neutral-400">No review available for this game.</p>
+        <p className="text-sm text-[#7d919c]">No review available for this game.</p>
       </div>
     );
   }
@@ -49,12 +49,12 @@ export function ReviewBattle({ reviews, languages = [], selectedLanguage = null 
 
   return (
     <div>
-      <div className="mb-3 flex flex-wrap gap-2">
+      <div className="mb-4 flex flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={randomizeUp}
           disabled={positives.length <= 1}
-          className="flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-300 disabled:opacity-40"
+          className="flex items-center gap-1.5 rounded-full border border-[#24333f] px-3 py-1.5 font-mono text-[10px] tracking-[0.1em] text-[#9fb2bd] uppercase transition-colors hover:border-white/30 disabled:opacity-40"
         >
           🎲 Another positive review <ThumbIcon up className="h-3 w-3" />
         </button>
@@ -62,7 +62,7 @@ export function ReviewBattle({ reviews, languages = [], selectedLanguage = null 
           type="button"
           onClick={randomizeDown}
           disabled={negatives.length <= 1}
-          className="flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-300 disabled:opacity-40"
+          className="flex items-center gap-1.5 rounded-full border border-[#24333f] px-3 py-1.5 font-mono text-[10px] tracking-[0.1em] text-[#9fb2bd] uppercase transition-colors hover:border-white/30 disabled:opacity-40"
         >
           🎲 Another negative review <ThumbIcon up={false} className="h-3 w-3" />
         </button>
@@ -70,13 +70,13 @@ export function ReviewBattle({ reviews, languages = [], selectedLanguage = null 
           type="button"
           onClick={randomizeBoth}
           disabled={positives.length <= 1 && negatives.length <= 1}
-          className="rounded-full bg-gradient-to-r from-brand-blue to-brand-red px-3 py-1 text-xs font-bold text-black disabled:opacity-40"
+          className="rounded-full bg-gradient-to-r from-brand-blue to-brand-red px-3 py-1.5 font-mono text-[10px] font-bold tracking-[0.1em] text-black uppercase disabled:opacity-40"
         >
           🎲 Both
         </button>
         {languageSelect}
       </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {positives[positiveIndex] ? (
           <ReviewCard review={positives[positiveIndex]} />
         ) : (

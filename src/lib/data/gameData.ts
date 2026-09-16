@@ -4,6 +4,7 @@ import type {
   CataloguePage,
   CatalogueSort,
   CatalogueTrendDay,
+  GameCoverage,
   GameEvent,
   GameLanguageDistribution,
   GameReviewLanguage,
@@ -385,6 +386,73 @@ export async function getGameReviewTrends(appId: number): Promise<GameReviewTren
     positiveInPeriod: Number(row.positive_in_period),
     pctPositivePeriod: Number(row.pct_positive_period),
   }));
+}
+
+/**
+ * Le pouls d'un jeu : ses `days` derniers jours d'avis, ancrés sur la dernière
+ * date que le mart connaît pour lui — jamais sur `CURRENT_DATE`, que le
+ * pipeline peut avoir des jours de retard à rejoindre, et jamais sur la
+ * dernière date du catalogue, qu'un jeu mort depuis des mois n'atteint pas.
+ *
+ * Les jours sans avis n'ont pas de ligne dans le mart : c'est `paddedDailyVolume`
+ * qui rebouche les trous, ici on ne lit que ce qui existe.
+ */
+export async function getGameDailyTrend(appId: number, days = 31): Promise<CatalogueTrendDay[]> {
+  const { rows } = await pool.query<{ review_date: string; reviews: string; positive: string }>(
+    `WITH bounds AS (
+       SELECT MAX(review_date) AS latest FROM marts.game_review_trend_daily WHERE app_id = $1
+     )
+     SELECT
+       TO_CHAR(t.review_date, 'YYYY-MM-DD') AS review_date,
+       t.total_reviews AS reviews,
+       t.total_positive AS positive
+     FROM marts.game_review_trend_daily t, bounds b
+     WHERE t.app_id = $1 AND t.review_date > b.latest - $2::int
+     ORDER BY t.review_date`,
+    [appId, days],
+  );
+
+  return rows.map((row) => ({
+    date: row.review_date,
+    reviews: Number(row.reviews),
+    positive: Number(row.positive),
+  }));
+}
+
+/**
+ * L'assiette de l'analyse pour un jeu : ce qu'on a vraiment chargé de lui, par
+ * opposition au `total_reviews` de `game_stats`, qui est ce que Steam déclare,
+ * avis jamais téléchargés compris.
+ *
+ * Les trois lectures partent ensemble : ce sont trois agrégats indexés par
+ * `app_id` et le bandeau les affiche d'un bloc, il n'y a rien à gagner à les
+ * séparer en trois allers-retours.
+ */
+export async function getGameCoverage(appId: number): Promise<GameCoverage> {
+  const { rows } = await pool.query<{
+    loaded_reviews: string | null;
+    latest_review_on: string | null;
+    language_count: string;
+  }>(
+    `WITH daily AS (
+       SELECT SUM(total_reviews) AS loaded_reviews, MAX(review_date) AS latest_review_on
+       FROM marts.game_review_trend_daily
+       WHERE app_id = $1
+     )
+     SELECT
+       d.loaded_reviews,
+       TO_CHAR(d.latest_review_on, 'YYYY-MM-DD') AS latest_review_on,
+       (SELECT COUNT(*) FROM intermediate.language_review_score WHERE app_id = $1) AS language_count
+     FROM daily d`,
+    [appId],
+  );
+
+  const row = rows[0];
+  return {
+    loadedReviews: Number(row?.loaded_reviews ?? 0),
+    languageCount: Number(row?.language_count ?? 0),
+    latestReviewOn: row?.latest_review_on ?? null,
+  };
 }
 
 type GameEventRow = {

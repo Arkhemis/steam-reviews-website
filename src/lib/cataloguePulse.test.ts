@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dailyVolume, monthlySentiment, reviewsInLastDays } from "@/lib/cataloguePulse";
+import { dailyVolume, monthlySentiment, paddedDailyVolume, reviewsInLastDays } from "@/lib/cataloguePulse";
 import type { CatalogueTrendDay } from "@/lib/data/types";
 
 function day(date: string, reviews: number, positive: number): CatalogueTrendDay {
@@ -67,5 +67,23 @@ describe("reviewsInLastDays", () => {
 
   it("vaut 0 sur une série vide", () => {
     expect(reviewsInLastDays([], 7)).toBe(0);
+  });
+});
+
+describe("paddedDailyVolume", () => {
+  it("rebouche les jours sans avis, que le mart n'écrit pas", () => {
+    const volume = paddedDailyVolume([day("2026-09-10", 4, 3), day("2026-09-12", 6, 6)], 4);
+
+    expect(volume).toEqual([0, 4, 0, 6]);
+  });
+
+  it("termine la fenêtre sur le dernier jour reçu, pas sur aujourd'hui", () => {
+    const volume = paddedDailyVolume([day("2024-01-31", 9, 9)], 3);
+
+    expect(volume).toEqual([0, 0, 9]);
+  });
+
+  it("ne rend rien quand le jeu n'a aucun avis", () => {
+    expect(paddedDailyVolume([], 31)).toEqual([]);
   });
 });

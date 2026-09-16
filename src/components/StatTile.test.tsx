@@ -8,4 +8,11 @@ describe("StatTile", () => {
     expect(screen.getByText("97%")).toBeInTheDocument();
     expect(screen.getByText("Positive score")).toBeInTheDocument();
   });
+
+  // Sans la note, « 46h » ne dit pas si c'est le temps de jeu au moment de
+  // l'avis ou depuis toujours.
+  it("carries the note that says what the number counts", () => {
+    render(<StatTile label="median playtime" value="46h" note="all time, per reviewer" />);
+    expect(screen.getByText("all time, per reviewer")).toBeInTheDocument();
+  });
 });

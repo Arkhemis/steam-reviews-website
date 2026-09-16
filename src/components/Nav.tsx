@@ -14,6 +14,7 @@ const LAYOUTS = {
 // Les sections que la barre peut souligner. La home n'en fait pas partie :
 // elle est déjà signée par la marque, à gauche.
 const SECTIONS = [
+  { key: "games", href: "/games", label: "Games" },
   { key: "charts", href: "/charts", label: "Charts" },
   { key: "map", href: "/map", label: "Language map" },
 ] as const;

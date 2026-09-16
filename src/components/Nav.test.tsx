@@ -10,6 +10,7 @@ describe("Nav", () => {
   it("renders the brand name and nav links", () => {
     render(<Nav />);
     expect(screen.getByText("steam.reviews")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Games" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Charts" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Language map" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Battle" })).toBeInTheDocument();
@@ -25,7 +26,7 @@ describe("Nav", () => {
 
   it("ne souligne rien quand aucune section n'est demandée", () => {
     render(<Nav />);
-    for (const name of ["Charts", "Language map"]) {
+    for (const name of ["Games", "Charts", "Language map"]) {
       expect(screen.getByRole("link", { name })).not.toHaveAttribute("aria-current");
     }
   });
