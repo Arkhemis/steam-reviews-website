@@ -2,7 +2,13 @@ import { render, screen } from "@testing-library/react";
 import { isValidElement, Suspense } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import GamePage from "@/app/games/[appId]/page";
-import { LanguagesSection, ReviewsSection, TrendsSection } from "@/app/games/[appId]/sections";
+import {
+  CoverageBand,
+  LanguagesSection,
+  ReviewsSection,
+  TrendsSection,
+  VolumeSection,
+} from "@/app/games/[appId]/sections";
 import {
   BALDURS_GATE_3_APP_ID,
   baldursGate3LanguageDistribution,
@@ -15,6 +21,8 @@ import type { GameStats, GameTopReview } from "@/lib/data/types";
 // Le SQL lui-même reste couvert par gameData.test.ts.
 const {
   getGameStats,
+  getGameCoverage,
+  getGameDailyTrend,
   getGameEvents,
   getGameReviewTrends,
   getGameLanguageDistribution,
@@ -22,6 +30,8 @@ const {
   getGameTopReviews,
 } = vi.hoisted(() => ({
   getGameStats: vi.fn(),
+  getGameCoverage: vi.fn(),
+  getGameDailyTrend: vi.fn(),
   getGameEvents: vi.fn(),
   getGameReviewTrends: vi.fn(),
   getGameLanguageDistribution: vi.fn(),
@@ -31,6 +41,8 @@ const {
 
 vi.mock("@/lib/data/gameData", () => ({
   getGameStats,
+  getGameCoverage,
+  getGameDailyTrend,
   getGameEvents,
   getGameReviewTrends,
   getGameLanguageDistribution,
@@ -38,6 +50,10 @@ vi.mock("@/lib/data/gameData", () => ({
   getGameTopReviews,
   TOP_REVIEWS_PER_SIDE: 20,
 }));
+
+// Le héros tâte le CDN de Steam pour son illustration : sans ce mock, rendre la
+// page partirait sur le réseau.
+vi.mock("@/lib/steamArtwork", () => ({ resolveSteamHeroArt: vi.fn().mockResolvedValue(null) }));
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
@@ -104,6 +120,8 @@ function findSuspenseKeyAround(node: unknown, type: unknown): string | null | un
 beforeEach(() => {
   vi.clearAllMocks();
   getGameStats.mockResolvedValue(game);
+  getGameCoverage.mockResolvedValue({ loadedReviews: 62000, languageCount: 10, latestReviewOn: "2024-07-31" });
+  getGameDailyTrend.mockResolvedValue([{ date: "2024-07-31", reviews: 120, positive: 110 }]);
   getGameReviewTrends.mockResolvedValue(baldursGate3ReviewTrends);
   getGameEvents.mockResolvedValue([]);
   getGameLanguageDistribution.mockResolvedValue(baldursGate3LanguageDistribution);
@@ -130,10 +148,24 @@ describe("GamePage", () => {
     expect(getGameStats).toHaveBeenCalledWith(BALDURS_GATE_3_APP_ID);
     expect(getGameTopReviews).not.toHaveBeenCalled();
     expect(getGameReviewTrends).not.toHaveBeenCalled();
+    expect(getGameCoverage).not.toHaveBeenCalled();
 
     render(jsx);
     expect(screen.getByText("Baldur's Gate III")).toBeInTheDocument();
     expect(screen.getByText("97%")).toBeInTheDocument();
+    expect(screen.getByText(/overwhelmingly positive/i)).toBeInTheDocument();
+  });
+
+  // Le héros annonce ce que Steam compte, pas ce que le site a chargé : le
+  // bandeau juste au-dessus dit l'autre chiffre, et les deux diffèrent.
+  it("credits Steam for the review count it shows in the hero", async () => {
+    const jsx = await GamePage({
+      params: Promise.resolve({ appId: String(BALDURS_GATE_3_APP_ID) }),
+      searchParams: Promise.resolve({}),
+    });
+
+    render(jsx);
+    expect(screen.getByText(/87,000 reviews on Steam/)).toBeInTheDocument();
   });
 
   it("hands the requested language to the reviews section", async () => {
@@ -170,6 +202,28 @@ describe("GamePage", () => {
 });
 
 describe("GamePage sections", () => {
+  // Le compteur du bandeau lit le mart quotidien, pas `game_stats` : il compte
+  // les avis réellement en base, là où le héros affiche le total de Steam.
+  it("annonce ce que le site a vraiment chargé du jeu", async () => {
+    render(<Suspense fallback={null}>{await CoverageBand({ appId: BALDURS_GATE_3_APP_ID })}</Suspense>);
+
+    expect(await screen.findByText("62,000")).toBeInTheDocument();
+    expect(screen.getByText(/reviews analyzed · 10 languages · latest one Jul 31, 2024/)).toBeInTheDocument();
+  });
+
+  it("dessine une barre par jour de la fenêtre, trous compris", async () => {
+    getGameDailyTrend.mockResolvedValue([
+      { date: "2024-07-29", reviews: 10, positive: 9 },
+      { date: "2024-07-31", reviews: 20, positive: 18 },
+    ]);
+
+    render(<Suspense fallback={null}>{await VolumeSection({ appId: BALDURS_GATE_3_APP_ID })}</Suspense>);
+
+    const bars = await screen.findByRole("img", { name: /Reviews per day/ });
+    expect(bars.children).toHaveLength(31);
+    expect(getGameDailyTrend).toHaveBeenCalledWith(BALDURS_GATE_3_APP_ID, 31);
+  });
+
   it("renders the reviews once the section resolves", async () => {
     render(<Suspense fallback={null}>{await ReviewsSection({ appId: BALDURS_GATE_3_APP_ID })}</Suspense>);
 
@@ -215,6 +269,6 @@ describe("GamePage sections", () => {
   it("renders the language breakdown once the section resolves", async () => {
     render(<Suspense fallback={null}>{await LanguagesSection({ appId: BALDURS_GATE_3_APP_ID })}</Suspense>);
 
-    expect(await screen.findByRole("group", { name: /^english:/ })).toBeInTheDocument();
+    expect(await screen.findByRole("group", { name: /^English:/ })).toBeInTheDocument();
   });
 });

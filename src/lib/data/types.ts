@@ -14,6 +14,20 @@ export type GameStats = {
   pctRefunded: number;
 };
 
+/**
+ * Ce que le site a réellement chargé d'un jeu, par opposition aux totaux que
+ * Steam déclare dans `game_stats` : le bandeau de la fiche annonce l'assiette
+ * de l'analyse avant de montrer le moindre chiffre.
+ */
+export type GameCoverage = {
+  /** Avis présents en base pour ce jeu, et non ceux que Steam compte. */
+  loadedReviews: number;
+  /** Nombre de langues dans lesquelles il a été commenté. */
+  languageCount: number;
+  /** Date du dernier avis chargé, `null` quand le jeu n'en a aucun. */
+  latestReviewOn: string | null;
+};
+
 export type GameReviewTrend = {
   appId: number;
   periodMonth: string; // ISO date, first of month, e.g. "2023-09-01"

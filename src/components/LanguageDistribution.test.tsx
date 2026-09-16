@@ -10,10 +10,10 @@ const languages: GameLanguageDistribution[] = [
 ];
 
 describe("LanguageDistribution", () => {
-  it("renders a bar and legend entry per language", () => {
+  it("names each language in English and gives it its share", () => {
     render(<LanguageDistribution languages={languages} />);
-    expect(screen.getAllByText("english").length).toBeGreaterThan(0);
-    expect(screen.getByText("50%")).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "English: 50%" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "French: 30%" })).toBeInTheDocument();
   });
 
   it("folds languages beyond the top 6 into an Other bucket", () => {
@@ -24,6 +24,11 @@ describe("LanguageDistribution", () => {
       pctOfTotal: (10 - i) / 55,
     }));
     render(<LanguageDistribution languages={many} />);
-    expect(screen.getAllByText("Other").length).toBeGreaterThan(0);
+    expect(screen.getByRole("group", { name: /^Other:/ })).toBeInTheDocument();
+  });
+
+  it("dit combien d'avis se cachent derrière une part", () => {
+    render(<LanguageDistribution languages={languages} />);
+    expect(screen.getByRole("group", { name: "English: 50%" })).toHaveAttribute("title", "500 reviews");
   });
 });

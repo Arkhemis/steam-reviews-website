@@ -40,7 +40,7 @@ export function ReviewLanguageSelect({ languages, selected }: ReviewLanguageSele
           const next = event.target.value;
           startNavigation(() => router.push(`?lang=${next}`, { scroll: false }));
         }}
-        className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-300 disabled:opacity-40"
+        className="rounded-full border border-[#24333f] px-3 py-1.5 font-mono text-[10px] tracking-[0.1em] text-[#9fb2bd] uppercase disabled:opacity-40"
       >
         <option value={ALL_LANGUAGES}>🌐 All languages</option>
         {languages.map((entry) => (

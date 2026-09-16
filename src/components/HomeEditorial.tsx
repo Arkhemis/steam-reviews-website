@@ -333,9 +333,48 @@ function ListColumn({ list }: { list: ListBlock }) {
   );
 }
 
-// Trois portes d'entrée vers les outils du site, en remplacement du duel d'avis.
-function DigDeeper({ totals }: { totals: HomeData["totals"] }) {
-  const doors = [
+/** Une porte de sortie : un outil du site, et le chiffre qui donne envie de l'ouvrir. */
+export type Door = {
+  kicker: string;
+  title: string;
+  blurb: string;
+  stat: string;
+  statLabel: string;
+  href: string;
+};
+
+// Les portes d'entrée vers les outils du site, en remplacement du duel d'avis.
+// La home les pose sur le catalogue entier, la fiche de jeu sur le jeu qu'elle
+// vient de raconter : même bloc, mêmes cartes, seuls les textes changent.
+export function DigDeeper({ title = "Dig deeper", note, doors }: { title?: string; note: string; doors: Door[] }) {
+  return (
+    <div className="border-t border-[#1a2530] bg-[#0e141a] px-6 py-8 sm:px-8">
+      <div className="mx-auto max-w-[1320px]">
+        <SectionHead title={title} note={note} />
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          {doors.map((d) => (
+            <Link
+              key={d.title}
+              href={d.href}
+              className="block rounded-md border border-[#1e2b36] bg-[#0c1116] p-[22px] transition-colors hover:border-brand-blue"
+            >
+              <span className="block font-mono text-[10px] tracking-[0.14em] text-brand-blue uppercase">{d.kicker}</span>
+              <span className="mt-2 block text-[22px] font-extrabold tracking-tight">{d.title}</span>
+              <span className="mt-2 block text-sm leading-normal text-[#9fb2bd]">{d.blurb}</span>
+              <span className="mt-4 flex items-baseline gap-2 font-mono">
+                <span className="text-2xl text-[#eef2f4]">{d.stat}</span>
+                <span className="text-[10px] tracking-[0.1em] text-[#7d919c] uppercase">{d.statLabel}</span>
+              </span>
+            </Link>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function homeDoors(totals: HomeData["totals"]): Door[] {
+  return [
     {
       kicker: "compare",
       title: "Battle",
@@ -361,31 +400,6 @@ function DigDeeper({ totals }: { totals: HomeData["totals"] }) {
       href: "/charts",
     },
   ];
-
-  return (
-    <div className="border-t border-[#1a2530] bg-[#0e141a] px-6 py-8 sm:px-8">
-      <div className="mx-auto max-w-[1320px]">
-        <SectionHead title="Dig deeper" note={`three ways into the same ${enCompact.format(totals.reviews)} reviews`} />
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          {doors.map((d) => (
-            <Link
-              key={d.title}
-              href={d.href}
-              className="block rounded-md border border-[#1e2b36] bg-[#0c1116] p-[22px] transition-colors hover:border-brand-blue"
-            >
-              <span className="block font-mono text-[10px] tracking-[0.14em] text-brand-blue uppercase">{d.kicker}</span>
-              <span className="mt-2 block text-[22px] font-extrabold tracking-tight">{d.title}</span>
-              <span className="mt-2 block text-sm leading-normal text-[#9fb2bd]">{d.blurb}</span>
-              <span className="mt-4 flex items-baseline gap-2 font-mono">
-                <span className="text-2xl text-[#eef2f4]">{d.stat}</span>
-                <span className="text-[10px] tracking-[0.1em] text-[#7d919c] uppercase">{d.statLabel}</span>
-              </span>
-            </Link>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
 }
 
 export function HomeEditorial({ data }: { data: HomeData }) {
@@ -439,7 +453,10 @@ export function HomeEditorial({ data }: { data: HomeData }) {
         </div>
       </div>
 
-      <DigDeeper totals={data.totals} />
+      <DigDeeper
+        note={`three ways into the same ${enCompact.format(data.totals.reviews)} reviews`}
+        doors={homeDoors(data.totals)}
+      />
     </div>
   );
 }

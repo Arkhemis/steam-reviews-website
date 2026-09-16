@@ -184,6 +184,33 @@ describe("ScoreEvolutionChart", () => {
     expect(screen.queryByTestId("month-tooltip")).not.toBeInTheDocument();
   });
 
+  // Douze mois donnent des repères aux indices 0, 3, 6, 8 et 11 : espacés
+  // régulièrement, les trois du milieu tomberaient à côté de leur point.
+  it("pose chaque repère de mois sur l'abscisse de son point", () => {
+    const year: GameReviewTrend[] = Array.from({ length: 12 }, (_, i) => ({
+      appId: 1,
+      periodMonth: `2024-${String(i + 1).padStart(2, "0")}-01`,
+      reviewsInPeriod: 100,
+      positiveInPeriod: 90,
+      pctPositivePeriod: 0.9,
+    }));
+    const stepX = (640 - PADDING * 2) / (year.length - 1);
+
+    render(<ScoreEvolutionChart trends={year} />);
+
+    for (const [index, label] of [
+      [0, "Jan 24"],
+      [3, "Apr 24"],
+      [6, "Jul 24"],
+      [8, "Sep 24"],
+      [11, "Dec 24"],
+    ] as const) {
+      expect(screen.getByText(label)).toHaveStyle({
+        left: `${((PADDING + index * stepX) / 640) * 100}%`,
+      });
+    }
+  });
+
   it("renders unchanged when no event is supplied", () => {
     const { container } = render(<ScoreEvolutionChart trends={trends} />);
     expect(bars(container)).toHaveLength(0);
