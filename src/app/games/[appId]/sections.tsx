@@ -100,7 +100,7 @@ export async function HeroArt({ appId }: { appId: number }) {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-y-0 right-0 hidden w-[62%] lg:block">
       <div className="absolute inset-0" style={{ maskImage: HERO_MASK, WebkitMaskImage: HERO_MASK }}>
-        <Image src={art} alt="" fill sizes="62vw" priority className="object-cover object-[70%_center]" />
+        <Image src={art} alt="" fill sizes="62vw" className="object-cover object-[70%_center]" />
       </div>
       {/* Le bas se referme sur le fond de page, sans couture avec le bandeau
           de KPI qui suit immédiatement. */}
