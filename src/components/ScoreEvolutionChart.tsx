@@ -42,8 +42,14 @@ const EVENT_STYLES = {
   news: { color: "var(--ink-muted)", label: "News" },
 } as const;
 
+// En UTC, comme les repères : `periodMonth` est un premier du mois à minuit
+// UTC, qu'un fuseau à l'ouest de Greenwich ferait basculer au mois d'avant.
 function formatMonth(periodMonth: string): string {
-  return new Date(periodMonth).toLocaleDateString("en-US", { month: "short", year: "numeric" });
+  return new Date(`${periodMonth}T00:00:00Z`).toLocaleDateString("en-US", {
+    timeZone: "UTC",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 // Cinq repères sous la courbe, pas un par mois : le graphe couvre parfois
@@ -326,6 +332,28 @@ export function ScoreEvolutionChart({ trends, events = [] }: ScoreEvolutionChart
           ))}
         </svg>
       </div>
+
+      {/* L'infobulle ne s'ouvre qu'au pointeur : ce tableau donne les mêmes
+          chiffres aux lecteurs d'écran, sans rien changer au dessin. */}
+      <table className="sr-only">
+        <caption>Positive score and reviews by month</caption>
+        <thead>
+          <tr>
+            <th scope="col">Month</th>
+            <th scope="col">Positive share</th>
+            <th scope="col">Reviews</th>
+          </tr>
+        </thead>
+        <tbody>
+          {trends.map((trend) => (
+            <tr key={trend.periodMonth}>
+              <th scope="row">{formatMonth(trend.periodMonth)}</th>
+              <td>{Math.round(trend.pctPositivePeriod * 100)}%</td>
+              <td>{formatReviews(trend.reviewsInPeriod)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
 
       {ticks.length > 0 && (
         // Chaque étiquette est posée sur l'abscisse de son point, centrée

@@ -277,6 +277,22 @@ describe("ScoreEvolutionChart", () => {
       expect(Number(august.getAttribute("opacity"))).toBeGreaterThan(Number(july.getAttribute("opacity")));
     });
 
+    // L'infobulle ne s'ouvre qu'au pointeur : sans ce tableau, un lecteur
+    // d'écran ou un clavier n'atteindrait aucun chiffre du graphe.
+    it("donne chaque mois, son score et son volume en texte, sans pointeur", () => {
+      render(<ScoreEvolutionChart trends={uneven} />);
+      const table = screen.getByRole("table", { name: /positive score and reviews by month/i });
+      const rows = Array.from(table.querySelectorAll("tbody tr")).map((row) =>
+        Array.from(row.querySelectorAll("th, td")).map((cell) => cell.textContent),
+      );
+
+      expect(rows).toEqual([
+        ["Jul 2026", "90%", "100 reviews"],
+        ["Aug 2026", "80%", "1,600 reviews"],
+        ["Sep 2026", "54%", "400 reviews"],
+      ]);
+    });
+
     it("légende le volume même sans annonce", () => {
       render(<ScoreEvolutionChart trends={uneven} />);
       expect(screen.getByText("Reviews / month")).toBeInTheDocument();
