@@ -211,6 +211,94 @@ describe("ScoreEvolutionChart", () => {
     }
   });
 
+  describe("volume mensuel", () => {
+    const uneven: GameReviewTrend[] = [
+      { appId: 1, periodMonth: "2026-07-01", reviewsInPeriod: 100, positiveInPeriod: 90, pctPositivePeriod: 0.9 },
+      { appId: 1, periodMonth: "2026-08-01", reviewsInPeriod: 1600, positiveInPeriod: 1280, pctPositivePeriod: 0.8 },
+      { appId: 1, periodMonth: "2026-09-01", reviewsInPeriod: 400, positiveInPeriod: 216, pctPositivePeriod: 0.54 },
+    ];
+
+    function volumeBars(container: HTMLElement) {
+      return Array.from(container.querySelectorAll<SVGRectElement>("rect[data-volume-bar]"));
+    }
+
+    function hoverMonth(clientX: number) {
+      const svg = screen.getByRole("img", { name: /positive score over time/i });
+      svg.getBoundingClientRect = () => ({ left: 0, width: 640, top: 0, height: 220 }) as DOMRect;
+      const pointerRect = svg.querySelector<SVGRectElement>("rect[data-month-hit]");
+      if (!pointerRect) throw new Error("pas de zone de survol des mois");
+      fireEvent.pointerMove(pointerRect, { clientX });
+    }
+
+    it("dessine une barre par mois, centrée sous son point", () => {
+      const { container } = render(<ScoreEvolutionChart trends={uneven} />);
+      const stepX = (640 - PADDING * 2) / (uneven.length - 1);
+
+      const drawn = volumeBars(container);
+      expect(drawn).toHaveLength(3);
+      drawn.forEach((bar, index) => {
+        const center = Number(bar.getAttribute("x")) + Number(bar.getAttribute("width")) / 2;
+        expect(center).toBeCloseTo(PADDING + index * stepX, 1);
+      });
+    });
+
+    it("règle la hauteur des barres sur le mois le plus chargé", () => {
+      const { container } = render(<ScoreEvolutionChart trends={uneven} />);
+      const [july, august, september] = volumeBars(container).map((bar) => Number(bar.getAttribute("height")));
+
+      expect(july / august).toBeCloseTo(100 / 1600, 2);
+      expect(september / august).toBeCloseTo(400 / 1600, 2);
+    });
+
+    // Deux échelles dans le même espace se liraient comme un seul axe : la
+    // bande du volume reste sous la courbe, jamais derrière.
+    it("pose les barres sous le tracé du score, sans le chevaucher", () => {
+      const { container } = render(<ScoreEvolutionChart trends={uneven} />);
+      const gridlines = Array.from(container.querySelectorAll<SVGLineElement>("line[data-score-gridline]"));
+      const scoreFloor = Math.max(...gridlines.map((line) => Number(line.getAttribute("y1"))));
+
+      expect(gridlines).toHaveLength(3);
+      expect(volumeBars(container)).toHaveLength(3);
+      for (const bar of volumeBars(container)) {
+        expect(Number(bar.getAttribute("y"))).toBeGreaterThan(scoreFloor);
+      }
+    });
+
+    it("donne le nombre d'avis du mois survolé dans l'infobulle", () => {
+      render(<ScoreEvolutionChart trends={uneven} />);
+      hoverMonth(320);
+      expect(screen.getByTestId("month-tooltip")).toHaveTextContent("1,600 reviews");
+    });
+
+    it("fait ressortir la barre du mois survolé", () => {
+      const { container } = render(<ScoreEvolutionChart trends={uneven} />);
+      hoverMonth(320);
+      const [july, august] = volumeBars(container);
+      expect(Number(august.getAttribute("opacity"))).toBeGreaterThan(Number(july.getAttribute("opacity")));
+    });
+
+    // L'infobulle ne s'ouvre qu'au pointeur : sans ce tableau, un lecteur
+    // d'écran ou un clavier n'atteindrait aucun chiffre du graphe.
+    it("donne chaque mois, son score et son volume en texte, sans pointeur", () => {
+      render(<ScoreEvolutionChart trends={uneven} />);
+      const table = screen.getByRole("table", { name: /positive score and reviews by month/i });
+      const rows = Array.from(table.querySelectorAll("tbody tr")).map((row) =>
+        Array.from(row.querySelectorAll("th, td")).map((cell) => cell.textContent),
+      );
+
+      expect(rows).toEqual([
+        ["Jul 2026", "90%", "100 reviews"],
+        ["Aug 2026", "80%", "1,600 reviews"],
+        ["Sep 2026", "54%", "400 reviews"],
+      ]);
+    });
+
+    it("légende le volume même sans annonce", () => {
+      render(<ScoreEvolutionChart trends={uneven} />);
+      expect(screen.getByText("Reviews / month")).toBeInTheDocument();
+    });
+  });
+
   it("renders unchanged when no event is supplied", () => {
     const { container } = render(<ScoreEvolutionChart trends={trends} />);
     expect(bars(container)).toHaveLength(0);
