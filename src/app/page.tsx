@@ -1,18 +1,22 @@
 import { unstable_cache } from "next/cache";
-import { HomeEditorial, type HomeData, type ListBlock, type PodiumGame } from "@/components/HomeEditorial";
+import { HomeEditorial, type HomeData, type PodiumGame } from "@/components/HomeEditorial";
 import { dailyVolume, monthlySentiment, reviewsInLastDays } from "@/lib/cataloguePulse";
 import { CHART_FILTERS } from "@/lib/charts";
-import { formatReviewWindow } from "@/lib/reviewWindow";
+import { buildAwards, type AwardSlide, type AwardThresholds } from "@/lib/homeAwards";
 import { resolveSteamHeroArt } from "@/lib/steamArtwork";
 import {
   getCatalogueTrend,
+  getGameTopReviewInWindow,
   getGameTopReviews,
   getLanguageReviewScores,
   getPolarisedGames,
   getSiteStats,
   getTopRatedGamesInWindow,
+  getWindowMovers,
+  getWindowRanking,
+  getWindowReviewHighlights,
 } from "@/lib/data/gameData";
-import type { GameStats, WindowedGame } from "@/lib/data/types";
+import type { RankedWindow, WindowedGame } from "@/lib/data/types";
 
 // La base n'est pas joignable au build (image buildée hors du réseau docker
 // compose), donc rien n'est prérendu. Les agrégats, eux, ne bougent qu'au
@@ -32,27 +36,96 @@ const WEEK_MIN_REVIEWS = 100;
 const MONTH_MIN_REVIEWS = 500;
 const YEAR_MIN_REVIEWS = 1000;
 
+// Comeback et chute comparent deux semaines : le plancher vaut pour chacune,
+// sans quoi dix avis la semaine d'avant suffiraient à faire un écart de trente
+// points.
+const MOVER_MIN_REVIEWS = 100;
+
+// Le plus détesté se juge sur trente jours, au même plancher que le repli du
+// podium : sur une semaine, un jeu confidentiel review-bombé l'emporterait.
+const HATED_MIN_REVIEWS = MONTH_MIN_REVIEWS;
+
+// La pépite cachée : assez d'avis ce mois-ci pour que le score tienne, assez
+// peu depuis toujours pour que le jeu soit vraiment confidentiel.
+const HIDDEN_GEM_MIN_REVIEWS = 50;
+const HIDDEN_GEM_MAX_TOTAL_REVIEWS = 2000;
+
 // Ici le seuil compte double : un jeu à douze avis tombe à 50 % par hasard, un
 // jeu à cinquante mille avis y tombe parce que ses joueurs se déchirent.
 const POLARISED_MIN_REVIEWS = 5000;
 
+// Une review « drôle » ou « utile » aux yeux de trois lecteurs n'est pas un
+// palmarès : sous ce nombre de votes, la diapositive se cache.
+const REVIEW_MIN_VOTES = 5;
+
+// Les reviews primées sont en anglais, comme le reste du site.
+const REVIEW_LANGUAGE = "english";
+
+const THRESHOLDS: AwardThresholds = {
+  moverMinReviews: MOVER_MIN_REVIEWS,
+  yearMinReviews: YEAR_MIN_REVIEWS,
+  hatedMinReviews: HATED_MIN_REVIEWS,
+  hiddenGemMinReviews: HIDDEN_GEM_MIN_REVIEWS,
+  hiddenGemMaxTotalReviews: HIDDEN_GEM_MAX_TOTAL_REVIEWS,
+  polarisedMinReviews: POLARISED_MIN_REVIEWS,
+  reviewMinVotes: REVIEW_MIN_VOTES,
+};
+
 // Les seuils font partie de la clé : les changer doit invalider l'entrée, pas
-// resservir l'ancien palmarès.
+// resservir l'ancien palmarès. Le préfixe `window-` signale la source
+// (`marts.game_window_score`) : une entrée d'avant la migration, lue sur le
+// mart quotidien et sans `totalReviews`, ne peut pas être resservie.
 function cached<T>(key: string, read: () => Promise<T>) {
   return unstable_cache(read, [key], { revalidate: REVALIDATE_SECONDS });
 }
 
-const weekPodium = cached(`home-week-${WEEK_MIN_REVIEWS}`, () =>
+const EMPTY_WINDOW: RankedWindow = { startsOn: null, endsOn: null, games: [] };
+
+// Une récompense dont la requête échoue — mart pas encore matérialisé en prod,
+// colonne pas encore remontée — disparaît du carrousel au lieu d'emporter la
+// page : on journalise, et on rend la valeur « vide » de la requête, que
+// `buildAwards` sait déjà cacher. `unstable_cache` ne garde pas les erreurs :
+// la lecture est retentée à chaque visite, et reprend d'elle-même une fois le
+// mart déployé.
+async function orEmpty<T>(label: string, read: () => Promise<T>, empty: T): Promise<T> {
+  try {
+    return await read();
+  } catch (error) {
+    console.error(`[home] ${label} unavailable, hiding it:`, error);
+    return empty;
+  }
+}
+
+const weekPodium = cached(`home-window-week-best-${PODIUM_SIZE}-${WEEK_MIN_REVIEWS}`, () =>
   getTopRatedGamesInWindow("week", PODIUM_SIZE, WEEK_MIN_REVIEWS),
 );
-const monthPodium = cached(`home-month-${MONTH_MIN_REVIEWS}`, () =>
+const monthPodium = cached(`home-window-month-best-${PODIUM_SIZE}-${MONTH_MIN_REVIEWS}`, () =>
   getTopRatedGamesInWindow("month", PODIUM_SIZE, MONTH_MIN_REVIEWS),
 );
-const yearPodium = cached(`home-year-${YEAR_MIN_REVIEWS}`, () =>
-  getTopRatedGamesInWindow("year-to-date", PODIUM_SIZE, YEAR_MIN_REVIEWS),
+const weekMovers = cached(`home-window-movers-${MOVER_MIN_REVIEWS}`, () => getWindowMovers(MOVER_MIN_REVIEWS));
+const weekMostReviewed = cached("home-window-week-most-reviewed", () =>
+  getWindowRanking("week", "most-reviewed", { limit: 1, minReviews: 1 }),
+);
+const monthReviewHighlights = cached(`home-review-window-month-${REVIEW_LANGUAGE}`, () =>
+  getWindowReviewHighlights("month", REVIEW_LANGUAGE),
+);
+const yearBest = cached(`home-window-year-best-${YEAR_MIN_REVIEWS}`, () =>
+  getTopRatedGamesInWindow("year-to-date", 1, YEAR_MIN_REVIEWS),
+);
+const monthMostHated = cached(`home-window-month-worst-${HATED_MIN_REVIEWS}`, () =>
+  getWindowRanking("month", "worst", { limit: 1, minReviews: HATED_MIN_REVIEWS }),
+);
+const monthHiddenGem = cached(
+  `home-window-month-hidden-gem-${HIDDEN_GEM_MIN_REVIEWS}-${HIDDEN_GEM_MAX_TOTAL_REVIEWS}`,
+  () =>
+    getWindowRanking("month", "best", {
+      limit: 1,
+      minReviews: HIDDEN_GEM_MIN_REVIEWS,
+      maxTotalReviews: HIDDEN_GEM_MAX_TOTAL_REVIEWS,
+    }),
 );
 const polarisedGames = cached(`home-polarised-${POLARISED_MIN_REVIEWS}`, () =>
-  getPolarisedGames(PODIUM_SIZE, POLARISED_MIN_REVIEWS),
+  getPolarisedGames(1, POLARISED_MIN_REVIEWS),
 );
 const catalogueTrend = cached("home-catalogue-trend", getCatalogueTrend);
 const siteStats = cached("home-site-stats", getSiteStats);
@@ -70,117 +143,105 @@ function toPodium(game: WindowedGame, period: string): PodiumGame {
   };
 }
 
-function toPolarisedPodium(game: GameStats): PodiumGame {
-  return {
-    appId: game.appId,
-    name: game.name,
-    coverUrl: game.coverUrl,
-    pct: game.pctPositive * 100,
-    meta: `${enFull.format(game.totalReviews)} reviews · all time`,
-  };
-}
-
-const QUOTE_MAX_CHARS = 420;
-
-// La review la plus utile d'un jeu fait parfois plusieurs milliers de
-// caractères : on coupe côté serveur pour ne pas embarquer le roman entier
-// dans le flux RSC, `line-clamp` fait le reste à l'écran. La coupe tombe sur
-// une espace, et on jette un éventuel `[spoiler` resté ouvert pour ne pas
-// afficher un bout de balise BBCode.
-function excerpt(text: string): string {
-  const clean = text.trim();
-  if (clean.length <= QUOTE_MAX_CHARS) return clean;
-
-  const cut = clean.slice(0, QUOTE_MAX_CHARS);
-  const lastSpace = cut.lastIndexOf(" ");
-  const trimmed = lastSpace > 0 ? cut.slice(0, lastSpace) : cut;
-  return `${trimmed.replace(/\[[^\]]*$/, "").trimEnd()}…`;
-}
-
-// La citation est en anglais, comme le reste du site : sans filtre, la
-// meilleure review d'un jeu est souvent chinoise ou russe, et le héros
-// afficherait un paragraphe que son lecteur ne peut pas lire. Un jeu sans
-// review anglaise retenue par le mart passe donc sans citation, plutôt
-// qu'avec une citation illisible.
-//
-// TODO(data) : ce devrait être la review la plus utile *de la semaine*.
-// `marts.review_highlight` ne porte aucune date, donc on prend pour l'instant
-// la meilleure review positive du gagnant, toutes périodes confondues. Voir
-// `docs/home-data.md` (modèle `review_of_the_week`).
-//
-// Le gagnant ne change qu'avec le podium, lui-même caché : la citation se
-// cache donc sous son `appId`, sans quoi elle serait la seule lecture SQL que
-// chaque visiteur paierait.
 // L'illustration panoramique n'est qu'un HEAD vers le CDN de Steam, mais elle
 // ne change jamais pour un `appId` donné : la cacher comme le reste évite de
-// tâter Steam à chaque visite, et de retarder la home quand il traîne.
+// tâter Steam à chaque visite, et de retarder la home quand il traîne. Une
+// par diapositive, en parallèle : chacune a son propre délai d'abandon.
 async function heroArt(appId: number): Promise<string | null> {
   return cached(`home-hero-art-${appId}`, () => resolveSteamHeroArt(appId))();
 }
 
-async function heroQuote(appId: number): Promise<string | undefined> {
-  const reviews = await cached(`home-quote-en-${appId}`, () =>
-    getGameTopReviews(appId, { language: "english", perSide: 1 }),
-  )();
-  const positive = reviews.find((review) => review.votedUp);
-  return positive ? excerpt(positive.reviewText) : undefined;
+// La citation est en anglais, comme le reste du site : sans filtre, la
+// meilleure review d'un jeu est souvent chinoise ou russe, et le carrousel
+// afficherait un paragraphe que son lecteur ne peut pas lire. Un jeu sans
+// review anglaise retenue par le mart passe donc sans citation, plutôt
+// qu'avec une citation illisible.
+//
+// On veut la meilleure review positive *écrite pendant la fenêtre* du
+// podium. Il n'y en a pas toujours — le mart ne garde que les trente
+// meilleures par jeu et par langue, toutes périodes confondues — et tant que
+// `review_highlight.created_at` n'est pas remontée en base, la lecture
+// échoue : dans les deux cas, on retombe sur la meilleure de toujours.
+//
+// Le gagnant ne change qu'avec le podium, lui-même caché : la citation se
+// cache donc sous son `appId` et sa fenêtre, sans quoi elle serait la seule
+// lecture SQL que chaque visiteur paierait.
+async function heroQuote(appId: number, window: RankedWindow): Promise<string | undefined> {
+  const { startsOn, endsOn } = window;
+  if (startsOn && endsOn) {
+    const inWindow = await orEmpty(
+      "in-window quote",
+      cached(`home-quote-window-en-${appId}-${startsOn}-${endsOn}`, () =>
+        getGameTopReviewInWindow(appId, startsOn, endsOn, REVIEW_LANGUAGE),
+      ),
+      null,
+    );
+    if (inWindow) return inWindow.reviewText;
+  }
+
+  const reviews = await orEmpty(
+    "all-time quote",
+    cached(`home-quote-en-${appId}`, () => getGameTopReviews(appId, { language: REVIEW_LANGUAGE, perSide: 1 })),
+    [],
+  );
+  return reviews.find((review) => review.votedUp)?.reviewText;
+}
+
+async function withArt(slides: AwardSlide[]): Promise<AwardSlide[]> {
+  const arts = await Promise.all(slides.map((slide) => heroArt(slide.appId)));
+  return slides.map((slide, i) => ({ ...slide, art: arts[i] }));
 }
 
 export default async function HomePage() {
-  const [week, year, polarised, trend, stats, languages] = await Promise.all([
-    weekPodium(),
-    yearPodium(),
-    polarisedGames(),
-    catalogueTrend(),
-    siteStats(),
-    languageScores(),
-  ]);
+  const [week, movers, mostReviewed, reviews, year, hated, hiddenGem, polarised, trend, stats, languages] =
+    await Promise.all([
+      orEmpty("week podium", weekPodium, EMPTY_WINDOW),
+      orEmpty("week movers", weekMovers, { up: null, down: null }),
+      orEmpty("most reviewed", weekMostReviewed, EMPTY_WINDOW),
+      orEmpty("review highlights", monthReviewHighlights, { funny: [], helpful: [] }),
+      orEmpty("best of year", yearBest, EMPTY_WINDOW),
+      orEmpty("most hated", monthMostHated, EMPTY_WINDOW),
+      orEmpty("hidden gem", monthHiddenGem, EMPTY_WINDOW),
+      orEmpty("polarised", polarisedGames, []),
+      catalogueTrend(),
+      siteStats(),
+      languageScores(),
+    ]);
 
   // Une semaine creuse — pipeline en retard, ou seuil trop haut pour la
-  // période — ne doit pas laisser la home sans héros : on élargit alors à
-  // trente jours, et le kicker dit laquelle des deux fenêtres est affichée.
-  const podium = week.games.length > 0 ? week : await monthPodium();
+  // période — ne doit pas laisser la home sans lauréat : on élargit alors à
+  // trente jours, et la puce comme le kicker disent laquelle des deux
+  // fenêtres est affichée.
+  const podium = week.games.length > 0 ? week : await orEmpty("month podium", monthPodium, EMPTY_WINDOW);
   const isWeek = podium === week;
-
   const windowDays = isWeek ? 7 : 30;
-  const windowMinReviews = isWeek ? WEEK_MIN_REVIEWS : MONTH_MIN_REVIEWS;
 
-  const games = podium.games.map((game) => toPodium(game, `in the last ${windowDays} days`));
-  const winner = games[0];
-  const [quote, art] = winner
-    ? await Promise.all([heroQuote(winner.appId), heroArt(winner.appId)])
-    : [undefined, null];
-  if (winner) winner.quote = quote;
+  const winner = podium.games[0];
+  const quote = winner ? await heroQuote(winner.appId, podium) : undefined;
 
-  const yearLabel = year.endsOn?.slice(0, 4) ?? String(new Date().getUTCFullYear());
-
-  const lists: [ListBlock, ListBlock] = [
+  const awards = buildAwards(
     {
-      title: `Best of ${yearLabel}`,
-      unit: "year to date",
-      blurb: `Highest positive share among games with at least ${enFull.format(YEAR_MIN_REVIEWS)} reviews this year.`,
-      games: year.games.map((game) => toPodium(game, "this year")),
+      podium: {
+        window: podium,
+        days: windowDays,
+        minReviews: isWeek ? WEEK_MIN_REVIEWS : MONTH_MIN_REVIEWS,
+        quote,
+      },
+      movers,
+      mostReviewed,
+      reviews,
+      year,
+      hated,
+      hiddenGem,
+      polarised,
     },
-    {
-      title: "Nobody agrees",
-      unit: "most polarised",
-      blurb: "Games whose reviews split hardest — read both camps before you buy.",
-      games: polarised.map(toPolarisedPodium),
-    },
-  ];
+    THRESHOLDS,
+  );
 
   const data: HomeData = {
-    week: {
-      label: `best of last ${windowDays} days`,
-      range: formatReviewWindow(podium.startsOn, podium.endsOn),
-      hint:
-        `Highest share of positive reviews written in the last ${windowDays} days, among games with at least ` +
-        `${enFull.format(windowMinReviews)} reviews over that window. The window ends on the most recent day of ` +
-        `reviews we have loaded, not today.`,
-      art,
-      games,
-    },
-    lists,
+    awards: await withArt(awards),
+    // Les dauphins restent ceux du podium dont le n°1 ouvre le carrousel.
+    runnersUp: podium.games.slice(1).map((game) => toPodium(game, `in the last ${windowDays} days`)),
     sentiment: monthlySentiment(trend).map((point) => point.pctPositive),
     volume: dailyVolume(trend),
     totals: {

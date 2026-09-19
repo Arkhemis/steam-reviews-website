@@ -127,7 +127,8 @@ export type GameReviewLanguage = {
 /**
  * Fenêtre d'un podium de la home, toujours ancrée sur la dernière date
  * présente dans `marts.game_review_trend_daily` — jamais sur `CURRENT_DATE`,
- * que le pipeline peut avoir des jours de retard à rejoindre.
+ * que le pipeline peut avoir des jours de retard à rejoindre. Le mart
+ * `game_window_score` les nomme en snake_case (`year_to_date`).
  */
 export type ReviewWindow = "week" | "month" | "year-to-date";
 
@@ -139,7 +140,68 @@ export type WindowedGame = {
   reviews: number;
   /** Part d'avis positifs dans la fenêtre, de 0 à 1. */
   pctPositive: number;
+  /** Total que Steam déclare pour le jeu, toutes périodes confondues. */
+  totalReviews: number;
 };
+
+/**
+ * Ordre d'un classement de fenêtre : les mieux notés, les moins bien notés,
+ * ou les plus commentés quel que soit leur verdict.
+ */
+export type WindowRankingSort = "best" | "worst" | "most-reviewed";
+
+/**
+ * Un jeu dont la part positive a bougé d'une semaine sur l'autre : les sept
+ * derniers jours contre les sept d'avant, lus dans `game_window_score`.
+ */
+export type WindowMover = {
+  appId: number;
+  name: string;
+  coverUrl: string | null;
+  /** Avis reçus pendant la semaine en cours. */
+  reviews: number;
+  /** Part positive de la semaine en cours, de 0 à 1. */
+  pctPositive: number;
+  /** Part positive de la semaine précédente, de 0 à 1. */
+  previousPctPositive: number;
+  /** Écart entre les deux, en points (80 % → 62 % donne -18). */
+  deltaPts: number;
+  startsOn: string;
+  endsOn: string;
+};
+
+/** Le plus beau retour et la pire chute, `null` quand il n'y en a pas. */
+export type WindowMovers = {
+  up: WindowMover | null;
+  down: WindowMover | null;
+};
+
+/** Catégorie de `marts.review_window_highlight`. */
+export type ReviewHighlightCategory = "funny" | "helpful";
+
+/**
+ * Une review récente retenue par `marts.review_window_highlight` : la mieux
+ * classée de son jeu, puis classée parmi celles des autres jeux de la fenêtre.
+ */
+export type WindowReviewHighlight = {
+  rank: number;
+  recommendationId: number;
+  appId: number;
+  gameName: string;
+  coverUrl: string | null;
+  reviewText: string;
+  votedUp: boolean;
+  votesUp: number;
+  votesFunny: number;
+  authorPersonaname: string;
+  authorPlaytimeAtReviewMinutes: number;
+  createdAt: string;
+  startsOn: string;
+  endsOn: string;
+};
+
+/** Les classements d'une fenêtre, dans l'ordre des rangs (1 en tête). */
+export type WindowReviewHighlights = Record<ReviewHighlightCategory, WindowReviewHighlight[]>;
 
 export type RankedWindow = {
   /** `null` quand aucun jeu ne passe le seuil : la fenêtre reste inconnue. */

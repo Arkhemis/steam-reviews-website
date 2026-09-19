@@ -6,7 +6,8 @@ import { Skeleton, SkeletonLines } from "@/components/Skeleton";
 // `force-dynamic` : sans lui, le navigateur reste sur un document vide le
 // temps que Postgres réponde. Il doit réserver les mêmes boîtes que
 // `HomeEditorial`, sinon la page saute quand le flux RSC arrive — nav à fond
-// perdu comprise, puis héros, bandeau de pouls, podium et rubriques.
+// perdu comprise, puis carrousel et sa rangée de puces, bandeau de pouls,
+// podium et portes de sortie.
 
 const PODIUM_SIZE = 5;
 
@@ -20,23 +21,34 @@ function ScaleBandFallback() {
   );
 }
 
-function HeroFallback() {
+// Le bandeau d'une récompense, puis la rangée de puces qui le suit : les
+// intitulés des récompenses dépendent des données (l'année, le repli à trente
+// jours), on ne réserve donc que leur place.
+const CHIP_WIDTHS = ["w-32", "w-24", "w-24", "w-28", "w-32", "w-36"];
+
+function AwardsFallback() {
   return (
-    <div className="bg-[linear-gradient(115deg,#2a1206_0%,#0c1116_62%)] lg:flex lg:min-h-[440px] lg:items-center">
-      <div className="w-full px-6 py-9 sm:px-8 lg:max-w-[60%]">
-        <Skeleton className="h-3 w-56" />
-        <Skeleton className="mt-3 h-[44px] w-full max-w-[520px] sm:h-12 lg:h-[58px]" />
-        <div className="mt-4 flex items-baseline gap-[18px]">
-          <Skeleton className="h-[44px] w-32" />
-          <Skeleton className="h-3 w-40" />
+    <div className="bg-[linear-gradient(115deg,#2a1206_0%,#0c1116_62%)]">
+      <div className="mx-auto flex max-w-[1320px] items-center px-6 pt-12 pb-8 sm:px-8 lg:min-h-[460px] lg:pt-16">
+        <div className="w-full lg:max-w-[52%]">
+          <Skeleton className="h-3 w-56" />
+          <Skeleton className="mt-3 h-[44px] w-full max-w-[520px] sm:h-12 lg:h-[58px]" />
+          <div className="mt-4 flex items-baseline gap-[18px]">
+            <Skeleton className="h-[44px] w-32" />
+            <Skeleton className="h-3 w-40" />
+          </div>
+          <div className="mt-[18px] max-w-[46ch] border-l-[3px] border-[#1e2b36] pl-4">
+            <SkeletonLines widths={["100%", "96%", "88%"]} />
+          </div>
+          <div className="mt-6 flex flex-wrap gap-2.5">
+            <Skeleton className="h-[42px] w-40 rounded-full" />
+          </div>
         </div>
-        <div className="mt-[18px] max-w-[52ch] border-l-[3px] border-[#1e2b36] pl-4">
-          <SkeletonLines widths={["100%", "96%", "88%"]} />
-        </div>
-        <div className="mt-6 flex flex-wrap gap-2.5">
-          <Skeleton className="h-[42px] w-40 rounded-full" />
-          <Skeleton className="h-[42px] w-44 rounded-full" />
-        </div>
+      </div>
+      <div className="mx-auto flex max-w-[1320px] gap-2 overflow-hidden px-6 pb-6 sm:px-8">
+        {CHIP_WIDTHS.map((width, i) => (
+          <Skeleton key={i} className={`h-[29px] shrink-0 rounded-full ${width}`} />
+        ))}
       </div>
     </div>
   );
@@ -83,44 +95,6 @@ function RunnersUpFallback() {
   );
 }
 
-function ListsFallback() {
-  return (
-    <div className="border-t border-[#1a2530] px-6 py-8 sm:px-8">
-      <div className="mx-auto max-w-[1320px]">
-        <SectionHead title="Two more questions" note="best of the year · and the games nobody agrees on" />
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-          {[0, 1].map((column) => (
-            <div key={column}>
-              <div className="flex items-baseline justify-between gap-2.5 border-b border-[#24333f] pb-2.5">
-                <Skeleton className="h-6 w-44" />
-                <Skeleton className="h-2.5 w-24" />
-              </div>
-              <div className="mt-2.5 mb-4 max-w-[46ch]">
-                <SkeletonLines widths={["100%", "72%"]} />
-              </div>
-              <div className="grid grid-cols-[120px_minmax(0,1fr)] gap-[18px]">
-                <Skeleton className="aspect-[2/3] w-[120px] rounded-[4px]" />
-                <div>
-                  <Skeleton className="h-2.5 w-6" />
-                  <Skeleton className="mt-2 h-6 w-full max-w-[220px]" />
-                  <Skeleton className="mt-2.5 h-7 w-20" />
-                </div>
-              </div>
-              <div className="mt-4">
-                {Array.from({ length: PODIUM_SIZE - 1 }, (_, i) => (
-                  <div key={i} className="border-t border-[#16202a] py-2.5">
-                    <Skeleton className="h-4 w-full" />
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function DigDeeperFallback() {
   return (
     <div className="border-t border-[#1a2530] bg-[#0e141a] px-6 py-8 sm:px-8">
@@ -148,10 +122,9 @@ export function HomeSkeleton() {
     <div className="min-h-screen bg-[#0c1116] text-[#eef2f4]">
       <Nav variant="banded" />
       <ScaleBandFallback />
-      <HeroFallback />
+      <AwardsFallback />
       <PulseBandFallback />
       <RunnersUpFallback />
-      <ListsFallback />
       <DigDeeperFallback />
     </div>
   );

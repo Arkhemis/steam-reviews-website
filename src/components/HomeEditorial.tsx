@@ -1,13 +1,14 @@
 import Image from "next/image";
 import Link from "next/link";
-import { BBCodeText } from "@/components/BBCodeText";
-import { InfoHint } from "@/components/InfoHint";
+import { AwardsCarousel } from "@/components/AwardsCarousel";
 import { Nav } from "@/components/Nav";
+import type { AwardSlide } from "@/lib/homeAwards";
 
-// Home éditoriale : le meilleur jeu de la semaine EST le héros, les classements
-// sont des podiums (un n°1 développé, les suivants en rangs), et il n'y a plus
-// ni tableau ni numéro de section. Le composant ne fait que rendre : toutes les
-// requêtes vivent dans `page.tsx`, qui lui passe des chaînes déjà formatées.
+// Home éditoriale : un carrousel de récompenses tient lieu de héros — le
+// meilleur jeu de la semaine en tête —, les dauphins suivent en rangs, et il
+// n'y a ni tableau ni numéro de section. Le composant ne fait que rendre :
+// toutes les requêtes vivent dans `page.tsx`, qui lui passe des chaînes déjà
+// formatées.
 
 const enCompact = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
 const enFull = new Intl.NumberFormat("en-US");
@@ -20,30 +21,13 @@ export type PodiumGame = {
   pct: number;
   /** Ligne de contexte déjà rédigée, e.g. « 12,043 reviews this week ». */
   meta: string;
-  /** Texte d'avis brut, BBCode Steam compris. */
-  quote?: string;
-};
-
-export type ListBlock = {
-  title: string;
-  unit: string;
-  blurb: string;
-  games: PodiumGame[]; // [0] = winner
 };
 
 export type HomeData = {
-  week: {
-    /** Kicker du héros, e.g. « best of last 7 days ». */
-    label: string;
-    /** Dates de la fenêtre, `null` quand le podium est vide. */
-    range: string | null;
-    /** Méthode du classement, en une phrase, pour la bulle du kicker. */
-    hint: string;
-    /** Illustration panoramique du gagnant, `null` quand Steam n'en a pas. */
-    art: string | null;
-    games: PodiumGame[]; // [0] = winner, puis les dauphins
-  };
-  lists: [ListBlock, ListBlock];
+  /** Les récompenses du carrousel, dans l'ordre, celles sans lauréat en moins. */
+  awards: AwardSlide[];
+  /** Places 2 à 5 du podium dont le n°1 ouvre le carrousel. */
+  runnersUp: PodiumGame[];
   sentiment: number[]; // 12 points, part d'avis positifs (0..1)
   volume: number[]; // 31 points, volume d'avis / jour
   /** `reviews` : avis chargés en base, pas le total déclaré par Steam. */
@@ -86,109 +70,9 @@ function Cover({ game, sizes, radius = "rounded-[3px]" }: { game: PodiumGame; si
   );
 }
 
-// La jaquette du mart est servie en `t_cover_big` (264 x 374) : juste assez
-// pour une vignette, trop peu pour couvrir le bandeau du héros quand Steam n'a
-// pas d'illustration. IGDB rend la même image en retina quand on suffixe la
-// taille ; une URL d'une autre forme passe telle quelle.
-function retinaCover(url: string): string {
-  return url.replace("/t_cover_big/", "/t_cover_big_2x/");
-}
-
-function Hero({
-  winner,
-  art,
-  label,
-  range,
-  hint,
-}: {
-  winner: PodiumGame;
-  art: string | null;
-  label: string;
-  range: string | null;
-  hint: string;
-}) {
-  // L'illustration Steam fait 1920 x 620, soit presque exactement le rapport
-  // du bandeau : elle le couvre en entier, nette et sans recadrage notable.
-  // La jaquette ne la remplace pas — 2:3 étirée sur un bandeau trois fois plus
-  // large que haut, il n'en resterait qu'une bande centrale sans motif — elle
-  // sert de repli flouté, pour la couleur seulement.
-  const backdrop = art ?? (winner.coverUrl && retinaCover(winner.coverUrl));
-
-  return (
-    <div className="relative overflow-hidden bg-brand-bg lg:min-h-[460px]">
-      {backdrop && (
-        <div aria-hidden className="pointer-events-none absolute inset-0">
-          <Image
-            src={backdrop}
-            alt=""
-            fill
-            sizes="100vw"
-            priority
-            className={
-              art
-                ? "object-cover object-[70%_center]"
-                : "scale-125 object-cover object-center opacity-45 blur-3xl"
-            }
-          />
-          {/* Fondu horizontal, à partir de `lg` : le texte repose sur un aplat
-              opaque, l'illustration se découvre entièrement sur le flanc droit.
-              Les arrêts sont serrés à gauche pour que la colonne de texte ne
-              mange pas le sujet, qui est au centre de l'image. */}
-          <span className="absolute inset-0 hidden bg-[linear-gradient(90deg,#0c1116_0%,#0c1116_28%,rgba(12,17,22,0.9)_46%,rgba(12,17,22,0.5)_64%,rgba(12,17,22,0.1)_80%,transparent_92%)] lg:block" />
-          {/* En colonne, le texte passe sur toute la largeur : le fondu devient
-              vertical, sinon il n'y a plus un pixel de fond lisible. */}
-          <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(12,17,22,0.55)_0%,rgba(12,17,22,0.9)_46%,#0c1116_88%)] lg:hidden" />
-          {/* Le bas se referme sur le fond de page, sans couture avec le
-              bandeau de pouls qui suit immédiatement. */}
-          <span className="absolute inset-x-0 bottom-0 h-20 bg-[linear-gradient(180deg,transparent_0%,#0c1116_100%)]" />
-        </div>
-      )}
-      <div className="relative mx-auto flex max-w-[1320px] items-center px-6 py-12 sm:px-8 lg:min-h-[460px] lg:py-16">
-        <div className="w-full min-w-0 lg:max-w-[52%]">
-          {/* Le kicker annonce la fenêtre ; la bulle dit comment on y classe,
-              parce que « best of » ne trahit ni le seuil de volume ni le fait
-              que le palmarès ne juge que les avis écrits dans la fenêtre. */}
-          <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] tracking-[0.16em] text-brand-blue uppercase">
-            <span>{range ? `${label} · ${range}` : label}</span>
-            <InfoHint text={hint} />
-          </div>
-          <h1 className="mt-3 mb-0 max-w-[16ch] text-4xl leading-[0.95] font-extrabold tracking-tight text-balance drop-shadow-[0_2px_24px_rgba(12,17,22,0.9)] sm:text-5xl lg:text-[58px]">
-            {winner.name}
-          </h1>
-          <div className="mt-4 flex items-baseline gap-[18px] font-mono">
-            <span className="text-[44px] leading-none" style={{ color: verdictColor(winner.pct) }}>
-              {Math.round(winner.pct)}%
-            </span>
-            <span className="text-xs text-[#9fb2bd]">{winner.meta}</span>
-          </div>
-          {winner.quote && (
-            <blockquote className="mt-[18px] line-clamp-4 max-w-[46ch] border-l-[3px] border-brand-blue pl-4 text-[19px] leading-relaxed text-[#dfe7eb]">
-              <BBCodeText text={winner.quote} />
-            </blockquote>
-          )}
-          <div className="mt-6 flex flex-wrap gap-2.5">
-            <Link
-              href={`/games/${winner.appId}`}
-              className="rounded-full bg-brand-blue px-[18px] py-2.5 text-sm font-bold text-[#0c1116]"
-            >
-              Read the reviews
-            </Link>
-            <Link
-              href="/charts"
-              className="rounded-full border border-[#24333f] bg-[#0c1116]/60 px-[18px] py-2.5 text-sm font-semibold text-[#cfdae1] backdrop-blur-sm"
-            >
-              See the full podium
-            </Link>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // La taille du corpus, annoncée avant tout le reste : c'est le premier
 // argument du site, et il n'apparaissait qu'en pied de page, dans une note de
-// section. Une seule ligne, à fond perdu, entre la nav et le héros.
+// section. Une seule ligne, à fond perdu, entre la nav et le carrousel.
 //
 // Le compteur dit « collected » parce qu'il compte les avis réellement en
 // base (cf. `getSiteStats`), pas ceux que Steam déclare pour les mêmes jeux.
@@ -290,49 +174,6 @@ function RunnerUp({ game, rank }: { game: PodiumGame; rank: number }) {
   );
 }
 
-// Un podium en colonne façon rubrique : le n°1 développé, le reste en rangs.
-function ListColumn({ list }: { list: ListBlock }) {
-  const [winner, ...rest] = list.games;
-
-  return (
-    <div>
-      <div className="flex items-baseline justify-between gap-2.5 border-b border-[#24333f] pb-2.5">
-        <h3 className="m-0 text-xl font-bold tracking-tight">{list.title}</h3>
-        <span className="font-mono text-[10px] tracking-[0.1em] text-[#5f7481] uppercase">{list.unit}</span>
-      </div>
-      <p className="mt-2.5 mb-4 max-w-[46ch] text-sm leading-normal text-[#9fb2bd]">{list.blurb}</p>
-      {winner && (
-        <Link href={`/games/${winner.appId}`} className="grid grid-cols-[120px_minmax(0,1fr)] gap-[18px]">
-          <Cover game={winner} sizes="120px" radius="rounded-[4px]" />
-          <span className="min-w-0">
-            <span className="block font-mono text-[10px] tracking-[0.12em] text-brand-blue uppercase">01</span>
-            <span className="mt-[5px] block text-2xl leading-tight font-extrabold tracking-tight">{winner.name}</span>
-            <span className="mt-2 block font-mono text-[28px]" style={{ color: verdictColor(winner.pct) }}>
-              {Math.round(winner.pct)}%
-            </span>
-            <span className="mt-2 block font-mono text-[10px] text-[#7d919c]">{winner.meta}</span>
-          </span>
-        </Link>
-      )}
-      <div className="mt-4">
-        {rest.map((game, i) => (
-          <Link
-            key={game.appId}
-            href={`/games/${game.appId}`}
-            className="grid grid-cols-[20px_minmax(0,1fr)_52px] items-center gap-3 border-t border-[#16202a] py-2.5"
-          >
-            <span className="font-mono text-[10px] text-[#5f7481]">{String(i + 2).padStart(2, "0")}</span>
-            <span className="truncate text-[15px] font-semibold">{game.name}</span>
-            <span className="text-right font-mono text-sm" style={{ color: verdictColor(game.pct) }}>
-              {Math.round(game.pct)}%
-            </span>
-          </Link>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 /** Une porte de sortie : un outil du site, et le chiffre qui donne envie de l'ouvrir. */
 export type Door = {
   kicker: string;
@@ -403,22 +244,14 @@ function homeDoors(totals: HomeData["totals"]): Door[] {
 }
 
 export function HomeEditorial({ data }: { data: HomeData }) {
-  const [winner, ...runnersUp] = data.week.games;
+  const { runnersUp } = data;
 
   return (
     <div className="min-h-screen bg-[#0c1116] text-[#eef2f4]">
       <Nav variant="banded" searchPlaceholder={`Search ${enFull.format(data.totals.games)} games…`} />
       <ScaleBand totals={data.totals} />
 
-      {winner && (
-        <Hero
-          winner={winner}
-          art={data.week.art}
-          label={data.week.label}
-          range={data.week.range}
-          hint={data.week.hint}
-        />
-      )}
+      <AwardsCarousel slides={data.awards} />
       <PulseBand sentiment={data.sentiment} volume={data.volume} totals={data.totals} />
 
       {runnersUp.length > 0 && (
@@ -441,17 +274,6 @@ export function HomeEditorial({ data }: { data: HomeData }) {
           </div>
         </div>
       )}
-
-      <div className="border-t border-[#1a2530] px-6 py-8 sm:px-8">
-        <div className="mx-auto max-w-[1320px]">
-          <SectionHead title="Two more questions" note={`${data.lists[0].title.toLowerCase()} · and the games nobody agrees on`} />
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-            {data.lists.map((list) => (
-              <ListColumn key={list.title} list={list} />
-            ))}
-          </div>
-        </div>
-      </div>
 
       <DigDeeper
         note={`three ways into the same ${enCompact.format(data.totals.reviews)} reviews`}

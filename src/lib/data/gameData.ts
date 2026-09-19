@@ -18,6 +18,11 @@ import type {
   SiteStats,
   TrendingGame,
   TrendingGames,
+  WindowMover,
+  WindowMovers,
+  WindowRankingSort,
+  WindowReviewHighlight,
+  WindowReviewHighlights,
 } from "@/lib/data/types";
 
 const GAME_STATS_COLUMNS = `
@@ -670,20 +675,30 @@ export async function getGameTopReviews(
 
 // --- Home éditoriale -------------------------------------------------------
 //
-// Les trois requêtes ci-dessous n'alimentent que la home : un podium sur une
-// fenêtre glissante, le pouls du catalogue, et les jeux qui divisent. Toutes
-// lisent des marts existants ; voir `docs/home-data.md` pour les modèles qui
-// manquent encore en amont et ce qu'ils feraient gagner.
+// Les requêtes ci-dessous n'alimentent que la home : les classements de
+// fenêtre et les reviews récentes du carrousel de récompenses, le pouls du
+// catalogue, et les jeux qui divisent. Voir `docs/home-data.md` pour le mart
+// que lit chaque bloc et l'ordre de déploiement qu'ils imposent.
 
-// Chaque fenêtre est ancrée sur la dernière date du mart, jamais sur
-// `CURRENT_DATE` : le pipeline peut avoir plusieurs jours de retard, et une
-// fenêtre calée sur « aujourd'hui » renverrait alors un podium vide.
+// Les classements de fenêtre lisent `marts.game_window_score`, qui porte déjà
+// une ligne par (fenêtre, jeu) : plus besoin de réagréger le mart quotidien à
+// chaque expiration de cache. Les fenêtres y sont ancrées sur la dernière date
+// ingérée, jamais sur `CURRENT_DATE` — le pipeline peut avoir des jours de
+// retard, et un ancrage sur « aujourd'hui » rendrait un podium vide.
+//
 // Valeurs internes, jamais dérivées d'une entrée utilisateur : leur
-// interpolation dans le SQL est sûre.
-const WINDOW_STARTS_ON: Record<ReviewWindow, string> = {
-  week: "(b.latest - INTERVAL '6 days')::date",
-  month: "(b.latest - INTERVAL '29 days')::date",
-  "year-to-date": "DATE_TRUNC('year', b.latest)::date",
+// interpolation dans le SQL est sûre. Le site écrit `year-to-date`, le mart
+// `year_to_date`.
+const WINDOW_NAME: Record<ReviewWindow, string> = {
+  week: "week",
+  month: "month",
+  "year-to-date": "year_to_date",
+};
+
+const WINDOW_ORDER: Record<WindowRankingSort, string> = {
+  best: "s.pct_positive DESC, s.total_reviews DESC, s.app_id",
+  worst: "s.pct_positive ASC, s.total_reviews DESC, s.app_id",
+  "most-reviewed": "s.total_reviews DESC, s.app_id",
 };
 
 type RankedWindowRow = {
@@ -692,14 +707,53 @@ type RankedWindowRow = {
   cover_url: string | null;
   reviews: string;
   pct_positive: string;
+  total_reviews: string;
   starts_on: string;
   ends_on: string;
 };
 
+export type WindowRankingOptions = {
+  limit: number;
+  /** Plancher de volume *dans la fenêtre*. */
+  minReviews: number;
+  /**
+   * Plafond sur le total que Steam déclare, toutes périodes confondues : la
+   * « pépite cachée » doit être un jeu confidentiel, pas un succès en forme.
+   */
+  maxTotalReviews?: number;
+};
+
+export function windowRankingQuery(
+  window: ReviewWindow,
+  sort: WindowRankingSort,
+  { limit, minReviews, maxTotalReviews }: WindowRankingOptions,
+): { text: string; values: unknown[] } {
+  return {
+    text: `SELECT
+       s.app_id,
+       g.game_name,
+       g.cover_url,
+       s.total_reviews AS reviews,
+       s.pct_positive,
+       g.total_reviews,
+       TO_CHAR(s.starts_on, 'YYYY-MM-DD') AS starts_on,
+       TO_CHAR(s.ends_on, 'YYYY-MM-DD') AS ends_on
+     FROM marts.game_window_score s
+     JOIN marts.game_stats g ON g.steam_app_id = s.app_id
+     WHERE s.window_name = $1
+       AND s.total_reviews >= $3
+       AND ($4::bigint IS NULL OR g.total_reviews < $4)
+       AND g.cover_url IS NOT NULL
+     ORDER BY ${WINDOW_ORDER[sort]}
+     LIMIT $2`,
+    values: [WINDOW_NAME[window], limit, minReviews, maxTotalReviews ?? null],
+  };
+}
+
 /**
- * Le meilleur de la fenêtre : les jeux dont les avis *reçus pendant la
- * fenêtre* sont les plus positifs. Rien à voir avec `getRankedGames`, qui
- * classe sur le score cumulé depuis la sortie du jeu.
+ * Un classement sur une fenêtre glissante : les jeux jugés sur les seuls avis
+ * *reçus pendant la fenêtre*. Rien à voir avec `getRankedGames`, qui classe sur
+ * le score cumulé depuis la sortie du jeu.
  *
  * `minReviews` est le garde-fou habituel : sur sept jours, une poignée d'avis
  * suffirait sinon à sacrer un jeu confidentiel à 100 %.
@@ -708,44 +762,13 @@ type RankedWindowRow = {
  * fenêtre courte fait remonter des titres qu'IGDB ne couvre pas encore — le
  * héros et les tuiles du podium se retrouvaient alors sur un cadre vide.
  */
-export async function getTopRatedGamesInWindow(
+export async function getWindowRanking(
   window: ReviewWindow,
-  limit: number,
-  minReviews: number,
+  sort: WindowRankingSort,
+  options: WindowRankingOptions,
 ): Promise<RankedWindow> {
-  const { rows } = await pool.query<RankedWindowRow>(
-    `WITH bounds AS (
-       SELECT MAX(review_date) AS latest FROM marts.game_review_trend_daily
-     ),
-     win AS (
-       SELECT ${WINDOW_STARTS_ON[window]} AS starts_on, b.latest AS ends_on FROM bounds b
-     ),
-     scored AS (
-       SELECT
-         t.app_id,
-         SUM(t.total_reviews) AS reviews,
-         SUM(t.total_positive) AS positive
-       FROM marts.game_review_trend_daily t, win w
-       WHERE t.review_date BETWEEN w.starts_on AND w.ends_on
-       GROUP BY t.app_id
-       HAVING SUM(t.total_reviews) >= $2
-     )
-     SELECT
-       s.app_id,
-       g.game_name,
-       g.cover_url,
-       s.reviews,
-       ROUND(s.positive::numeric / NULLIF(s.reviews, 0) * 100, 1) AS pct_positive,
-       TO_CHAR(w.starts_on, 'YYYY-MM-DD') AS starts_on,
-       TO_CHAR(w.ends_on, 'YYYY-MM-DD') AS ends_on
-     FROM scored s
-     JOIN marts.game_stats g ON g.steam_app_id = s.app_id
-     CROSS JOIN win w
-     WHERE g.cover_url IS NOT NULL
-     ORDER BY pct_positive DESC, s.reviews DESC, s.app_id
-     LIMIT $1`,
-    [limit, minReviews],
-  );
+  const query = windowRankingQuery(window, sort, options);
+  const { rows } = await pool.query<RankedWindowRow>(query.text, query.values);
 
   return {
     startsOn: rows[0]?.starts_on ?? null,
@@ -755,9 +778,222 @@ export async function getTopRatedGamesInWindow(
       name: row.game_name,
       coverUrl: row.cover_url,
       reviews: Number(row.reviews),
-      pctPositive: Number(row.pct_positive) / 100,
+      pctPositive: Number(row.pct_positive),
+      totalReviews: Number(row.total_reviews),
     })),
   };
+}
+
+/** Le meilleur de la fenêtre : le podium de la home, et « Best of <année> ». */
+export async function getTopRatedGamesInWindow(
+  window: ReviewWindow,
+  limit: number,
+  minReviews: number,
+): Promise<RankedWindow> {
+  return getWindowRanking(window, "best", { limit, minReviews });
+}
+
+type WindowMoverRow = {
+  app_id: string;
+  game_name: string;
+  cover_url: string | null;
+  reviews: string;
+  pct_positive: string;
+  previous_pct_positive: string;
+  delta_pts: string;
+  starts_on: string;
+  ends_on: string;
+  direction: "up" | "down";
+};
+
+// La semaine contre la semaine d'avant, toutes deux pré-agrégées par le mart :
+// une jointure sur `app_id`, sans rien réagréger. Les deux bouts du classement
+// reviennent d'un coup, et chacun ne garde que les écarts du bon signe — une
+// semaine où rien ne remonte n'a pas de « comeback » à montrer.
+export function windowMoversQuery(minReviews: number): { text: string; values: unknown[] } {
+  return {
+    text: `WITH deltas AS (
+       SELECT
+         w.app_id,
+         g.game_name,
+         g.cover_url,
+         w.total_reviews AS reviews,
+         w.pct_positive,
+         p.pct_positive AS previous_pct_positive,
+         ROUND((w.pct_positive - p.pct_positive) * 100, 2) AS delta_pts,
+         TO_CHAR(w.starts_on, 'YYYY-MM-DD') AS starts_on,
+         TO_CHAR(w.ends_on, 'YYYY-MM-DD') AS ends_on
+       FROM marts.game_window_score w
+       JOIN marts.game_window_score p ON p.app_id = w.app_id AND p.window_name = 'previous_week'
+       JOIN marts.game_stats g ON g.steam_app_id = w.app_id
+       WHERE w.window_name = 'week'
+         AND w.total_reviews >= $1
+         AND p.total_reviews >= $1
+         AND g.cover_url IS NOT NULL
+     )
+     (SELECT *, 'up' AS direction FROM deltas WHERE delta_pts > 0
+      ORDER BY delta_pts DESC, reviews DESC, app_id LIMIT 1)
+     UNION ALL
+     (SELECT *, 'down' AS direction FROM deltas WHERE delta_pts < 0
+      ORDER BY delta_pts ASC, reviews DESC, app_id LIMIT 1)`,
+    values: [minReviews],
+  };
+}
+
+/**
+ * Le plus beau retour en grâce et la pire chute de la semaine, en points de
+ * part positive. `minReviews` est exigé des deux côtés : un écart tiré de dix
+ * avis la semaine d'avant ne dirait rien du jeu.
+ */
+export async function getWindowMovers(minReviews: number): Promise<WindowMovers> {
+  const query = windowMoversQuery(minReviews);
+  const { rows } = await pool.query<WindowMoverRow>(query.text, query.values);
+
+  const toMover = (row: WindowMoverRow | undefined): WindowMover | null =>
+    row
+      ? {
+          appId: Number(row.app_id),
+          name: row.game_name,
+          coverUrl: row.cover_url,
+          reviews: Number(row.reviews),
+          pctPositive: Number(row.pct_positive),
+          previousPctPositive: Number(row.previous_pct_positive),
+          deltaPts: Number(row.delta_pts),
+          startsOn: row.starts_on,
+          endsOn: row.ends_on,
+        }
+      : null;
+
+  return {
+    up: toMover(rows.find((row) => row.direction === "up")),
+    down: toMover(rows.find((row) => row.direction === "down")),
+  };
+}
+
+type WindowReviewHighlightRow = {
+  category: "funny" | "helpful";
+  rank: number;
+  recommendation_id: string;
+  app_id: string;
+  game_name: string;
+  cover_url: string | null;
+  review_text: string;
+  voted_up: boolean;
+  votes_up: string;
+  votes_funny: string;
+  author_personaname: string;
+  author_playtime_at_review_minutes: string;
+  created_at: Date;
+  starts_on: string;
+  ends_on: string;
+};
+
+export function windowReviewHighlightsQuery(
+  window: "week" | "month",
+  language: string,
+): { text: string; values: unknown[] } {
+  return {
+    text: `SELECT
+       h.category,
+       h.rank,
+       h.recommendation_id,
+       h.app_id,
+       g.game_name,
+       g.cover_url,
+       h.review_text,
+       h.voted_up,
+       h.votes_up,
+       h.votes_funny,
+       h.author_personaname,
+       h.author_playtime_at_review_minutes,
+       h.created_at,
+       TO_CHAR(h.starts_on, 'YYYY-MM-DD') AS starts_on,
+       TO_CHAR(h.ends_on, 'YYYY-MM-DD') AS ends_on
+     FROM marts.review_window_highlight h
+     JOIN marts.game_stats g ON g.steam_app_id = h.app_id
+     WHERE h.window_name = $1 AND h.language = $2
+     ORDER BY h.category, h.rank`,
+    values: [window, language],
+  };
+}
+
+/**
+ * Les reviews récentes les plus drôles et les plus utiles d'une fenêtre, rangs
+ * 1 à 5 de chaque catégorie. La home n'en montre qu'une par catégorie, mais
+ * une même review peut gagner les deux : c'est l'appelant qui choisit, et il
+ * lui faut les rangs suivants pour ne pas la montrer deux fois.
+ *
+ * Le mart ne garde déjà qu'une review par jeu et par classement ; il porte le
+ * texte, donc on filtre sur l'index (window_name, category, language, rank).
+ */
+export async function getWindowReviewHighlights(
+  window: "week" | "month",
+  language = "english",
+): Promise<WindowReviewHighlights> {
+  const query = windowReviewHighlightsQuery(window, language);
+  const { rows } = await pool.query<WindowReviewHighlightRow>(query.text, query.values);
+
+  const toHighlight = (row: WindowReviewHighlightRow): WindowReviewHighlight => ({
+    rank: Number(row.rank),
+    recommendationId: Number(row.recommendation_id),
+    appId: Number(row.app_id),
+    gameName: row.game_name,
+    coverUrl: row.cover_url,
+    reviewText: row.review_text,
+    votedUp: row.voted_up,
+    votesUp: Number(row.votes_up),
+    votesFunny: Number(row.votes_funny),
+    authorPersonaname: row.author_personaname,
+    authorPlaytimeAtReviewMinutes: Number(row.author_playtime_at_review_minutes),
+    createdAt: (row.created_at as Date).toISOString(),
+    startsOn: row.starts_on,
+    endsOn: row.ends_on,
+  });
+
+  return {
+    funny: rows.filter((row) => row.category === "funny").map(toHighlight),
+    helpful: rows.filter((row) => row.category === "helpful").map(toHighlight),
+  };
+}
+
+export function gameTopReviewInWindowQuery(
+  appId: number,
+  startsOn: string,
+  endsOn: string,
+  language: string,
+): { text: string; values: unknown[] } {
+  return {
+    text: `SELECT ${REVIEW_HIGHLIGHT_COLUMNS}
+     FROM marts.review_highlight rh
+     WHERE rh.app_id = $1
+       AND rh.language = $4
+       AND rh.voted_up
+       AND rh.created_at::date BETWEEN $2::date AND $3::date
+     ORDER BY rh.rank_in_game, rh.weighted_vote_score DESC, rh.recommendation_id
+     LIMIT 1`,
+    values: [appId, startsOn, endsOn, language],
+  };
+}
+
+/**
+ * La meilleure review positive d'un jeu *écrite pendant la fenêtre*, ou `null`
+ * quand le mart n'en a retenu aucune de cette période — l'appelant retombe
+ * alors sur la meilleure toutes périodes confondues.
+ *
+ * Lit `review_highlight.created_at` : tant que la colonne n'est pas remontée
+ * en base, la requête échoue, et c'est à l'appelant de s'en remettre.
+ */
+export async function getGameTopReviewInWindow(
+  appId: number,
+  startsOn: string,
+  endsOn: string,
+  language = "english",
+): Promise<GameTopReview | null> {
+  const query = gameTopReviewInWindowQuery(appId, startsOn, endsOn, language);
+  const { rows } = await pool.query<TopReviewRow>(query.text, query.values);
+
+  const row = rows[0];
+  return row ? mapTopReviewRow(row) : null;
 }
 
 /**
