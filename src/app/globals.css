@@ -60,3 +60,15 @@ body {
 .animate-chad-blink {
   animation: chad-blink 10s ease-in-out infinite;
 }
+
+/* La barre de progression de la puce active du carrousel de la home. Elle
+   se remplit en `transform` plutôt qu'en `width` : pas de relayout à chaque
+   image, et `animation-play-state` la gèle pendant les pauses. */
+@keyframes award-progress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}

@@ -1,6 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { HomeEditorial, type HomeData, type PodiumGame } from "@/components/HomeEditorial";
+import type { AwardSlide } from "@/lib/homeAwards";
 
 // La nav embarque la recherche typeahead, un client component qui appelle
 // `useRouter` : rendue hors App Router, elle a besoin d'un routeur simulé.
@@ -8,37 +9,37 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
 
-function game(appId: number, name: string, pct: number, extra: Partial<PodiumGame> = {}): PodiumGame {
-  return { appId, name, coverUrl: null, pct, meta: `${appId} reviews in the last 7 days`, ...extra };
+function game(appId: number, name: string, pct: number): PodiumGame {
+  return { appId, name, coverUrl: null, pct, meta: `${appId} reviews in the last 7 days` };
+}
+
+function award(id: AwardSlide["id"], appId: number, name: string, extra: Partial<AwardSlide> = {}): AwardSlide {
+  return {
+    id,
+    chip: name,
+    label: "best of last 7 days",
+    range: "07 Sep – 13 Sep",
+    hint: "Highest share of positive reviews written in the last 7 days, among games with at least 100 reviews.",
+    appId,
+    name,
+    coverUrl: null,
+    art: "https://cdn.cloudflare.steamstatic.com/steam/apps/1/library_hero.jpg",
+    figure: "96%",
+    figureColor: "var(--status-good)",
+    meta: "1,234 reviews in the last 7 days",
+    layout: "game",
+    ...extra,
+  };
 }
 
 function homeData(overrides: Partial<HomeData> = {}): HomeData {
   return {
-    week: {
-      label: "best of last 7 days",
-      range: "07 Sep – 13 Sep",
-      hint: "Highest share of positive reviews written in the last 7 days, among games with at least 100 reviews.",
-      art: "https://cdn.cloudflare.steamstatic.com/steam/apps/1/library_hero.jpg",
-      games: [
-        game(1, "Winner", 96, { quote: "Best [b]thing[/b] I played all year." }),
-        game(2, "Second", 88),
-        game(3, "Third", 71),
-      ],
-    },
-    lists: [
-      {
-        title: "Best of 2026",
-        unit: "year to date",
-        blurb: "Highest positive share this year.",
-        games: [game(10, "Year winner", 97), game(11, "Year second", 93)],
-      },
-      {
-        title: "Nobody agrees",
-        unit: "most polarised",
-        blurb: "Games whose reviews split hardest.",
-        games: [game(20, "Divisive", 50), game(21, "Also divisive", 51)],
-      },
+    awards: [
+      award("best-of-week", 1, "Winner", { chip: "Best of the week", quote: "Best [b]thing[/b] I played all year." }),
+      award("best-of-year", 10, "Year winner", { chip: "Best of 2026" }),
+      award("nobody-agrees", 20, "Divisive", { chip: "Nobody agrees", figure: "51%", range: null }),
     ],
+    runnersUp: [game(2, "Second", 88), game(3, "Third", 71)],
     sentiment: [0.8, 0.81, 0.83],
     volume: [10, 20, 30],
     totals: { reviews: 182_000_000, games: 4_300, languages: 29, weekReviews: 1_200_000, lists: 4 },
@@ -47,47 +48,26 @@ function homeData(overrides: Partial<HomeData> = {}): HomeData {
 }
 
 describe("HomeEditorial", () => {
-  it("fait du gagnant de la fenêtre le héros de la page", () => {
+  it("ouvre sur le carrousel, gagnant de la semaine en tête", () => {
     render(<HomeEditorial data={homeData()} />);
 
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Winner");
-    expect(screen.getByText("best of last 7 days · 07 Sep – 13 Sep")).toBeInTheDocument();
-    expect(screen.getByText("96%")).toBeInTheDocument();
+    const panel = screen.getByRole("tabpanel");
+    expect(within(panel).getByText("best of last 7 days · 07 Sep – 13 Sep")).toBeInTheDocument();
+    expect(within(panel).getByText("96%")).toBeInTheDocument();
   });
 
-  it("rend le BBCode de la citation plutôt que ses balises", () => {
-    const { container } = render(<HomeEditorial data={homeData()} />);
+  it("donne une puce à chaque récompense, dans l'ordre reçu", () => {
+    render(<HomeEditorial data={homeData()} />);
 
-    const quote = container.querySelector("blockquote");
-    expect(quote).toHaveTextContent("Best thing I played all year.");
-    expect(quote?.querySelector("strong")).toHaveTextContent("thing");
+    const tabs = within(screen.getByRole("tablist")).getAllByRole("tab");
+    expect(tabs.map((tab) => tab.textContent)).toEqual(["Best of the week", "Best of 2026", "Nobody agrees"]);
   });
 
-  it("couvre le héros de l'illustration panoramique du gagnant", () => {
-    const { container } = render(<HomeEditorial data={homeData()} />);
+  it("ne garde plus la rubrique « Two more questions », passée dans le carrousel", () => {
+    render(<HomeEditorial data={homeData()} />);
 
-    const art = container.querySelector('img[src*="library_hero.jpg"]');
-    expect(art).toBeInTheDocument();
-    // Nette et cadrée, pas le repli flouté.
-    expect(art).not.toHaveClass("blur-3xl");
-  });
-
-  it("retombe sur la jaquette floutée quand Steam n'a pas d'illustration", () => {
-    const data = homeData();
-    data.week.art = null;
-    data.week.games[0].coverUrl = "https://images.igdb.com/igdb/image/upload/t_cover_big/abc.jpg";
-    const { container } = render(<HomeEditorial data={data} />);
-
-    expect(container.querySelector('img[src*="library_hero.jpg"]')).not.toBeInTheDocument();
-    expect(container.querySelector(".blur-3xl")).toBeInTheDocument();
-  });
-
-  it("laisse tomber la fenêtre du kicker quand elle est inconnue", () => {
-    const data = homeData();
-    data.week.range = null;
-    render(<HomeEditorial data={data} />);
-
-    expect(screen.getByText("best of last 7 days")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Two more questions" })).not.toBeInTheDocument();
   });
 
   it("numérote les dauphins à partir de 02", () => {
@@ -97,33 +77,21 @@ describe("HomeEditorial", () => {
     expect(within(screen.getByRole("link", { name: /Third/ })).getByText("03")).toBeInTheDocument();
   });
 
-  it("ne rend ni héros ni podium quand la fenêtre n'a sacré personne", () => {
-    const data = homeData();
-    data.week.games = [];
-    render(<HomeEditorial data={data} />);
+  it("tient debout sans aucune récompense ni dauphin", () => {
+    render(<HomeEditorial data={homeData({ awards: [], runnersUp: [] })} />);
 
     expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Runners-up" })).not.toBeInTheDocument();
-    // Le reste de la page tient debout : les rubriques ne dépendent pas du héros.
-    expect(screen.getByRole("heading", { name: "Two more questions" })).toBeInTheDocument();
+    // Le reste de la page ne dépend pas du carrousel.
+    expect(screen.getByRole("heading", { name: "Dig deeper" })).toBeInTheDocument();
   });
 
-  it("tire la jaquette de repli en retina, puisqu'elle couvre tout le bandeau", () => {
-    const data = homeData();
-    data.week.art = null;
-    data.week.games[0].coverUrl = "https://images.igdb.com/igdb/image/upload/t_cover_big/co670h.jpg";
-    const { container } = render(<HomeEditorial data={data} />);
-
-    const hero = [...container.querySelectorAll("img")].find((img) => img.src.includes("co670h"));
-    expect(hero?.src).toContain("t_cover_big_2x");
-  });
-
-  it("explique la méthode du classement dans la bulle du kicker", () => {
+  it("explique la règle de la récompense affichée dans la bulle du kicker", () => {
     const data = homeData();
     render(<HomeEditorial data={data} />);
 
-    expect(screen.getByRole("button", { name: data.week.hint })).toBeInTheDocument();
-    expect(screen.getByTestId("info-hint-bubble")).toHaveTextContent(data.week.hint);
+    expect(screen.getByRole("button", { name: data.awards[0].hint })).toBeInTheDocument();
   });
 
   it("annonce la taille du corpus avant tout le reste", () => {
@@ -131,16 +99,16 @@ describe("HomeEditorial", () => {
 
     const count = screen.getByText("182,000,000");
     expect(screen.getByText(/steam reviews collected · 4,300 games · 29 languages/)).toBeInTheDocument();
-    // Avant le héros : c'est la première chose que le lecteur lit de la page.
+    // Avant le carrousel : c'est la première chose que le lecteur lit de la page.
     const title = screen.getByRole("heading", { level: 1 });
     expect(count.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it("mène chaque jeu cité vers sa fiche", () => {
+  it("mène la récompense affichée et chaque dauphin vers leur fiche", () => {
     render(<HomeEditorial data={homeData()} />);
 
     expect(screen.getByRole("link", { name: "Read the reviews" })).toHaveAttribute("href", "/games/1");
-    expect(screen.getByRole("link", { name: /Divisive/ })).toHaveAttribute("href", "/games/20");
+    expect(screen.getByRole("link", { name: /Second/ })).toHaveAttribute("href", "/games/2");
   });
 
   it("annonce le nombre de classements réellement proposés par /charts", () => {
