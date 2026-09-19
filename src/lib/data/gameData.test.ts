@@ -11,10 +11,22 @@ import {
   getReviewDuel,
   getSiteStats,
   getTopGames,
+  getGameTopReviewInWindow,
   getTopRatedGamesInWindow,
   getTrendingGames,
+  getWindowMovers,
+  getWindowRanking,
+  getWindowReviewHighlights,
   TOP_REVIEWS_PER_SIDE,
 } from "@/lib/data/gameData";
+import { hasMartColumn, hasWindow } from "@/lib/data/martAvailability";
+
+// Les marts du carrousel de la home peuvent manquer à une base plus ancienne
+// que le site : leurs cas sont alors sautés, cf. `martAvailability`.
+const HAS_WINDOW_SCORE = await hasWindow("week");
+const HAS_PREVIOUS_WEEK = await hasWindow("previous_week");
+const HAS_REVIEW_WINDOW_HIGHLIGHT = await hasMartColumn("review_window_highlight", "rank");
+const HAS_HIGHLIGHT_CREATED_AT = await hasMartColumn("review_highlight", "created_at");
 
 const BALDURS_GATE_3_APP_ID = 1086940;
 
@@ -184,7 +196,7 @@ describe("gameData", () => {
 
   // --- Home éditoriale ---
 
-  it("classe le podium d'une fenêtre par part d'avis positifs décroissante", async () => {
+  it.skipIf(!HAS_WINDOW_SCORE)("classe le podium d'une fenêtre par part d'avis positifs décroissante", async () => {
     const { games } = await getTopRatedGamesInWindow("month", 5, 100);
 
     expect(games.length).toBeGreaterThan(0);
@@ -194,7 +206,7 @@ describe("gameData", () => {
     expect(games.every((g) => g.pctPositive >= 0 && g.pctPositive <= 1)).toBe(true);
   });
 
-  it("écarte du podium les jeux qui n'atteignent pas le seuil de la fenêtre", async () => {
+  it.skipIf(!HAS_WINDOW_SCORE)("écarte du podium les jeux qui n'atteignent pas le seuil de la fenêtre", async () => {
     const floor = 500;
     const { games } = await getTopRatedGamesInWindow("month", 5, floor);
 
@@ -203,14 +215,14 @@ describe("gameData", () => {
 
   // La home montre le gagnant en grand : un jeu sans jaquette y laisserait un
   // cadre vide, héros compris.
-  it("ne sacre que des jeux qui ont une jaquette", async () => {
+  it.skipIf(!HAS_WINDOW_SCORE)("ne sacre que des jeux qui ont une jaquette", async () => {
     const { games } = await getTopRatedGamesInWindow("month", 5, 100);
 
     expect(games.length).toBeGreaterThan(0);
     expect(games.every((g) => g.coverUrl !== null)).toBe(true);
   });
 
-  it("rend la fenêtre du podium, ancrée sur la dernière date du mart", async () => {
+  it.skipIf(!HAS_WINDOW_SCORE)("rend la fenêtre du podium, ancrée sur la dernière date du mart", async () => {
     const window = await getTopRatedGamesInWindow("month", 1, 100);
 
     expect(window.startsOn).not.toBeNull();
@@ -218,7 +230,7 @@ describe("gameData", () => {
     expect(window.startsOn! < window.endsOn!).toBe(true);
   });
 
-  it("resserre la fenêtre quand on demande la semaine plutôt que le mois", async () => {
+  it.skipIf(!HAS_WINDOW_SCORE)("resserre la fenêtre quand on demande la semaine plutôt que le mois", async () => {
     const [week, month] = await Promise.all([
       getTopRatedGamesInWindow("week", 1, 10),
       getTopRatedGamesInWindow("month", 1, 10),
@@ -226,6 +238,68 @@ describe("gameData", () => {
 
     expect(week.endsOn).toBe(month.endsOn);
     expect(week.startsOn! > month.startsOn!).toBe(true);
+  });
+
+  it.skipIf(!HAS_WINDOW_SCORE)("lit l'année en cours sous le nom que lui donne le mart", async () => {
+    const year = await getTopRatedGamesInWindow("year-to-date", 1, 10);
+
+    expect(year.games.length).toBeGreaterThan(0);
+    expect(year.startsOn!.slice(5)).toBe("01-01");
+  });
+
+  it.skipIf(!HAS_WINDOW_SCORE)("range les plus détestés de la fenêtre du pire au moins pire", async () => {
+    const { games } = await getWindowRanking("month", "worst", { limit: 5, minReviews: 10 });
+
+    expect(games.length).toBeGreaterThan(0);
+    expect(games.map((g) => g.pctPositive)).toEqual([...games.map((g) => g.pctPositive)].sort((a, b) => a - b));
+  });
+
+  it.skipIf(!HAS_WINDOW_SCORE)("range les plus commentés de la semaine par volume décroissant", async () => {
+    const { games } = await getWindowRanking("week", "most-reviewed", { limit: 5, minReviews: 1 });
+
+    expect(games.length).toBeGreaterThan(0);
+    expect(games.map((g) => g.reviews)).toEqual([...games.map((g) => g.reviews)].sort((a, b) => b - a));
+  });
+
+  it.skipIf(!HAS_WINDOW_SCORE)("plafonne le total Steam des pépites cachées", async () => {
+    const cap = 2000;
+    const { games } = await getWindowRanking("month", "best", { limit: 5, minReviews: 10, maxTotalReviews: cap });
+
+    expect(games.every((g) => g.totalReviews < cap)).toBe(true);
+  });
+
+  it.skipIf(!HAS_PREVIOUS_WEEK)("ne rend que des écarts du bon signe entre les deux semaines", async () => {
+    const { up, down } = await getWindowMovers(10);
+
+    if (up) expect(up.deltaPts).toBeGreaterThan(0);
+    if (down) expect(down.deltaPts).toBeLessThan(0);
+    for (const mover of [up, down]) {
+      if (!mover) continue;
+      expect(mover.reviews).toBeGreaterThanOrEqual(10);
+      expect(mover.deltaPts).toBeCloseTo((mover.pctPositive - mover.previousPctPositive) * 100, 1);
+    }
+  });
+
+  it.skipIf(!HAS_REVIEW_WINDOW_HIGHLIGHT)("rend les reviews primées rang par rang, un jeu au plus par classement", async () => {
+    const highlights = await getWindowReviewHighlights("month");
+
+    for (const ranking of [highlights.funny, highlights.helpful]) {
+      expect(ranking.length).toBeLessThanOrEqual(5);
+      expect(ranking.map((r) => r.rank)).toEqual([...ranking.map((r) => r.rank)].sort((a, b) => a - b));
+      expect(new Set(ranking.map((r) => r.appId)).size).toBe(ranking.length);
+    }
+  });
+
+  it.skipIf(!HAS_HIGHLIGHT_CREATED_AT)("trouve une review positive anglaise écrite dans la fenêtre", async () => {
+    const review = await getGameTopReviewInWindow(BALDURS_GATE_3_APP_ID, "2000-01-01", "2100-12-31");
+
+    expect(review).not.toBeNull();
+    expect(review?.votedUp).toBe(true);
+    expect(review?.language).toBe("english");
+  });
+
+  it.skipIf(!HAS_HIGHLIGHT_CREATED_AT)("ne rend rien pour une fenêtre où le jeu n'a pas de review retenue", async () => {
+    expect(await getGameTopReviewInWindow(BALDURS_GATE_3_APP_ID, "1990-01-01", "1990-01-07")).toBeNull();
   });
 
   it("range les jeux clivants du plus proche de 50 % au moins proche", async () => {
