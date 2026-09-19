@@ -22,8 +22,15 @@ export async function hasMartColumn(table: string, column: string): Promise<bool
 /** `game_window_score` porte-t-il déjà la fenêtre demandée ? */
 export async function hasWindow(windowName: string): Promise<boolean> {
   if (!(await hasMartColumn("game_window_score", "window_name"))) return false;
-  const { rows } = await pool.query(`SELECT 1 FROM marts.game_window_score WHERE window_name = $1 LIMIT 1`, [
-    windowName,
-  ]);
-  return rows.length > 0;
+  // La colonne peut exister et la lecture échouer quand même (mart remplacé en
+  // plein `dbt run`, droits) : on saute les cas plutôt que de faire tomber le
+  // fichier de test entier.
+  try {
+    const { rows } = await pool.query(`SELECT 1 FROM marts.game_window_score WHERE window_name = $1 LIMIT 1`, [
+      windowName,
+    ]);
+    return rows.length > 0;
+  } catch {
+    return false;
+  }
 }
