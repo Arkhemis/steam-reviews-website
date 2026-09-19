@@ -19,6 +19,24 @@ const PADDING = 24;
 // de large : sans marge autour, il faudrait viser au pixel près.
 const EVENT_HIT_RADIUS = 5;
 
+// Le volume d'avis a sa propre bande, sous la courbe et non derrière : deux
+// échelles dans le même espace se liraient comme un seul axe, et un mois à 54 %
+// sur 355 avis aurait l'air d'un mois à 54 % sur 35 000. La bande partage l'axe
+// des mois avec la courbe, son échelle ne sert qu'à comparer les mois entre eux
+// — le chiffre exact est dans l'infobulle.
+const VOLUME_BAND_SHARE = 0.22;
+const VOLUME_GAP = 10;
+// Plafond de largeur des barres : un jeu sorti il y a deux mois n'a que deux
+// points, et 60 % d'un pas de 592 px ferait deux blocs plus larges que hauts.
+const VOLUME_BAR_MAX_WIDTH = 28;
+const VOLUME_BAR_OPACITY = 0.45;
+
+const enFull = new Intl.NumberFormat("en-US");
+
+function formatReviews(count: number): string {
+  return `${enFull.format(count)} ${count === 1 ? "review" : "reviews"}`;
+}
+
 const EVENT_STYLES = {
   update: { color: "var(--series-2)", label: "Update" },
   news: { color: "var(--ink-muted)", label: "News" },
@@ -141,7 +159,9 @@ export function ScoreEvolutionChart({ trends, events = [] }: ScoreEvolutionChart
   }
 
   const plotWidth = WIDTH - PADDING * 2;
-  const plotHeight = height - PADDING * 2;
+  const volumeHeight = (height - PADDING * 2) * VOLUME_BAND_SHARE;
+  const plotHeight = height - PADDING * 2 - volumeHeight - VOLUME_GAP;
+  const volumeBaseline = height - PADDING;
   const stepX = trends.length > 1 ? plotWidth / (trends.length - 1) : 0;
 
   const points = trends.map((trend, index) => ({
@@ -149,6 +169,9 @@ export function ScoreEvolutionChart({ trends, events = [] }: ScoreEvolutionChart
     y: PADDING + plotHeight * (1 - trend.pctPositivePeriod),
     trend,
   }));
+
+  const peakReviews = Math.max(...trends.map((trend) => trend.reviewsInPeriod), 1);
+  const barWidth = Math.max(stepX > 0 ? Math.min(stepX * 0.6, VOLUME_BAR_MAX_WIDTH) : VOLUME_BAR_MAX_WIDTH, 1);
 
   const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"}${p.x},${p.y}`).join(" ");
   const lastIndex = points.length - 1;
@@ -199,12 +222,13 @@ export function ScoreEvolutionChart({ trends, events = [] }: ScoreEvolutionChart
         <svg
           viewBox={`0 0 ${WIDTH} ${height}`}
           role="img"
-          aria-label="Positive score over time"
+          aria-label="Positive score over time, with the number of reviews written each month"
           className="absolute inset-0 h-full w-full"
         >
           {[0, 0.5, 1].map((fraction) => (
             <line
               key={fraction}
+              data-score-gridline=""
               x1={PADDING}
               x2={WIDTH - PADDING}
               y1={PADDING + plotHeight * (1 - fraction)}
@@ -228,6 +252,25 @@ export function ScoreEvolutionChart({ trends, events = [] }: ScoreEvolutionChart
               opacity={hoverGid === event.gid ? 1 : 0.65}
             />
           ))}
+
+          {points.map((p, i) => {
+            // Un mois qui a des avis garde au moins un pixel : sans lui, un
+            // creux à côté d'un pic de lancement passerait pour un mois vide.
+            const barHeight = Math.max((p.trend.reviewsInPeriod / peakReviews) * volumeHeight, 1);
+            return (
+              <rect
+                key={p.trend.periodMonth}
+                data-volume-bar=""
+                x={p.x - barWidth / 2}
+                y={volumeBaseline - barHeight}
+                width={barWidth}
+                height={barHeight}
+                rx={Math.min(2, barWidth / 2)}
+                fill="var(--ink-muted)"
+                opacity={hovered && i === hoverIndex ? 1 : VOLUME_BAR_OPACITY}
+              />
+            );
+          })}
 
           <path d={linePath} fill="none" stroke="var(--series-1)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
 
@@ -301,26 +344,30 @@ export function ScoreEvolutionChart({ trends, events = [] }: ScoreEvolutionChart
         </div>
       )}
 
-      {legend.length > 0 && (
-        <ul className="mt-2 flex gap-4 font-mono text-[10px] tracking-[0.1em] text-[#5f7481] uppercase">
-          {legend.map((category) => (
-            <li key={category} className="flex items-center gap-1.5">
-              <svg width={18} height={8} aria-hidden className="shrink-0">
-                <line
-                  x1={0}
-                  x2={18}
-                  y1={4}
-                  y2={4}
-                  stroke={EVENT_STYLES[category].color}
-                  strokeWidth={2}
-                  strokeDasharray="4 4"
-                />
-              </svg>
-              {EVENT_STYLES[category].label}
-            </li>
-          ))}
-        </ul>
-      )}
+      <ul className="mt-2 flex flex-wrap gap-4 font-mono text-[10px] tracking-[0.1em] text-[#5f7481] uppercase">
+        <li className="flex items-center gap-1.5">
+          <svg width={10} height={8} aria-hidden className="shrink-0">
+            <rect x={2} y={0} width={6} height={8} rx={1} fill="var(--ink-muted)" opacity={VOLUME_BAR_OPACITY} />
+          </svg>
+          Reviews / month
+        </li>
+        {legend.map((category) => (
+          <li key={category} className="flex items-center gap-1.5">
+            <svg width={18} height={8} aria-hidden className="shrink-0">
+              <line
+                x1={0}
+                x2={18}
+                y1={4}
+                y2={4}
+                stroke={EVENT_STYLES[category].color}
+                strokeWidth={2}
+                strokeDasharray="4 4"
+              />
+            </svg>
+            {EVENT_STYLES[category].label}
+          </li>
+        ))}
+      </ul>
 
       {hoveredMarker && (
         <div
@@ -377,6 +424,7 @@ export function ScoreEvolutionChart({ trends, events = [] }: ScoreEvolutionChart
           style={tooltipAnchor(hovered.x)}
         >
           <div className="font-semibold">{Math.round(hovered.trend.pctPositivePeriod * 100)}%</div>
+          <div className="text-neutral-300">{formatReviews(hovered.trend.reviewsInPeriod)}</div>
           <div className="text-neutral-400">{formatMonth(hovered.trend.periodMonth)}</div>
         </div>
       )}
