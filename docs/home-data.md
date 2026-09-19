@@ -133,8 +133,9 @@ chaque camp) plutôt qu'une distance à 50 %.
 
 ### 3. Artwork large (`igdb_game.artworks` / `screenshots`)
 
-Les diapositives prennent l'illustration `library_hero.jpg` de Steam, que tous
-les jeux ne publient pas ; à défaut, la jaquette 2:3 floutée. `stg_igdb_game`
+Les diapositives prennent l'illustration `library_hero.jpg` de Steam, dont le
+chemin (haché pour les jeux récents) vient de `IStoreBrowseService/GetItems`
+— cf. `src/lib/steamArtwork.ts`. Tous les jeux n'en publient pas ; à défaut, la jaquette 2:3 floutée. `stg_igdb_game`
 ne remonte que `cover_url` ; IGDB expose `artworks` et `screenshots`, qui
 donneraient un repli large et net.
 

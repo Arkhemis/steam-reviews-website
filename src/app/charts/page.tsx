@@ -74,11 +74,12 @@ const shelves = cached(`charts-shelves-${GEM_MIN_REVIEWS}-${GEM_MAX_REVIEWS}-${G
   ];
 });
 
-// L'illustration panoramique n'est qu'un HEAD vers le CDN de Steam, mais elle
-// ne change jamais pour un `appId` donné : la cacher évite de tâter Steam à
-// chaque visite, et de retarder la page quand il traîne.
+// L'illustration panoramique n'est qu'un appel à l'API du magasin Steam, mais
+// elle ne change presque jamais pour un `appId` donné : la cacher évite de
+// tâter Steam à chaque visite, et de retarder la page quand il traîne. Le `v2`
+// de la clé écarte les URL de l'ancien hôte, que l'optimiseur refuse désormais.
 function heroArt(appId: number) {
-  return cached(`charts-hero-art-${appId}`, () => resolveSteamHeroArt(appId))();
+  return cached(`charts-hero-art-v2-${appId}`, () => resolveSteamHeroArt(appId))();
 }
 
 // Le héros ne pose pas l'illustration bord à bord comme la home : elle

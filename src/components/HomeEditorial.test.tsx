@@ -23,7 +23,7 @@ function award(id: AwardSlide["id"], appId: number, name: string, extra: Partial
     appId,
     name,
     coverUrl: null,
-    art: "https://cdn.cloudflare.steamstatic.com/steam/apps/1/library_hero.jpg",
+    art: "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1/library_hero.jpg",
     figure: "96%",
     figureColor: "var(--status-good)",
     meta: "1,234 reviews in the last 7 days",

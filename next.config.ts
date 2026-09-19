@@ -18,8 +18,8 @@ const nextConfig: NextConfig = {
       // sans redirection par cet hôte-là. Voir `src/lib/steamArtwork.ts`.
       {
         protocol: "https",
-        hostname: "cdn.cloudflare.steamstatic.com",
-        pathname: "/steam/apps/**",
+        hostname: "shared.akamai.steamstatic.com",
+        pathname: "/store_item_assets/steam/apps/**",
       },
     ],
   },

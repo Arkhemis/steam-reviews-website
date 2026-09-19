@@ -13,7 +13,7 @@ function slide(id: AwardSlide["id"], name: string, extra: Partial<AwardSlide> = 
     appId: name.length,
     name,
     coverUrl: null,
-    art: `https://cdn.cloudflare.steamstatic.com/steam/apps/${name}/library_hero.jpg`,
+    art: `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${name}/library_hero.jpg`,
     figure: "96%",
     figureColor: "var(--status-good)",
     meta: `meta ${name}`,

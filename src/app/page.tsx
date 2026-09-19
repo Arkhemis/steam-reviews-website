@@ -143,12 +143,14 @@ function toPodium(game: WindowedGame, period: string): PodiumGame {
   };
 }
 
-// L'illustration panoramique n'est qu'un HEAD vers le CDN de Steam, mais elle
-// ne change jamais pour un `appId` donné : la cacher comme le reste évite de
-// tâter Steam à chaque visite, et de retarder la home quand il traîne. Une
-// par diapositive, en parallèle : chacune a son propre délai d'abandon.
+// L'illustration panoramique n'est qu'un appel à l'API du magasin Steam, mais
+// elle ne change presque jamais pour un `appId` donné : la cacher comme le
+// reste évite de tâter Steam à chaque visite, et de retarder la home quand il
+// traîne. Une par diapositive, en parallèle : chacune a son propre délai
+// d'abandon. Le `v2` de la clé écarte les URL de l'ancien hôte, que
+// l'optimiseur d'images refuse désormais.
 async function heroArt(appId: number): Promise<string | null> {
-  return cached(`home-hero-art-${appId}`, () => resolveSteamHeroArt(appId))();
+  return cached(`home-hero-art-v2-${appId}`, () => resolveSteamHeroArt(appId))();
 }
 
 // La citation est en anglais, comme le reste du site : sans filtre, la
