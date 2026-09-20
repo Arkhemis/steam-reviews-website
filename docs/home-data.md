@@ -23,7 +23,7 @@ Ordre de défilement, et ce que lit chaque diapositive :
 | # | Récompense | Fonction | Lit | Règle |
 | --- | --- | --- | --- | --- |
 | 1 | Best of the week | `getTopRatedGamesInWindow("week")` | `game_window_score` (`week`) + `game_stats` | ≥ `WEEK_MIN_REVIEWS` avis, meilleure part positive ; repli sur `month` (≥ `MONTH_MIN_REVIEWS`) si la semaine est vide |
-| 1′ | citation du n°1 | `getGameTopReviewInWindow`, puis `getGameTopReviews` | `review_highlight` (+ `created_at`) | meilleure review positive **anglaise** écrite dans la fenêtre ; sinon (aucune, ou colonne absente) la meilleure de toujours |
+| 1′ | citation du n°1 | `getAwardReview` | `review_highlight` (+ `created_at`) | meilleure review positive **anglaise** écrite dans la fenêtre ; sinon (aucune, ou colonne absente) la meilleure de toujours |
 | 2 | Comeback | `getWindowMovers` | `game_window_score` (`week` ⨝ `previous_week`) | ≥ `MOVER_MIN_REVIEWS` avis chaque semaine, plus forte hausse ; cachée si l'écart n'est pas > 0 |
 | 3 | Freefall | idem | idem | plus forte baisse ; cachée si l'écart n'est pas < 0 |
 | 4 | Most reviewed | `getWindowRanking("week", "most-reviewed")` | `game_window_score` (`week`) | le plus d'avis sur 7 jours, quel que soit le verdict |
@@ -33,6 +33,23 @@ Ordre de défilement, et ce que lit chaque diapositive :
 | 8 | Most hated | `getWindowRanking("month", "worst")` | `game_window_score` (`month`) | ≥ `HATED_MIN_REVIEWS` avis, plus faible part positive |
 | 9 | Hidden gem | `getWindowRanking("month", "best", { maxTotalReviews })` | `game_window_score` (`month`) + `game_stats.total_reviews` | ≥ `HIDDEN_GEM_MIN_REVIEWS` avis sur 30 jours et < `HIDDEN_GEM_MAX_TOTAL_REVIEWS` au total Steam |
 | 10 | Nobody agrees | `getPolarisedGames` | `game_stats` | ≥ `POLARISED_MIN_REVIEWS` avis, score le plus proche de 50 % |
+
+Huit des dix récompenses citent en plus une review, lue par `getAwardReview`
+dans `review_highlight` : la fenêtre de la récompense d'abord, sinon toutes
+périodes confondues, et toujours en anglais. Le camp suit le titre de la
+récompense, parce qu'un « freefall » illustré d'un éloge dirait le contraire de
+son chiffre (`AWARD_QUOTE_CRITERIA`, dans `page.tsx`) :
+
+| Récompense | Camp | Départage |
+| --- | --- | --- |
+| Best of the week, Comeback, Best of \<année\> | positive | rang du mart |
+| Freefall, Most hated | négative | rang du mart |
+| Most reviewed | indifférent | rang du mart |
+| Hidden gem, Nobody agrees | indifférent | votes « utile » |
+
+Les deux diapositives de review primée n'y figurent pas : leur citation est
+leur sujet, et vient de `review_window_highlight`. Une récompense dont aucune
+review ne répond au critère s'affiche sans citation.
 
 Chaque diapositive de jeu prend en fond l'illustration panoramique Steam
 (`resolveSteamHeroArt`, cachée par `appId`), avec la jaquette floutée en repli.
@@ -84,7 +101,8 @@ données contiennent pourtant :
   dauphins — une fenêtre courte fait remonter des titres qu'IGDB ne couvre pas
   encore, et le bandeau les affichait sur un cadre vide. Les diapositives de
   review n'y sont pas soumises : c'est la citation qu'elles montrent ;
-- **anglais uniquement** pour la citation du n°1 et pour les reviews primées —
+- **anglais uniquement** pour les citations de récompense et pour les reviews
+  primées —
   sans filtre de langue, la review la plus utile d'un jeu est souvent chinoise
   ou russe.
 
@@ -96,12 +114,12 @@ par `steam-reviews-analysis` (PR Arkhemis/steam-reviews-analysis#40) :
 - `marts.game_window_score` — déjà en prod, mais la fenêtre `previous_week`
   (comeback, chute) est nouvelle ;
 - `marts.review_window_highlight` — nouveau (reviews primées) ;
-- `marts.review_highlight.created_at` — nouvelle colonne (citation de la
-  semaine).
+- `marts.review_highlight.created_at` — nouvelle colonne (citations de
+  récompense, cherchées dans la fenêtre).
 
 **Matérialiser ces marts en prod avant de déployer le site.** Le déploiement
 du site ne rejoue pas dbt. Dans l'ordre inverse rien ne casse — les
-diapositives concernées se cachent, la citation retombe sur la meilleure de
+diapositives concernées se cachent, les citations retombent sur la meilleure de
 toujours — mais la home perd jusqu'à la moitié de son carrousel tant que le
 pipeline n'a pas tourné.
 

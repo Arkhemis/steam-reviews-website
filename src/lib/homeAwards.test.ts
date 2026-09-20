@@ -86,7 +86,6 @@ function sources(overrides: Partial<AwardSources> = {}): AwardSources {
       window: ranked([windowed(1, "Week winner", 0.96), windowed(2, "Second", 0.9)]),
       days: 7,
       minReviews: 100,
-      quote: "Best [b]thing[/b] all year.",
     },
     movers: { up: mover(3, 0.62, 0.8), down: mover(4, 0.8, 0.56) },
     mostReviewed: ranked([windowed(5, "Busy", 0.84, 12_043)]),
@@ -95,6 +94,16 @@ function sources(overrides: Partial<AwardSources> = {}): AwardSources {
     hated: ranked([windowed(7, "Hated", 0.12)], "2026-08-15"),
     hiddenGem: ranked([windowed(8, "Gem", 0.99, 64)], "2026-08-15"),
     polarised: [polarised(9)],
+    quotes: {
+      "best-of-week": "Best [b]thing[/b] all year.",
+      comeback: "They fixed it.",
+      freefall: "They broke it.",
+      "most-reviewed": "Everyone is playing this.",
+      "best-of-year": "Nothing came close this year.",
+      "most-hated": "Do not buy.",
+      "hidden-gem": "Nobody knows this one yet.",
+      "nobody-agrees": "Half of us love it.",
+    },
     ...overrides,
   };
 }
@@ -140,6 +149,25 @@ describe("excerpt", () => {
     const cut = excerpt(`${"word ".repeat(200)}end`);
     expect(cut.length).toBeLessThanOrEqual(421);
     expect(cut.endsWith("word…")).toBe(true);
+  });
+
+  it("réduit les lignes blanches à un simple saut de ligne", () => {
+    expect(excerpt("First paragraph.\n\n\nSecond paragraph.")).toBe("First paragraph.\nSecond paragraph.");
+  });
+
+  it("jette les blancs de bout de ligne, qui allongent la citation pour rien", () => {
+    expect(excerpt("First.   \n   Second.")).toBe("First.\nSecond.");
+  });
+
+  it("ne laisse pas une ligne blanche finir la citation", () => {
+    expect(excerpt("Great game.\n\n")).toBe("Great game.");
+  });
+
+  it("compte la longueur sur le texte déjà nettoyé", () => {
+    // Deux cents paragraphes d'un mot : sans le nettoyage, les lignes blanches
+    // mangeraient la moitié du budget de caractères.
+    const cut = excerpt("word\n\n".repeat(200));
+    expect(cut.split("\n").length).toBeGreaterThan(80);
   });
 
   it("jette une balise BBCode laissée ouverte par la coupe", () => {
@@ -234,7 +262,7 @@ describe("buildAwards", () => {
 
   it("dit dans la puce et le kicker que le podium s'est replié sur trente jours", () => {
     const [best] = buildAwards(
-      sources({ podium: { window: ranked([windowed(1, "Month winner", 0.95)]), days: 30, minReviews: 500 } }),
+      sources({ podium: { window: ranked([windowed(1, "Month winner", 0.95)]), days: 30, minReviews: 500 }, quotes: {} }),
       THRESHOLDS,
     );
 
@@ -373,6 +401,43 @@ describe("buildAwards", () => {
     );
 
     expect(awards.find((award) => award.id === "funniest-review")?.quote?.endsWith("…")).toBe(true);
+  });
+
+  it("cite une review sous chaque récompense qui en a une", () => {
+    const quotes = Object.fromEntries(
+      buildAwards(sources(), THRESHOLDS).map((award) => [award.id, award.quote]),
+    );
+
+    expect(quotes).toMatchObject({
+      "best-of-week": "Best [b]thing[/b] all year.",
+      comeback: "They fixed it.",
+      freefall: "They broke it.",
+      "most-reviewed": "Everyone is playing this.",
+      "best-of-year": "Nothing came close this year.",
+      "most-hated": "Do not buy.",
+      "hidden-gem": "Nobody knows this one yet.",
+      "nobody-agrees": "Half of us love it.",
+    });
+  });
+
+  it("laisse sans citation la récompense dont la review manque", () => {
+    const awards = buildAwards(sources({ quotes: { comeback: "They fixed it." } }), THRESHOLDS);
+
+    expect(awards.find((award) => award.id === "comeback")?.quote).toBe("They fixed it.");
+    expect(awards.find((award) => award.id === "freefall")?.quote).toBeUndefined();
+    expect(awards.find((award) => award.id === "most-hated")?.quote).toBeUndefined();
+  });
+
+  it("ignore une citation qui n'est que du blanc", () => {
+    const awards = buildAwards(sources({ quotes: { "hidden-gem": "   " } }), THRESHOLDS);
+
+    expect(awards.find((award) => award.id === "hidden-gem")?.quote).toBeUndefined();
+  });
+
+  it("coupe une citation de récompense trop longue, comme celles des reviews primées", () => {
+    const awards = buildAwards(sources({ quotes: { "most-hated": `${"word ".repeat(200)}end` } }), THRESHOLDS);
+
+    expect(awards.find((award) => award.id === "most-hated")?.quote?.endsWith("…")).toBe(true);
   });
 
   it("laisse l'illustration vide : la page la résout après coup", () => {

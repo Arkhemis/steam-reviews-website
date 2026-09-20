@@ -73,7 +73,7 @@ export type AwardThresholds = {
 
 export type AwardSources = {
   /** Le podium de tête : la semaine, ou trente jours quand la semaine est creuse. */
-  podium: { window: RankedWindow; days: 7 | 30; minReviews: number; quote?: string };
+  podium: { window: RankedWindow; days: 7 | 30; minReviews: number };
   movers: { up: WindowMover | null; down: WindowMover | null };
   mostReviewed: RankedWindow;
   reviews: WindowReviewHighlights;
@@ -81,16 +81,40 @@ export type AwardSources = {
   hated: RankedWindow;
   hiddenGem: RankedWindow;
   polarised: GameStats[];
+  /**
+   * La review à citer sous chaque récompense, brute : la page la lit dans le
+   * camp et la fenêtre qui vont avec la récompense (cf. `AWARD_QUOTES` côté
+   * home), et c'est ici qu'elle est coupée. Une récompense absente de la table
+   * s'affiche simplement sans citation.
+   *
+   * Les deux diapositives de review primée n'y figurent pas : leur citation
+   * *est* leur sujet, et vient de `reviews`.
+   */
+  quotes: Partial<Record<AwardId, string>>;
 };
 
 const QUOTE_MAX_CHARS = 420;
+
+/**
+ * Les blancs d'une review, ramenés à ce qu'une citation de quatre à six lignes
+ * peut se permettre : les lignes blanches entre paragraphes en coûtaient une
+ * chacune — le lecteur y perdait une ligne de texte, et la citation se
+ * terminait souvent sur un vide, la coupe tombant dans l'entre-deux.
+ */
+function tidy(text: string): string {
+  return text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line !== "")
+    .join("\n");
+}
 
 // Une review fait parfois plusieurs milliers de caractères : on coupe côté
 // serveur pour ne pas embarquer le roman entier dans le flux RSC, `line-clamp`
 // fait le reste à l'écran. La coupe tombe sur une espace, et on jette un
 // éventuel `[spoiler` resté ouvert pour ne pas afficher un bout de balise BBCode.
 export function excerpt(text: string): string {
-  const clean = text.trim();
+  const clean = tidy(text);
   if (clean.length <= QUOTE_MAX_CHARS) return clean;
 
   const cut = clean.slice(0, QUOTE_MAX_CHARS);
@@ -145,7 +169,7 @@ export function pickReviewHighlights(
   return { funny, helpful };
 }
 
-function bestOfPodium({ window, days, minReviews, quote }: AwardSources["podium"]): AwardSlide | null {
+function bestOfPodium({ window, days, minReviews }: AwardSources["podium"], quote?: string): AwardSlide | null {
   const winner = window.games[0];
   if (!winner) return null;
 
@@ -165,12 +189,17 @@ function bestOfPodium({ window, days, minReviews, quote }: AwardSources["podium"
     figure: pct(winner.pctPositive),
     figureColor: verdictColor(winner.pctPositive * 100),
     meta: `${enFull.format(winner.reviews)} reviews in the last ${days} days`,
-    quote: quote ? excerpt(quote) : undefined,
+    quote,
     layout: "game",
   };
 }
 
-function moverSlide(mover: WindowMover | null, direction: "up" | "down", minReviews: number): AwardSlide | null {
+function moverSlide(
+  mover: WindowMover | null,
+  direction: "up" | "down",
+  minReviews: number,
+  quote?: string,
+): AwardSlide | null {
   // La requête ne rend déjà que des écarts du bon signe ; on le revérifie ici
   // parce qu'un « comeback » à −3 pts serait un titre qui ment.
   if (!mover || (direction === "up" ? mover.deltaPts <= 0 : mover.deltaPts >= 0)) return null;
@@ -191,11 +220,12 @@ function moverSlide(mover: WindowMover | null, direction: "up" | "down", minRevi
     figure: formatDeltaPoints(mover.deltaPts),
     figureColor: rising ? "var(--status-good)" : "var(--status-critical)",
     meta: `${pct(mover.previousPctPositive)} → ${pct(mover.pctPositive)} · ${enFull.format(mover.reviews)} reviews this week`,
+    quote,
     layout: "game",
   };
 }
 
-function mostReviewedSlide(window: RankedWindow): AwardSlide | null {
+function mostReviewedSlide(window: RankedWindow, quote?: string): AwardSlide | null {
   const winner = window.games[0];
   if (!winner) return null;
 
@@ -213,6 +243,7 @@ function mostReviewedSlide(window: RankedWindow): AwardSlide | null {
     figureColor: NEUTRAL_FIGURE,
     figureLabel: "reviews",
     meta: `${pct(winner.pctPositive)} positive in the last 7 days`,
+    quote,
     layout: "game",
   };
 }
@@ -244,7 +275,7 @@ function reviewSlide(review: WindowReviewHighlight | null, category: "funny" | "
   };
 }
 
-function bestOfYearSlide(window: RankedWindow, minReviews: number): AwardSlide | null {
+function bestOfYearSlide(window: RankedWindow, minReviews: number, quote?: string): AwardSlide | null {
   const winner = window.games[0];
   if (!winner) return null;
 
@@ -262,11 +293,12 @@ function bestOfYearSlide(window: RankedWindow, minReviews: number): AwardSlide |
     figure: pct(winner.pctPositive),
     figureColor: verdictColor(winner.pctPositive * 100),
     meta: `${enFull.format(winner.reviews)} reviews this year`,
+    quote,
     layout: "game",
   };
 }
 
-function mostHatedSlide(window: RankedWindow, minReviews: number): AwardSlide | null {
+function mostHatedSlide(window: RankedWindow, minReviews: number, quote?: string): AwardSlide | null {
   const loser = window.games[0];
   if (!loser) return null;
 
@@ -285,11 +317,17 @@ function mostHatedSlide(window: RankedWindow, minReviews: number): AwardSlide | 
     figure: pct(loser.pctPositive),
     figureColor: verdictColor(loser.pctPositive * 100),
     meta: `${enFull.format(loser.reviews)} reviews in the last 30 days`,
+    quote,
     layout: "game",
   };
 }
 
-function hiddenGemSlide(window: RankedWindow, minReviews: number, maxTotalReviews: number): AwardSlide | null {
+function hiddenGemSlide(
+  window: RankedWindow,
+  minReviews: number,
+  maxTotalReviews: number,
+  quote?: string,
+): AwardSlide | null {
   const gem = window.games[0];
   if (!gem) return null;
 
@@ -308,11 +346,12 @@ function hiddenGemSlide(window: RankedWindow, minReviews: number, maxTotalReview
     figure: pct(gem.pctPositive),
     figureColor: verdictColor(gem.pctPositive * 100),
     meta: `${enFull.format(gem.reviews)} reviews in the last 30 days · ${enFull.format(gem.totalReviews)} on Steam overall`,
+    quote,
     layout: "game",
   };
 }
 
-function nobodyAgreesSlide(game: GameStats | undefined, minReviews: number): AwardSlide | null {
+function nobodyAgreesSlide(game: GameStats | undefined, minReviews: number, quote?: string): AwardSlide | null {
   if (!game) return null;
 
   return {
@@ -330,6 +369,7 @@ function nobodyAgreesSlide(game: GameStats | undefined, minReviews: number): Awa
     figure: pct(game.pctPositive),
     figureColor: verdictColor(game.pctPositive * 100),
     meta: `${enFull.format(game.totalReviews)} reviews · all time`,
+    quote,
     layout: "game",
   };
 }
@@ -342,16 +382,29 @@ function nobodyAgreesSlide(game: GameStats | undefined, minReviews: number): Awa
 export function buildAwards(sources: AwardSources, thresholds: AwardThresholds): AwardSlide[] {
   const reviews = pickReviewHighlights(sources.reviews, thresholds.reviewMinVotes);
 
+  // Une citation vide — texte blanc, review sans corps — vaut pas de citation
+  // du tout : la diapositive ne doit pas ouvrir un filet de guillemets sur du
+  // vide.
+  const quote = (id: AwardId): string | undefined => {
+    const text = sources.quotes[id];
+    return text && text.trim() !== "" ? excerpt(text) : undefined;
+  };
+
   return [
-    bestOfPodium(sources.podium),
-    moverSlide(sources.movers.up, "up", thresholds.moverMinReviews),
-    moverSlide(sources.movers.down, "down", thresholds.moverMinReviews),
-    mostReviewedSlide(sources.mostReviewed),
+    bestOfPodium(sources.podium, quote("best-of-week")),
+    moverSlide(sources.movers.up, "up", thresholds.moverMinReviews, quote("comeback")),
+    moverSlide(sources.movers.down, "down", thresholds.moverMinReviews, quote("freefall")),
+    mostReviewedSlide(sources.mostReviewed, quote("most-reviewed")),
     reviewSlide(reviews.funny, "funny", thresholds.reviewMinVotes),
     reviewSlide(reviews.helpful, "helpful", thresholds.reviewMinVotes),
-    bestOfYearSlide(sources.year, thresholds.yearMinReviews),
-    mostHatedSlide(sources.hated, thresholds.hatedMinReviews),
-    hiddenGemSlide(sources.hiddenGem, thresholds.hiddenGemMinReviews, thresholds.hiddenGemMaxTotalReviews),
-    nobodyAgreesSlide(sources.polarised[0], thresholds.polarisedMinReviews),
+    bestOfYearSlide(sources.year, thresholds.yearMinReviews, quote("best-of-year")),
+    mostHatedSlide(sources.hated, thresholds.hatedMinReviews, quote("most-hated")),
+    hiddenGemSlide(
+      sources.hiddenGem,
+      thresholds.hiddenGemMinReviews,
+      thresholds.hiddenGemMaxTotalReviews,
+      quote("hidden-gem"),
+    ),
+    nobodyAgreesSlide(sources.polarised[0], thresholds.polarisedMinReviews, quote("nobody-agrees")),
   ].filter((slide): slide is AwardSlide => slide !== null);
 }

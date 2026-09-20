@@ -22,6 +22,8 @@ function slide(id: AwardSlide["id"], name: string, extra: Partial<AwardSlide> = 
   };
 }
 
+const COVER = "https://images.igdb.com/igdb/image/upload/t_cover_big/co670h.jpg";
+
 const SLIDES: AwardSlide[] = [
   slide("best-of-week", "Winner", { quote: "Best [b]thing[/b] I played all year." }),
   slide("comeback", "Riser", { figure: "+18 pts", meta: "62% → 80%" }),
@@ -124,8 +126,7 @@ describe("AwardsCarousel", () => {
   });
 
   it("retombe sur la jaquette floutée, en retina, quand Steam n'a pas d'illustration", () => {
-    const cover = "https://images.igdb.com/igdb/image/upload/t_cover_big/co670h.jpg";
-    const { container } = render(<AwardsCarousel slides={[slide("best-of-week", "Winner", { art: null, coverUrl: cover })]} />);
+    const { container } = render(<AwardsCarousel slides={[slide("best-of-week", "Winner", { art: null, coverUrl: COVER })]} />);
 
     const img = [...container.querySelectorAll("img")].find((el) => el.src.includes("co670h"));
     expect(img?.src).toContain("t_cover_big_2x");
