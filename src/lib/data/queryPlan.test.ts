@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { pool } from "@/lib/db";
 import {
+  awardReviewQuery,
   catalogueTrendQuery,
   cataloguePageQuery,
-  gameTopReviewInWindowQuery,
   recentDeltasQuery,
   reviewDuelQuery,
   siteStatsQuery,
@@ -122,7 +122,9 @@ describe("query plans", () => {
   // `review_highlight` porte le texte complet des reviews : la citation du
   // gagnant doit passer par l'index `app_id`, jamais balayer la table.
   it.skipIf(!HAS_HIGHLIGHT_CREATED_AT)("lit la citation de la fenêtre par l'index app_id", async () => {
-    const plan = await planFor(gameTopReviewInWindowQuery(1086940, "2026-09-07", "2026-09-13", "english"));
+    const plan = await planFor(
+      awardReviewQuery(1086940, { startsOn: "2026-09-07", endsOn: "2026-09-13" }),
+    );
 
     expect(scannedRelations(plan)).toContain("review_highlight");
     expect(seqScannedRelations(plan)).not.toContain("review_highlight");

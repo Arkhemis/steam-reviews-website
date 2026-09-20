@@ -123,6 +123,22 @@ function ReadTheReviews({ appId }: { appId: number }) {
   );
 }
 
+// Une seule mise en forme de citation pour tout le carrousel : la review
+// primée est le sujet de sa diapositive, mais pas au point de mériter un autre
+// corps de texte — en grand, elle écrasait le reste du bandeau. Elle garde
+// seulement le droit de courir sur deux lignes de plus.
+function Quote({ text, lines }: { text: string; lines: 4 | 6 }) {
+  return (
+    <blockquote
+      className={`max-w-[46ch] border-l-[3px] border-brand-blue pl-4 text-[19px] leading-relaxed text-[#dfe7eb] ${
+        lines === 6 ? "line-clamp-6" : "line-clamp-4"
+      }`}
+    >
+      <BBCodeText text={text} />
+    </blockquote>
+  );
+}
+
 // La première diapositive porte le titre de la page : c'est elle que rend le
 // serveur, et le gagnant de la semaine reste le sujet de la home.
 function GameSlide({ slide, Heading }: { slide: AwardSlide; Heading: "h1" | "h2" }) {
@@ -138,9 +154,9 @@ function GameSlide({ slide, Heading }: { slide: AwardSlide; Heading: "h1" | "h2"
         <span className="text-xs text-[#9fb2bd]">{slide.meta}</span>
       </div>
       {slide.quote && (
-        <blockquote className="mt-[18px] line-clamp-4 max-w-[46ch] border-l-[3px] border-brand-blue pl-4 text-[19px] leading-relaxed text-[#dfe7eb]">
-          <BBCodeText text={slide.quote} />
-        </blockquote>
+        <div className="mt-[18px]">
+          <Quote text={slide.quote} lines={4} />
+        </div>
       )}
       <ReadTheReviews appId={slide.appId} />
     </>
@@ -153,11 +169,13 @@ function ReviewSlide({ slide, Heading }: { slide: AwardSlide; Heading: "h1" | "h
     <>
       <Kicker slide={slide} />
       {slide.quote && (
-        <blockquote className="mt-4 line-clamp-6 max-w-[40ch] border-l-[3px] border-brand-blue pl-4 text-[22px] leading-snug font-semibold text-[#eef2f4] drop-shadow-[0_2px_24px_rgba(12,17,22,0.9)] sm:text-[26px]">
-          <BBCodeText text={slide.quote} />
-        </blockquote>
+        <div className="mt-4">
+          <Quote text={slide.quote} lines={6} />
+        </div>
       )}
-      <Heading className="mt-5 mb-0 text-2xl leading-tight font-extrabold tracking-tight text-balance">{slide.name}</Heading>
+      <Heading className="mt-5 mb-0 text-2xl leading-tight font-extrabold tracking-tight text-balance drop-shadow-[0_2px_24px_rgba(12,17,22,0.9)]">
+        {slide.name}
+      </Heading>
       <div className="mt-1.5 font-mono text-xs text-[#9fb2bd]">{slide.meta}</div>
       <div className="mt-4 flex items-baseline gap-3 font-mono">
         <Figure slide={slide} size="md" />

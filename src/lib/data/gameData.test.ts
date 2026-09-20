@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { pool } from "@/lib/db";
 import {
+  getAwardReview,
   getCataloguePage,
   getCatalogueTrend,
   getGameEvents,
@@ -14,7 +15,6 @@ import {
   getRecentDeltas,
   getSiteStats,
   getTopGames,
-  getGameTopReviewInWindow,
   getTopRatedGamesInWindow,
   getTrendingGames,
   getWindowMovers,
@@ -389,7 +389,7 @@ describe("gameData", () => {
   });
 
   it.skipIf(!HAS_HIGHLIGHT_CREATED_AT)("trouve une review positive anglaise écrite dans la fenêtre", async () => {
-    const review = await getGameTopReviewInWindow(BALDURS_GATE_3_APP_ID, "2000-01-01", "2100-12-31");
+    const review = await getAwardReview(BALDURS_GATE_3_APP_ID, { startsOn: "2000-01-01", endsOn: "2100-12-31" });
 
     expect(review).not.toBeNull();
     expect(review?.votedUp).toBe(true);
@@ -397,7 +397,44 @@ describe("gameData", () => {
   });
 
   it.skipIf(!HAS_HIGHLIGHT_CREATED_AT)("ne rend rien pour une fenêtre où le jeu n'a pas de review retenue", async () => {
-    expect(await getGameTopReviewInWindow(BALDURS_GATE_3_APP_ID, "1990-01-01", "1990-01-07")).toBeNull();
+    expect(
+      await getAwardReview(BALDURS_GATE_3_APP_ID, { startsOn: "1990-01-01", endsOn: "1990-01-07" }),
+    ).toBeNull();
+  });
+
+  // Sans fenêtre, la requête ne touche pas `created_at` : c'est ce repli qui
+  // tient quand le mart n'a pas encore remonté la colonne.
+  it("trouve la meilleure review négative de toujours", async () => {
+    const review = await getAwardReview(BALDURS_GATE_3_APP_ID, { sentiment: "negative" });
+
+    expect(review).not.toBeNull();
+    expect(review?.votedUp).toBe(false);
+  });
+
+  it("prend la review des deux camps quand le verdict est indifférent", async () => {
+    const [any, positive] = await Promise.all([
+      getAwardReview(BALDURS_GATE_3_APP_ID, { sentiment: "any" }),
+      getAwardReview(BALDURS_GATE_3_APP_ID, { sentiment: "positive" }),
+    ]);
+
+    expect(any).not.toBeNull();
+    // Le meilleur des deux camps réunis est au moins aussi bien classé que le
+    // meilleur du seul camp positif.
+    expect(any!.rankInGame).toBeLessThanOrEqual(positive!.rankInGame);
+  });
+
+  it("rend la review la plus utile quand on la demande par les votes", async () => {
+    const [helpful, others] = await Promise.all([
+      getAwardReview(BALDURS_GATE_3_APP_ID, { sentiment: "any", order: "helpful" }),
+      getGameTopReviews(BALDURS_GATE_3_APP_ID, { language: "english", perSide: 5 }),
+    ]);
+
+    expect(helpful).not.toBeNull();
+    expect(helpful?.votesUp).toBeGreaterThanOrEqual(Math.max(...others.map((review) => review.votesUp)));
+  });
+
+  it("ne rend rien pour un jeu sans review retenue", async () => {
+    expect(await getAwardReview(-1, {})).toBeNull();
   });
 
   it("range les jeux clivants du plus proche de 50 % au moins proche", async () => {

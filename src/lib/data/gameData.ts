@@ -966,40 +966,78 @@ export async function getWindowReviewHighlights(
   };
 }
 
-export function gameTopReviewInWindowQuery(
+/**
+ * Le camp dont doit venir la citation d'une récompense : `any` laisse les deux
+ * camps concourir, pour une récompense qui ne juge pas le verdict (le jeu le
+ * plus commenté de la semaine, par exemple).
+ */
+export type AwardReviewSentiment = "positive" | "negative" | "any";
+
+/**
+ * Comment départager les reviews : `top` reprend le classement du mart (le
+ * meilleur de chaque langue d'abord), `helpful` prend simplement celle que le
+ * plus de monde a votée utile.
+ */
+export type AwardReviewOrder = "top" | "helpful";
+
+export type AwardReviewOptions = {
+  language?: string;
+  sentiment?: AwardReviewSentiment;
+  order?: AwardReviewOrder;
+  /** Bornes de la fenêtre ; absentes, la citation se cherche sur toujours. */
+  startsOn?: string | null;
+  endsOn?: string | null;
+};
+
+const AWARD_REVIEW_ORDER: Record<AwardReviewOrder, string> = {
+  top: "rh.rank_in_game, rh.weighted_vote_score DESC, rh.recommendation_id",
+  helpful: "rh.votes_up DESC, rh.weighted_vote_score DESC, rh.recommendation_id",
+};
+
+/**
+ * La citation d'une récompense du carrousel : une seule review, choisie dans
+ * la fenêtre de la récompense et du camp qu'elle annonce.
+ *
+ * Le filtre de date n'entre dans le SQL que si la fenêtre est donnée, et c'est
+ * voulu : il porte sur `review_highlight.created_at`, une colonne que le mart
+ * n'a pas toujours remontée en base. Sans fenêtre, la requête ne la nomme même
+ * pas — le repli « toutes périodes confondues » tient donc encore quand la
+ * lecture par fenêtre, elle, échoue.
+ */
+export function awardReviewQuery(
   appId: number,
-  startsOn: string,
-  endsOn: string,
-  language: string,
+  { language = "english", sentiment = "positive", order = "top", startsOn = null, endsOn = null }: AwardReviewOptions,
 ): { text: string; values: unknown[] } {
+  const values: unknown[] = [appId, language];
+  const filters = ["rh.app_id = $1", "rh.language = $2"];
+
+  if (sentiment !== "any") {
+    values.push(sentiment === "positive");
+    filters.push(`rh.voted_up = $${values.length}`);
+  }
+
+  if (startsOn && endsOn) {
+    values.push(startsOn, endsOn);
+    filters.push(`rh.created_at::date BETWEEN $${values.length - 1}::date AND $${values.length}::date`);
+  }
+
   return {
     text: `SELECT ${REVIEW_HIGHLIGHT_COLUMNS}
      FROM marts.review_highlight rh
-     WHERE rh.app_id = $1
-       AND rh.language = $4
-       AND rh.voted_up
-       AND rh.created_at::date BETWEEN $2::date AND $3::date
-     ORDER BY rh.rank_in_game, rh.weighted_vote_score DESC, rh.recommendation_id
+     WHERE ${filters.join("\n       AND ")}
+     ORDER BY ${AWARD_REVIEW_ORDER[order]}
      LIMIT 1`,
-    values: [appId, startsOn, endsOn, language],
+    values,
   };
 }
 
 /**
- * La meilleure review positive d'un jeu *écrite pendant la fenêtre*, ou `null`
- * quand le mart n'en a retenu aucune de cette période — l'appelant retombe
- * alors sur la meilleure toutes périodes confondues.
- *
- * Lit `review_highlight.created_at` : tant que la colonne n'est pas remontée
- * en base, la requête échoue, et c'est à l'appelant de s'en remettre.
+ * La review à citer sous une récompense, ou `null` quand le mart n'en a retenu
+ * aucune qui réponde au critère — l'appelant élargit alors, ou se passe de
+ * citation.
  */
-export async function getGameTopReviewInWindow(
-  appId: number,
-  startsOn: string,
-  endsOn: string,
-  language = "english",
-): Promise<GameTopReview | null> {
-  const query = gameTopReviewInWindowQuery(appId, startsOn, endsOn, language);
+export async function getAwardReview(appId: number, options: AwardReviewOptions): Promise<GameTopReview | null> {
+  const query = awardReviewQuery(appId, options);
   const { rows } = await pool.query<TopReviewRow>(query.text, query.values);
 
   const row = rows[0];

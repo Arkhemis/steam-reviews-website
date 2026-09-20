@@ -2,12 +2,13 @@ import { unstable_cache } from "next/cache";
 import { HomeEditorial, type HomeData, type PodiumGame } from "@/components/HomeEditorial";
 import { dailyVolume, monthlySentiment, reviewsInLastDays } from "@/lib/cataloguePulse";
 import { CHART_FILTERS } from "@/lib/charts";
-import { buildAwards, type AwardSlide, type AwardThresholds } from "@/lib/homeAwards";
+import { buildAwards, type AwardId, type AwardSlide, type AwardThresholds } from "@/lib/homeAwards";
 import { resolveSteamHeroArt } from "@/lib/steamArtwork";
 import {
+  getAwardReview,
+  type AwardReviewOrder,
+  type AwardReviewSentiment,
   getCatalogueTrend,
-  getGameTopReviewInWindow,
-  getGameTopReviews,
   getLanguageReviewScores,
   getPolarisedGames,
   getSiteStats,
@@ -159,34 +160,93 @@ async function heroArt(appId: number): Promise<string | null> {
 // review anglaise retenue par le mart passe donc sans citation, plutôt
 // qu'avec une citation illisible.
 //
-// On veut la meilleure review positive *écrite pendant la fenêtre* du
-// podium. Il n'y en a pas toujours — le mart ne garde que les trente
-// meilleures par jeu et par langue, toutes périodes confondues — et tant que
+// On veut la review *écrite pendant la fenêtre* de la récompense. Il n'y en a
+// pas toujours — le mart ne garde que les trente meilleures par jeu et par
+// langue, toutes périodes confondues — et tant que
 // `review_highlight.created_at` n'est pas remontée en base, la lecture
-// échoue : dans les deux cas, on retombe sur la meilleure de toujours.
+// échoue : dans les deux cas, on retombe sur la meilleure de toujours, dont la
+// requête, elle, ne nomme pas la colonne.
 //
-// Le gagnant ne change qu'avec le podium, lui-même caché : la citation se
-// cache donc sous son `appId` et sa fenêtre, sans quoi elle serait la seule
-// lecture SQL que chaque visiteur paierait.
-async function heroQuote(appId: number, window: RankedWindow): Promise<string | undefined> {
+// Le sujet ne change qu'avec sa récompense, elle-même cachée : la citation se
+// cache donc sous son `appId`, sa fenêtre et son critère, sans quoi elle
+// serait la seule lecture SQL que chaque visiteur paierait.
+type QuoteCriteria = { sentiment?: AwardReviewSentiment; order?: AwardReviewOrder };
+
+/** Le jeu primé et la fenêtre où chercher sa citation. */
+type QuoteSubject = { appId: number; startsOn: string | null; endsOn: string | null };
+
+async function awardQuote(
+  label: string,
+  appId: number,
+  window: Pick<QuoteSubject, "startsOn" | "endsOn">,
+  { sentiment = "positive", order = "top" }: QuoteCriteria = {},
+): Promise<string | undefined> {
+  const criteria = `${REVIEW_LANGUAGE}-${sentiment}-${order}`;
   const { startsOn, endsOn } = window;
+
   if (startsOn && endsOn) {
     const inWindow = await orEmpty(
-      "in-window quote",
-      cached(`home-quote-window-en-${appId}-${startsOn}-${endsOn}`, () =>
-        getGameTopReviewInWindow(appId, startsOn, endsOn, REVIEW_LANGUAGE),
+      `${label} in-window quote`,
+      cached(`home-quote-window-${criteria}-${appId}-${startsOn}-${endsOn}`, () =>
+        getAwardReview(appId, { language: REVIEW_LANGUAGE, sentiment, order, startsOn, endsOn }),
       ),
       null,
     );
     if (inWindow) return inWindow.reviewText;
   }
 
-  const reviews = await orEmpty(
-    "all-time quote",
-    cached(`home-quote-en-${appId}`, () => getGameTopReviews(appId, { language: REVIEW_LANGUAGE, perSide: 1 })),
-    [],
+  const allTime = await orEmpty(
+    `${label} all-time quote`,
+    cached(`home-quote-${criteria}-${appId}`, () =>
+      getAwardReview(appId, { language: REVIEW_LANGUAGE, sentiment, order }),
+    ),
+    null,
   );
-  return reviews.find((review) => review.votedUp)?.reviewText;
+  return allTime?.reviewText;
+}
+
+/**
+ * Ce que chaque récompense cite : le camp qui va avec son titre — un freefall
+ * s'illustre d'une review négative, jamais d'un éloge — et, pour celles qui ne
+ * jugent pas le verdict, la review que le plus de monde a votée utile.
+ *
+ * Les deux diapositives de review primée n'y sont pas : leur citation est leur
+ * sujet, et vient déjà de `review_window_highlight`.
+ */
+const AWARD_QUOTE_CRITERIA: Record<Exclude<AwardId, "funniest-review" | "most-helpful-review">, QuoteCriteria> = {
+  "best-of-week": { sentiment: "positive" },
+  comeback: { sentiment: "positive" },
+  freefall: { sentiment: "negative" },
+  "most-reviewed": { sentiment: "any" },
+  "best-of-year": { sentiment: "positive" },
+  "most-hated": { sentiment: "negative" },
+  "hidden-gem": { sentiment: "any", order: "helpful" },
+  "nobody-agrees": { sentiment: "any", order: "helpful" },
+};
+
+const NO_WINDOW = { startsOn: null, endsOn: null };
+
+type QuotedAward = keyof typeof AWARD_QUOTE_CRITERIA;
+
+/**
+ * Les citations du carrousel, lues en parallèle : une récompense sans gagnant
+ * n'en demande aucune, et une lecture vide laisse simplement sa diapositive
+ * sans citation.
+ */
+async function awardQuotes(
+  subjects: Partial<Record<QuotedAward, QuoteSubject>>,
+): Promise<Partial<Record<AwardId, string>>> {
+  const asked = Object.entries(subjects).filter(
+    (entry): entry is [QuotedAward, QuoteSubject] => entry[1] !== undefined,
+  );
+
+  const quotes = await Promise.all(
+    asked.map(([id, subject]) =>
+      awardQuote(id, subject.appId, subject, AWARD_QUOTE_CRITERIA[id]).then((quote) => [id, quote] as const),
+    ),
+  );
+
+  return Object.fromEntries(quotes.filter(([, quote]) => quote !== undefined));
 }
 
 async function withArt(slides: AwardSlide[]): Promise<AwardSlide[]> {
@@ -218,8 +278,25 @@ export default async function HomePage() {
   const isWeek = podium === week;
   const windowDays = isWeek ? 7 : 30;
 
-  const winner = podium.games[0];
-  const quote = winner ? await heroQuote(winner.appId, podium) : undefined;
+  // Le sujet de chaque récompense, avec la fenêtre sur laquelle elle est
+  // décernée : c'est dans cette fenêtre-là que se cherche sa citation. Une
+  // récompense sans gagnant n'en demande aucune.
+  const subject = (window: RankedWindow) => {
+    const game = window.games[0];
+    return game ? { appId: game.appId, startsOn: window.startsOn, endsOn: window.endsOn } : undefined;
+  };
+
+  const quotes = await awardQuotes({
+    "best-of-week": subject(podium),
+    comeback: movers.up ?? undefined,
+    freefall: movers.down ?? undefined,
+    "most-reviewed": subject(mostReviewed),
+    "best-of-year": subject(year),
+    "most-hated": subject(hated),
+    "hidden-gem": subject(hiddenGem),
+    // Le jeu qui divise se juge sur toujours : sa citation aussi.
+    "nobody-agrees": polarised[0] && { appId: polarised[0].appId, ...NO_WINDOW },
+  });
 
   const awards = buildAwards(
     {
@@ -227,7 +304,6 @@ export default async function HomePage() {
         window: podium,
         days: windowDays,
         minReviews: isWeek ? WEEK_MIN_REVIEWS : MONTH_MIN_REVIEWS,
-        quote,
       },
       movers,
       mostReviewed,
@@ -236,6 +312,7 @@ export default async function HomePage() {
       hated,
       hiddenGem,
       polarised,
+      quotes,
     },
     THRESHOLDS,
   );
