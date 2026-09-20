@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { pool } from "@/lib/db";
 import {
+  getCataloguePage,
   getCatalogueTrend,
   getGameEvents,
   getGameLanguageDistribution,
@@ -9,6 +11,7 @@ import {
   getGameTopReviews,
   getPolarisedGames,
   getReviewDuel,
+  getRecentDeltas,
   getSiteStats,
   getTopGames,
   getGameTopReviewInWindow,
@@ -25,6 +28,7 @@ import { hasDuelCoverage, hasMartColumn, hasWindow, hasWindowRanking } from "@/l
 // que le site : leurs cas sont alors sautés, cf. `martAvailability`.
 const HAS_WINDOW_SCORE = await hasWindow("week");
 const HAS_PREVIOUS_WEEK = await hasWindow("previous_week");
+const HAS_PREVIOUS_MONTH = await hasWindow("previous_month");
 const HAS_REVIEW_WINDOW_HIGHLIGHT = await hasMartColumn("review_window_highlight", "rank");
 const HAS_HIGHLIGHT_CREATED_AT = await hasMartColumn("review_highlight", "created_at");
 // Le podium de la home et le duel demandent en plus du volume : une base
@@ -51,6 +55,65 @@ describe("gameData", () => {
     expect(stats.storedReviews).toBeGreaterThan(0);
     expect(Number.isInteger(stats.totalGames)).toBe(true);
     expect(stats.totalGames).toBeGreaterThan(0);
+  });
+
+  // La somme du corpus est passée du mart quotidien à son rollup : les deux
+  // agrègent les mêmes lignes de `steam_review`, le nombre annoncé ne doit pas
+  // bouger d'une unité.
+  it("compte le corpus comme le mart quotidien, au rollup près", async () => {
+    const stats = await getSiteStats();
+    const { rows } = await pool.query<{ total: string }>(
+      `SELECT SUM(total_reviews) AS total FROM marts.game_review_trend_daily`,
+    );
+
+    expect(stats.storedReviews).toBe(Number(rows[0].total));
+  });
+
+  // Le passage par `game_window_score` déplace la définition des deux fenêtres
+  // du site vers dbt : une borne décalée d'un jour donnerait une variation
+  // plausible mais fausse, que seul un recalcul depuis le mart quotidien
+  // rattrape.
+  it.skipIf(!HAS_PREVIOUS_MONTH)("date les vignettes comme le ferait le mart quotidien", async () => {
+    const { games } = await getCataloguePage({ sort: "most-reviewed", limit: 12, minReviews: 1 });
+    const appIds = games.map((g) => g.appId);
+    const deltas = await getRecentDeltas(appIds);
+
+    const { rows } = await pool.query<{ app_id: string; delta_pct: string }>(
+      `WITH bounds AS (
+         SELECT MAX(review_date) AS latest FROM marts.game_review_trend_daily
+       ),
+       windows AS (
+         SELECT
+           t.app_id,
+           SUM(t.total_reviews) FILTER (WHERE t.review_date > b.latest - INTERVAL '30 days') AS recent_reviews,
+           SUM(t.total_positive) FILTER (WHERE t.review_date > b.latest - INTERVAL '30 days') AS recent_positive,
+           SUM(t.total_reviews) FILTER (WHERE t.review_date <= b.latest - INTERVAL '30 days') AS previous_reviews,
+           SUM(t.total_positive) FILTER (WHERE t.review_date <= b.latest - INTERVAL '30 days') AS previous_positive
+         FROM marts.game_review_trend_daily t, bounds b
+         WHERE t.app_id = ANY($1::bigint[])
+           AND t.review_date > b.latest - INTERVAL '60 days'
+         GROUP BY t.app_id
+       )
+       SELECT
+         app_id,
+         ROUND(
+           (recent_positive::numeric / recent_reviews
+             - previous_positive::numeric / previous_reviews) * 100,
+           1
+         ) AS delta_pct
+       FROM windows
+       WHERE recent_reviews >= 30 AND previous_reviews >= 30`,
+      [appIds],
+    );
+
+    expect(rows.length).toBeGreaterThan(0);
+    expect(deltas.size).toBe(rows.length);
+    for (const row of rows) {
+      // `pct_positive` est arrondi à quatre décimales dans le mart : la
+      // différence des deux parts peut s'écarter d'un centième de point de
+      // celle calculée sur les sommes brutes.
+      expect(deltas.get(Number(row.app_id))).toBeCloseTo(Number(row.delta_pct), 1);
+    }
   });
 
   it("returns null stats for an unknown game", async () => {

@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { pool } from "@/lib/db";
 import {
+  cataloguePageQuery,
   gameTopReviewInWindowQuery,
+  recentDeltasQuery,
   reviewDuelQuery,
+  siteStatsQuery,
+  trendingGamesQuery,
   windowMoversQuery,
   windowRankingQuery,
 } from "@/lib/data/gameData";
@@ -17,6 +21,7 @@ type PlanNode = {
 // Les marts du carrousel peuvent manquer à une base plus ancienne que le
 // site : EXPLAIN échouerait sur une relation absente, on saute alors le cas.
 const HAS_WINDOW_SCORE = await hasWindow("week");
+const HAS_PREVIOUS_MONTH = await hasWindow("previous_month");
 const HAS_HIGHLIGHT_CREATED_AT = await hasMartColumn("review_highlight", "created_at");
 
 async function planFor(query: { text: string; values: unknown[] }): Promise<PlanNode> {
@@ -65,6 +70,42 @@ describe("query plans", () => {
     const plan = await planFor(windowMoversQuery(100));
 
     expect(scannedRelations(plan)).toContain("game_window_score");
+    expect(scannedRelations(plan)).not.toContain("game_review_trend_daily");
+  });
+
+  // La bascule trente jours contre trente jours est la question la plus chère
+  // du site : posée au mart quotidien, elle agrège un demi-million de lignes de
+  // (jeu, jour). `previous_month` la ramène à un join de deux lignes par jeu.
+  it.skipIf(!HAS_PREVIOUS_MONTH)("compare les deux mois sans réagréger game_review_trend_daily", async () => {
+    const plan = await planFor(trendingGamesQuery(5, 30));
+
+    expect(scannedRelations(plan)).toContain("game_window_score");
+    expect(scannedRelations(plan)).not.toContain("game_review_trend_daily");
+  });
+
+  it.skipIf(!HAS_PREVIOUS_MONTH)("trie le catalogue par variation sans réagréger game_review_trend_daily", async () => {
+    const plan = await planFor(cataloguePageQuery({ sort: "trending", limit: 25, minReviews: 30 }));
+
+    expect(scannedRelations(plan)).toContain("game_window_score");
+    expect(scannedRelations(plan)).not.toContain("game_review_trend_daily");
+  });
+
+  // Celle-ci part sur chaque chargement de `/charts`, hors cache : c'est le
+  // seul coût que le lecteur paie à tous les coups.
+  it.skipIf(!HAS_PREVIOUS_MONTH)("date les vignettes sans réagréger game_review_trend_daily", async () => {
+    const plan = await planFor(recentDeltasQuery([1086940, 570, 730], 30));
+
+    expect(scannedRelations(plan)).toContain("game_window_score");
+    expect(scannedRelations(plan)).not.toContain("game_review_trend_daily");
+  });
+
+  // `game_review_trend_daily` compte vingt millions de lignes : la somme du
+  // corpus a son rollup, `catalogue_review_trend_daily`, qui en fait cinq
+  // mille. Les deux donnent le même nombre.
+  it("annonce la taille du corpus sans balayer game_review_trend_daily", async () => {
+    const plan = await planFor(siteStatsQuery());
+
+    expect(scannedRelations(plan)).toContain("catalogue_review_trend_daily");
     expect(scannedRelations(plan)).not.toContain("game_review_trend_daily");
   });
 
