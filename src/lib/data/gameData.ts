@@ -61,7 +61,7 @@ const REVIEW_HIGHLIGHT_COLUMNS = `
   rh.recommendation_id, rh.app_id, rh.review_text, rh.language, rh.voted_up,
   rh.votes_up, rh.votes_funny, rh.weighted_vote_score, rh.author_personaname,
   rh.author_avatar, rh.author_profile_url, rh.author_playtime_at_review_minutes,
-  rh.author_last_played_at, rh.rank_in_game
+  rh.author_last_played_at, rh.created_at, rh.rank_in_game
 `;
 
 type TopReviewRow = {
@@ -78,6 +78,7 @@ type TopReviewRow = {
   author_profile_url: string;
   author_playtime_at_review_minutes: number;
   author_last_played_at: Date | null;
+  created_at: Date;
   rank_in_game: string;
 };
 
@@ -97,6 +98,7 @@ function mapTopReviewRow(row: TopReviewRow): GameTopReview {
     authorLastPlayedAt: row.author_last_played_at
       ? (row.author_last_played_at as Date).toISOString()
       : null,
+    createdAt: (row.created_at as Date).toISOString(),
     reviewUrl: `${row.author_profile_url}recommended/${row.app_id}`,
     rankInGame: Number(row.rank_in_game),
   };
@@ -649,6 +651,7 @@ export async function getGameTopReviews(
          author_profile_url,
          author_playtime_at_review_minutes,
          author_last_played_at,
+         created_at,
          rank_in_game,
          ROW_NUMBER() OVER (
            PARTITION BY voted_up
@@ -678,6 +681,7 @@ export async function getGameTopReviews(
     authorLastPlayedAt: row.author_last_played_at
       ? (row.author_last_played_at as Date).toISOString()
       : null,
+    createdAt: (row.created_at as Date).toISOString(),
     reviewUrl: `${row.author_profile_url}recommended/${row.app_id}`,
     rankInGame: Number(row.rank_in_game),
   }));

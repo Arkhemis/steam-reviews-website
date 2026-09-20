@@ -87,6 +87,7 @@ function review(overrides: Partial<GameTopReview>): GameTopReview {
     authorAvatarUrl: "https://avatars.steamstatic.com/abc_full.jpg",
     authorPlaytimeAtReviewMinutes: 6000,
     authorLastPlayedAt: null,
+    createdAt: "2023-01-15T00:00:00.000Z",
     reviewUrl: "https://steamcommunity.com/id/x/recommended/1086940",
     rankInGame: 1,
     ...overrides,

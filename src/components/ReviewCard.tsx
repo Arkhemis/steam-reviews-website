@@ -19,6 +19,25 @@ export function ThumbIcon({ up, className }: { up: boolean; className?: string }
   );
 }
 
+/**
+ * Ampoule monochrome (Heroicons solid) : le glyphe emoji U+1F4A1 est rendu en
+ * couleur par la plupart des polices système, `font-variant-emoji: text` ne le
+ * rattrape pas partout — un SVG en `currentColor` est le seul moyen sûr de le
+ * garder dans le gris du reste de l'en-tête.
+ */
+export function LightBulbIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className={className}>
+      <path d="M12 .75a8.25 8.25 0 0 0-4.135 15.39c.686.398 1.115 1.008 1.134 1.623a.75.75 0 0 0 .577.706c.352.083.71.148 1.074.195.323.041.6-.218.6-.544v-4.661a6.714 6.714 0 0 1-.937-.171.75.75 0 1 1 .374-1.453 5.261 5.261 0 0 0 2.626 0 .75.75 0 1 1 .374 1.452 6.712 6.712 0 0 1-.937.172v4.66c0 .327.277.586.6.545.364-.047.722-.112 1.074-.195a.75.75 0 0 0 .577-.706c.02-.615.448-1.225 1.134-1.623A8.25 8.25 0 0 0 12 .75Z" />
+      <path
+        fillRule="evenodd"
+        d="M9.013 19.9a.75.75 0 0 1 .877-.597 11.319 11.319 0 0 0 4.22 0 .75.75 0 1 1 .28 1.473 12.819 12.819 0 0 1-4.78 0 .75.75 0 0 1-.597-.876Zm.741 2.444a.75.75 0 0 1 .824-.668 13.682 13.682 0 0 0 2.844 0 .75.75 0 1 1 .156 1.492 15.156 15.156 0 0 1-3.156 0 .75.75 0 0 1-.668-.824Z"
+        clipRule="evenodd"
+      />
+    </svg>
+  );
+}
+
 export function ReviewCard({ review }: { review: GameTopReview }) {
   const [expanded, setExpanded] = useState(false);
   const [isOverflowing, setIsOverflowing] = useState(false);
@@ -38,7 +57,21 @@ export function ReviewCard({ review }: { review: GameTopReview }) {
           <ThumbIcon up={review.votedUp} className="h-4 w-4" />
           {review.votedUp ? "Recommended" : "Not recommended"}
         </span>
-        <span className="whitespace-nowrap">{review.votesUp.toLocaleString("en-US")} helpful votes</span>
+        <span className="flex items-center gap-1.5 whitespace-nowrap">
+          {review.votesFunny > 0 && (
+            <>
+              <span aria-hidden="true" className="text-[#5f7481]">
+                :D
+              </span>
+              <span>{review.votesFunny.toLocaleString("en-US")} funny</span>
+              <span aria-hidden="true" className="text-[#3c4c58]">
+                /
+              </span>
+            </>
+          )}
+          <LightBulbIcon className="h-3.5 w-3.5 text-[#5f7481]" />
+          <span>{review.votesUp.toLocaleString("en-US")} helpful votes</span>
+        </span>
       </div>
       <div className="mt-4 flex items-center gap-2.5">
         <Image
@@ -48,10 +81,27 @@ export function ReviewCard({ review }: { review: GameTopReview }) {
           height={32}
           className="h-8 w-8 rounded-full border border-[#24333f] object-cover"
         />
-        <span className="text-sm font-semibold text-[#dfe7eb]">{review.authorPersonaname}</span>
-        <span className="font-mono text-[10px] text-[#5f7481]">
-          {Math.round(review.authorPlaytimeAtReviewMinutes / 60)}h played
-        </span>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-x-2">
+            <span className="text-sm font-semibold text-[#dfe7eb]">{review.authorPersonaname}</span>
+            <span className="font-mono text-[10px] text-[#5f7481]">
+              {Math.round(review.authorPlaytimeAtReviewMinutes / 60)}h played at review
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-x-1.5 font-mono text-[10px] text-[#5f7481]">
+            <span>Posted on {new Date(review.createdAt).toLocaleDateString("en-US")}</span>
+            {review.authorLastPlayedAt && (
+              <>
+                <span aria-hidden="true" className="text-[#3c4c58]">
+                  ·
+                </span>
+                <span>
+                  Last played on {new Date(review.authorLastPlayedAt).toLocaleDateString("en-US")}
+                </span>
+              </>
+            )}
+          </div>
+        </div>
       </div>
       <div
         ref={textRef}
@@ -69,10 +119,6 @@ export function ReviewCard({ review }: { review: GameTopReview }) {
         </button>
       )}
       <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[10px] text-[#5f7481]">
-        {review.votesFunny > 0 && <span>{review.votesFunny.toLocaleString("en-US")} funny votes</span>}
-        {review.authorLastPlayedAt && (
-          <span>Last played on {new Date(review.authorLastPlayedAt).toLocaleDateString("en-US")}</span>
-        )}
         <a
           href={review.reviewUrl}
           target="_blank"

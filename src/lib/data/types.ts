@@ -105,6 +105,8 @@ export type GameTopReview = {
   authorAvatarUrl: string;
   authorPlaytimeAtReviewMinutes: number;
   authorLastPlayedAt: string | null;
+  /** Date de publication de la review, au format ISO. */
+  createdAt: string;
   reviewUrl: string;
   rankInGame: number;
 };
