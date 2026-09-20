@@ -129,7 +129,7 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
           <HeroArt appId={numericAppId} />
         </Suspense>
 
-        <div className="relative grid w-full grid-cols-[100px_minmax(0,1fr)] items-end gap-5 px-6 py-10 sm:grid-cols-[150px_minmax(0,1fr)] sm:gap-7 sm:px-8 lg:max-w-[62%] lg:py-12">
+        <div className="relative grid w-full grid-cols-[100px_minmax(0,1fr)] items-center gap-5 px-6 py-10 sm:grid-cols-[150px_minmax(0,1fr)] sm:gap-7 sm:px-8 lg:max-w-[62%] lg:py-12">
           {/* Le liseré coloré en haut de la jaquette rejoue le verdict, comme
               sur les vignettes du catalogue. */}
           <span className="relative block aspect-[2/3] overflow-hidden rounded-[4px] bg-white/5 shadow-[0_18px_50px_rgba(0,0,0,0.55)]">
@@ -155,7 +155,7 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
             <h1 className="mt-2.5 max-w-[18ch] text-4xl leading-[0.94] font-extrabold tracking-tight text-balance drop-shadow-[0_2px_24px_rgba(12,17,22,0.9)] sm:text-5xl lg:text-[56px]">
               {stats.name}
             </h1>
-            <div className="mt-3.5 flex flex-wrap items-baseline gap-x-[18px] gap-y-2 font-mono">
+            <div className="mt-3.5 flex flex-wrap items-center gap-x-[18px] gap-y-2 font-mono">
               <span className="text-[44px] leading-none" style={{ color: rating.color }}>
                 {Math.round(stats.pctPositive * 100)}%
               </span>
