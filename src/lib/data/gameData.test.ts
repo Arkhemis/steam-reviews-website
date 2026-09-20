@@ -19,7 +19,7 @@ import {
   getWindowReviewHighlights,
   TOP_REVIEWS_PER_SIDE,
 } from "@/lib/data/gameData";
-import { hasMartColumn, hasWindow } from "@/lib/data/martAvailability";
+import { hasDuelCoverage, hasMartColumn, hasWindow, hasWindowRanking } from "@/lib/data/martAvailability";
 
 // Les marts du carrousel de la home peuvent manquer à une base plus ancienne
 // que le site : leurs cas sont alors sautés, cf. `martAvailability`.
@@ -27,6 +27,11 @@ const HAS_WINDOW_SCORE = await hasWindow("week");
 const HAS_PREVIOUS_WEEK = await hasWindow("previous_week");
 const HAS_REVIEW_WINDOW_HIGHLIGHT = await hasMartColumn("review_window_highlight", "rank");
 const HAS_HIGHLIGHT_CREATED_AT = await hasMartColumn("review_highlight", "created_at");
+// Le podium de la home et le duel demandent en plus du volume : une base
+// d'échantillon porte les marts sans porter les avis qui les remplissent.
+const PODIUM_FLOOR = 100;
+const HAS_PODIUM = await hasWindowRanking("month", PODIUM_FLOOR);
+const HAS_DUEL_COVERAGE = await hasDuelCoverage();
 
 const BALDURS_GATE_3_APP_ID = 1086940;
 
@@ -179,13 +184,13 @@ describe("gameData", () => {
   // The duel draws a handful of random games and keeps the first with a ranked
   // review of the right polarity. Drawing only one would leave it empty whenever
   // that game happens to have no such review.
-  it("always finds both sides, however the random draw falls", async () => {
+  it.skipIf(!HAS_DUEL_COVERAGE)("always finds both sides, however the random draw falls", async () => {
     const duels = await Promise.all(Array.from({ length: 10 }, () => getReviewDuel()));
     expect(duels.every((d) => d !== null)).toBe(true);
     expect(duels.every((d) => d!.positive.review.votedUp && !d!.negative.review.votedUp)).toBe(true);
   });
 
-  it("returns one positive and one negative review for the review duel", async () => {
+  it.skipIf(!HAS_DUEL_COVERAGE)("returns one positive and one negative review for the review duel", async () => {
     const duel = await getReviewDuel();
     expect(duel).not.toBeNull();
     expect(duel?.positive.review.votedUp).toBe(true);
@@ -196,8 +201,8 @@ describe("gameData", () => {
 
   // --- Home éditoriale ---
 
-  it.skipIf(!HAS_WINDOW_SCORE)("classe le podium d'une fenêtre par part d'avis positifs décroissante", async () => {
-    const { games } = await getTopRatedGamesInWindow("month", 5, 100);
+  it.skipIf(!HAS_PODIUM)("classe le podium d'une fenêtre par part d'avis positifs décroissante", async () => {
+    const { games } = await getTopRatedGamesInWindow("month", 5, PODIUM_FLOOR);
 
     expect(games.length).toBeGreaterThan(0);
     expect(games.map((g) => g.pctPositive)).toEqual(
@@ -215,15 +220,15 @@ describe("gameData", () => {
 
   // La home montre le gagnant en grand : un jeu sans jaquette y laisserait un
   // cadre vide, héros compris.
-  it.skipIf(!HAS_WINDOW_SCORE)("ne sacre que des jeux qui ont une jaquette", async () => {
-    const { games } = await getTopRatedGamesInWindow("month", 5, 100);
+  it.skipIf(!HAS_PODIUM)("ne sacre que des jeux qui ont une jaquette", async () => {
+    const { games } = await getTopRatedGamesInWindow("month", 5, PODIUM_FLOOR);
 
     expect(games.length).toBeGreaterThan(0);
     expect(games.every((g) => g.coverUrl !== null)).toBe(true);
   });
 
-  it.skipIf(!HAS_WINDOW_SCORE)("rend la fenêtre du podium, ancrée sur la dernière date du mart", async () => {
-    const window = await getTopRatedGamesInWindow("month", 1, 100);
+  it.skipIf(!HAS_PODIUM)("rend la fenêtre du podium, ancrée sur la dernière date du mart", async () => {
+    const window = await getTopRatedGamesInWindow("month", 1, PODIUM_FLOOR);
 
     expect(window.startsOn).not.toBeNull();
     expect(window.endsOn).not.toBeNull();
