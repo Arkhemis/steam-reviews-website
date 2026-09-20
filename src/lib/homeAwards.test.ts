@@ -255,7 +255,6 @@ describe("buildAwards", () => {
       figureColor: "var(--status-good)",
       meta: "1,234 reviews in the last 7 days",
       quote: "Best [b]thing[/b] all year.",
-      layout: "game",
     });
     expect(best.hint).toContain("at least 100 reviews");
   });
@@ -345,7 +344,6 @@ describe("buildAwards", () => {
     const funny = buildAwards(sources(), THRESHOLDS).find((award) => award.id === "funniest-review");
 
     expect(funny).toMatchObject({
-      layout: "review",
       chip: "Funniest review",
       label: "funniest review · last 30 days",
       range: "15 Aug – 13 Sep",

@@ -125,15 +125,10 @@ function ReadTheReviews({ appId }: { appId: number }) {
 
 // Une seule mise en forme de citation pour tout le carrousel : la review
 // primée est le sujet de sa diapositive, mais pas au point de mériter un autre
-// corps de texte — en grand, elle écrasait le reste du bandeau. Elle garde
-// seulement le droit de courir sur deux lignes de plus.
-function Quote({ text, lines }: { text: string; lines: 4 | 6 }) {
+// corps de texte — en grand, elle écrasait le reste du bandeau.
+function Quote({ text }: { text: string }) {
   return (
-    <blockquote
-      className={`max-w-[46ch] border-l-[3px] border-brand-blue pl-4 text-[19px] leading-relaxed text-[#dfe7eb] ${
-        lines === 6 ? "line-clamp-6" : "line-clamp-4"
-      }`}
-    >
+    <blockquote className="line-clamp-4 max-w-[46ch] border-l-[3px] border-brand-blue pl-4 text-[19px] leading-relaxed text-[#dfe7eb]">
       <BBCodeText text={text} />
     </blockquote>
   );
@@ -141,7 +136,12 @@ function Quote({ text, lines }: { text: string; lines: 4 | 6 }) {
 
 // La première diapositive porte le titre de la page : c'est elle que rend le
 // serveur, et le gagnant de la semaine reste le sujet de la home.
-function GameSlide({ slide, Heading }: { slide: AwardSlide; Heading: "h1" | "h2" }) {
+//
+// Toutes les récompenses se lisent dans le même ordre — le jeu, son chiffre,
+// puis la citation — y compris les deux dont le sujet est une review : un
+// carrousel où la moitié des diapositives commence par le bas déroutait plus
+// qu'il ne mettait la citation en valeur.
+function Slide({ slide, Heading }: { slide: AwardSlide; Heading: "h1" | "h2" }) {
   return (
     <>
       <Kicker slide={slide} />
@@ -155,32 +155,9 @@ function GameSlide({ slide, Heading }: { slide: AwardSlide; Heading: "h1" | "h2"
       </div>
       {slide.quote && (
         <div className="mt-[18px]">
-          <Quote text={slide.quote} lines={4} />
+          <Quote text={slide.quote} />
         </div>
       )}
-      <ReadTheReviews appId={slide.appId} />
-    </>
-  );
-}
-
-// Une review primée : la citation est le sujet, le jeu ne vient qu'après.
-function ReviewSlide({ slide, Heading }: { slide: AwardSlide; Heading: "h1" | "h2" }) {
-  return (
-    <>
-      <Kicker slide={slide} />
-      {slide.quote && (
-        <div className="mt-4">
-          <Quote text={slide.quote} lines={6} />
-        </div>
-      )}
-      <Heading className="mt-5 mb-0 text-2xl leading-tight font-extrabold tracking-tight text-balance drop-shadow-[0_2px_24px_rgba(12,17,22,0.9)]">
-        {slide.name}
-      </Heading>
-      <div className="mt-1.5 font-mono text-xs text-[#9fb2bd]">{slide.meta}</div>
-      <div className="mt-4 flex items-baseline gap-3 font-mono">
-        <Figure slide={slide} size="md" />
-        {slide.figureLabel && <span className="text-sm text-[#cfdae1]">{slide.figureLabel}</span>}
-      </div>
       <ReadTheReviews appId={slide.appId} />
     </>
   );
@@ -355,11 +332,7 @@ export function AwardsCarousel({ slides }: { slides: AwardSlide[] }) {
               {(visited.has(i) || (autoplay && i === next)) && <Backdrop slide={slide} preload={i === 0} />}
               <div className="relative mx-auto flex h-full max-w-[1320px] items-center px-6 pt-12 pb-8 sm:px-8 lg:pt-16">
                 <div className="w-full min-w-0 lg:max-w-[52%]">
-                  {slide.layout === "review" ? (
-                    <ReviewSlide slide={slide} Heading={Heading} />
-                  ) : (
-                    <GameSlide slide={slide} Heading={Heading} />
-                  )}
+                  <Slide slide={slide} Heading={Heading} />
                 </div>
               </div>
             </div>

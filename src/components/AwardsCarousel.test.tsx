@@ -17,7 +17,6 @@ function slide(id: AwardSlide["id"], name: string, extra: Partial<AwardSlide> = 
     figure: "96%",
     figureColor: "var(--status-good)",
     meta: `meta ${name}`,
-    layout: "game",
     ...extra,
   };
 }
@@ -28,7 +27,6 @@ const SLIDES: AwardSlide[] = [
   slide("best-of-week", "Winner", { quote: "Best [b]thing[/b] I played all year." }),
   slide("comeback", "Riser", { figure: "+18 pts", meta: "62% → 80%" }),
   slide("funniest-review", "Joke game", {
-    layout: "review",
     quote: "I came for the plot, stayed for the goose.",
     figure: "42",
     figureLabel: "found it funny",
@@ -131,6 +129,17 @@ describe("AwardsCarousel", () => {
     const img = [...container.querySelectorAll("img")].find((el) => el.src.includes("co670h"));
     expect(img?.src).toContain("t_cover_big_2x");
     expect(img).toHaveClass("blur-3xl");
+  });
+
+  it("range toutes les récompenses dans le même ordre, review primée comprise", () => {
+    render(<AwardsCarousel slides={SLIDES} />);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Chip Joke game" }));
+
+    // Le jeu, puis son chiffre, puis la citation — comme une récompense de jeu.
+    expect(screen.getByRole("tabpanel").textContent).toMatch(
+      /Joke game[\s\S]*42[\s\S]*found it funny[\s\S]*by goosefan[\s\S]*stayed for the goose/,
+    );
   });
 
   it("affiche la diapositive d'une puce cliquée", () => {
@@ -301,14 +310,12 @@ describe("AwardsCarousel", () => {
     expect(quote?.querySelector("strong")).toHaveTextContent("thing");
   });
 
-  it("fait passer la citation avant le jeu sur une diapositive de review", () => {
+  it("compte les votes et l'auteur d'une review primée comme n'importe quelle récompense", () => {
     render(<AwardsCarousel slides={SLIDES} />);
     fireEvent.click(screen.getByRole("tab", { name: "Chip Joke game" }));
 
     const panel = screen.getByRole("tabpanel");
-    const quote = within(panel).getByText(/stayed for the goose/);
-    const title = within(panel).getByRole("heading", { name: "Joke game" });
-    expect(quote.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(panel).getByRole("heading", { name: "Joke game" })).toBeInTheDocument();
     expect(within(panel).getByText("42")).toBeInTheDocument();
     expect(within(panel).getByText("found it funny")).toBeInTheDocument();
     expect(within(panel).getByText("by goosefan · 13 hrs at review")).toBeInTheDocument();

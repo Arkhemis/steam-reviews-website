@@ -27,7 +27,6 @@ function award(id: AwardSlide["id"], appId: number, name: string, extra: Partial
     figure: "96%",
     figureColor: "var(--status-good)",
     meta: "1,234 reviews in the last 7 days",
-    layout: "game",
     ...extra,
   };
 }

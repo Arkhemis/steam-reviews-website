@@ -47,9 +47,12 @@ son chiffre (`AWARD_QUOTE_CRITERIA`, dans `page.tsx`) :
 | Most reviewed | indifférent | rang du mart |
 | Hidden gem, Nobody agrees | indifférent | votes « utile » |
 
-Les deux diapositives de review primée n'y figurent pas : leur citation est
-leur sujet, et vient de `review_window_highlight`. Une récompense dont aucune
-review ne répond au critère s'affiche sans citation.
+Les deux récompenses de review primée n'y figurent pas : leur citation vient
+de `review_window_highlight`. Une récompense dont aucune review ne répond au
+critère s'affiche sans citation.
+
+Toutes les diapositives se lisent dans le même ordre — le kicker, le jeu, son
+chiffre, puis la citation — les deux récompenses de review comprises.
 
 Chaque diapositive de jeu prend en fond l'illustration panoramique Steam
 (`resolveSteamHeroArt`, cachée par `appId`), avec la jaquette floutée en repli.
@@ -99,11 +102,11 @@ données contiennent pourtant :
 
 - **jaquette obligatoire** sur toutes les diapositives de jeu et sur les
   dauphins — une fenêtre courte fait remonter des titres qu'IGDB ne couvre pas
-  encore, et le bandeau les affichait sur un cadre vide. Les diapositives de
-  review n'y sont pas soumises : c'est la citation qu'elles montrent ;
+  encore, et le bandeau les affichait sur un cadre vide. Les deux récompenses
+  de review primée n'y sont pas soumises : elles se choisissent sur la review,
+  pas sur le jeu ;
 - **anglais uniquement** pour les citations de récompense et pour les reviews
-  primées —
-  sans filtre de langue, la review la plus utile d'un jeu est souvent chinoise
+  primées — sans filtre de langue, la review la plus utile d'un jeu est souvent chinoise
   ou russe.
 
 ## Ordre de déploiement

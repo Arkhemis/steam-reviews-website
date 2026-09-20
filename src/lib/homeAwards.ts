@@ -57,8 +57,6 @@ export type AwardSlide = {
   meta: string;
   /** Texte d'avis déjà coupé, BBCode Steam compris. */
   quote?: string;
-  /** `review` : la citation passe devant le jeu. */
-  layout: "game" | "review";
 };
 
 export type AwardThresholds = {
@@ -190,7 +188,6 @@ function bestOfPodium({ window, days, minReviews }: AwardSources["podium"], quot
     figureColor: verdictColor(winner.pctPositive * 100),
     meta: `${enFull.format(winner.reviews)} reviews in the last ${days} days`,
     quote,
-    layout: "game",
   };
 }
 
@@ -221,7 +218,6 @@ function moverSlide(
     figureColor: rising ? "var(--status-good)" : "var(--status-critical)",
     meta: `${pct(mover.previousPctPositive)} → ${pct(mover.pctPositive)} · ${enFull.format(mover.reviews)} reviews this week`,
     quote,
-    layout: "game",
   };
 }
 
@@ -244,7 +240,6 @@ function mostReviewedSlide(window: RankedWindow, quote?: string): AwardSlide | n
     figureLabel: "reviews",
     meta: `${pct(winner.pctPositive)} positive in the last 7 days`,
     quote,
-    layout: "game",
   };
 }
 
@@ -271,7 +266,6 @@ function reviewSlide(review: WindowReviewHighlight | null, category: "funny" | "
     figureLabel: funny ? "found it funny" : "found it helpful",
     meta: `by ${review.authorPersonaname} · ${formatPlaytime(review.authorPlaytimeAtReviewMinutes)} at review`,
     quote: excerpt(review.reviewText),
-    layout: "review",
   };
 }
 
@@ -294,7 +288,6 @@ function bestOfYearSlide(window: RankedWindow, minReviews: number, quote?: strin
     figureColor: verdictColor(winner.pctPositive * 100),
     meta: `${enFull.format(winner.reviews)} reviews this year`,
     quote,
-    layout: "game",
   };
 }
 
@@ -318,7 +311,6 @@ function mostHatedSlide(window: RankedWindow, minReviews: number, quote?: string
     figureColor: verdictColor(loser.pctPositive * 100),
     meta: `${enFull.format(loser.reviews)} reviews in the last 30 days`,
     quote,
-    layout: "game",
   };
 }
 
@@ -347,7 +339,6 @@ function hiddenGemSlide(
     figureColor: verdictColor(gem.pctPositive * 100),
     meta: `${enFull.format(gem.reviews)} reviews in the last 30 days · ${enFull.format(gem.totalReviews)} on Steam overall`,
     quote,
-    layout: "game",
   };
 }
 
@@ -370,7 +361,6 @@ function nobodyAgreesSlide(game: GameStats | undefined, minReviews: number, quot
     figureColor: verdictColor(game.pctPositive * 100),
     meta: `${enFull.format(game.totalReviews)} reviews · all time`,
     quote,
-    layout: "game",
   };
 }
 
