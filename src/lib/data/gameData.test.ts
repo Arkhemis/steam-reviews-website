@@ -116,6 +116,36 @@ describe("gameData", () => {
     }
   });
 
+  // Même déplacement que pour la somme du corpus : le rollup agrège les mêmes
+  // lignes que le mart par (jeu, jour), jour par jour. La courbe ne doit pas
+  // bouger d'un point.
+  it("trace la même courbe que le mart quotidien, au rollup près", async () => {
+    const trend = await getCatalogueTrend();
+    const { rows } = await pool.query<{ review_date: string; reviews: string; positive: string }>(
+      `WITH bounds AS (
+         SELECT MAX(review_date) AS latest FROM marts.game_review_trend_daily
+       )
+       SELECT
+         TO_CHAR(t.review_date, 'YYYY-MM-DD') AS review_date,
+         SUM(t.total_reviews) AS reviews,
+         SUM(t.total_positive) AS positive
+       FROM marts.game_review_trend_daily t, bounds b
+       WHERE t.review_date >= (DATE_TRUNC('month', b.latest) - INTERVAL '11 months')::date
+         AND t.review_date <= b.latest
+       GROUP BY t.review_date
+       ORDER BY t.review_date`,
+    );
+
+    expect(rows.length).toBeGreaterThan(0);
+    expect(trend).toEqual(
+      rows.map((row) => ({
+        date: row.review_date,
+        reviews: Number(row.reviews),
+        positive: Number(row.positive),
+      })),
+    );
+  });
+
   it("returns null stats for an unknown game", async () => {
     const stats = await getGameStats(999999999);
     expect(stats).toBeNull();

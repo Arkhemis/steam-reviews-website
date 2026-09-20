@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { pool } from "@/lib/db";
 import {
+  catalogueTrendQuery,
   cataloguePageQuery,
   gameTopReviewInWindowQuery,
   recentDeltasQuery,
@@ -104,6 +105,15 @@ describe("query plans", () => {
   // mille. Les deux donnent le même nombre.
   it("annonce la taille du corpus sans balayer game_review_trend_daily", async () => {
     const plan = await planFor(siteStatsQuery());
+
+    expect(scannedRelations(plan)).toContain("catalogue_review_trend_daily");
+    expect(scannedRelations(plan)).not.toContain("game_review_trend_daily");
+  });
+
+  // La courbe de la home ne trace qu'un point par jour, mais la posait au mart
+  // par (jeu, jour) : trois millions de lignes réagrégées pour en rendre 354.
+  it("trace la courbe du catalogue sans réagréger game_review_trend_daily", async () => {
+    const plan = await planFor(catalogueTrendQuery());
 
     expect(scannedRelations(plan)).toContain("catalogue_review_trend_daily");
     expect(scannedRelations(plan)).not.toContain("game_review_trend_daily");

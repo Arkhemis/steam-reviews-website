@@ -1030,24 +1030,39 @@ export async function getPolarisedGames(limit: number, minReviews = 5000): Promi
  * Le pouls du catalogue : une ligne par jour, tous jeux confondus, sur les
  * douze derniers mois calendaires. Le bandeau de la home en tire trois choses
  * (courbe de sentiment mensuelle, barres des 31 derniers jours, avis de la
- * semaine) — d'où une seule requête plutôt que trois : l'agrégation balaie la
- * même tranche de `game_review_trend_daily` à chaque fois, et c'est elle qui
- * coûte. Le découpage se fait ensuite en mémoire, dans `@/lib/cataloguePulse`.
+ * semaine) — d'où une seule requête plutôt que trois. Le découpage se fait
+ * ensuite en mémoire, dans `@/lib/cataloguePulse`.
+ *
+ * Elle lit `catalogue_review_trend_daily`, qui est exactement ce
+ * `GROUP BY review_date` fait une fois par le pipeline, et non le mart par
+ * (jeu, jour) : la même question posée à celui-ci réagrégeait trois millions
+ * de lignes pour en rendre trois cent cinquante.
+ *
+ * Comme ailleurs, la fenêtre s'ancre sur la dernière date du mart et non sur
+ * `CURRENT_DATE` : le pipeline peut avoir des jours de retard.
  */
-export async function getCatalogueTrend(): Promise<CatalogueTrendDay[]> {
-  const { rows } = await pool.query<{ review_date: string; reviews: string; positive: string }>(
-    `WITH bounds AS (
-       SELECT MAX(review_date) AS latest FROM marts.game_review_trend_daily
+export function catalogueTrendQuery(): { text: string; values: unknown[] } {
+  return {
+    text: `WITH bounds AS (
+       SELECT MAX(review_date) AS latest FROM marts.catalogue_review_trend_daily
      )
      SELECT
        TO_CHAR(t.review_date, 'YYYY-MM-DD') AS review_date,
-       SUM(t.total_reviews) AS reviews,
-       SUM(t.total_positive) AS positive
-     FROM marts.game_review_trend_daily t, bounds b
+       t.total_reviews AS reviews,
+       t.total_positive AS positive
+     FROM marts.catalogue_review_trend_daily t, bounds b
      WHERE t.review_date >= (DATE_TRUNC('month', b.latest) - INTERVAL '11 months')::date
        AND t.review_date <= b.latest
-     GROUP BY t.review_date
      ORDER BY t.review_date`,
+    values: [],
+  };
+}
+
+export async function getCatalogueTrend(): Promise<CatalogueTrendDay[]> {
+  const query = catalogueTrendQuery();
+  const { rows } = await pool.query<{ review_date: string; reviews: string; positive: string }>(
+    query.text,
+    query.values,
   );
 
   return rows.map((row) => ({
@@ -1060,9 +1075,9 @@ export async function getCatalogueTrend(): Promise<CatalogueTrendDay[]> {
 // --- Catalogue de `/charts` ------------------------------------------------
 //
 // La page de classements montre le catalogue en grille de jaquettes, trié
-// selon l'une des cinq entrées de `CHART_FILTERS`. Quatre d'entre elles ne
-// sont qu'un ORDER BY sur `marts.game_stats` ; `trending` doit comparer deux
-// fenêtres de trente jours, donc part de `game_review_trend_daily`.
+// selon l'une des six entrées de `CHART_FILTERS`. Cinq d'entre elles ne sont
+// qu'un ORDER BY sur `marts.game_stats` ; `trending` doit comparer deux
+// fenêtres de trente jours, que `marts.game_window_score` porte déjà.
 
 // Clés internes, jamais dérivées d'une entrée utilisateur (`isChartFilterKey`
 // valide la query string en amont) : leur interpolation dans le SQL est sûre.
