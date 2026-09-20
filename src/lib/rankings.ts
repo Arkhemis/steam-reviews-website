@@ -15,17 +15,20 @@ import type { CatalogueSort, ReviewWindow, WindowRankingSort } from "@/lib/data/
  * `homeAwards.ts` : c'est elle que `/charts` doit couvrir, la rédaction des
  * diapositives reste là-bas.
  */
-export type AwardId =
-  | "best-of-week"
-  | "comeback"
-  | "freefall"
-  | "most-reviewed"
-  | "funniest-review"
-  | "most-helpful-review"
-  | "best-of-year"
-  | "most-hated"
-  | "hidden-gem"
-  | "nobody-agrees";
+export const AWARD_IDS = [
+  "best-of-week",
+  "comeback",
+  "freefall",
+  "most-reviewed",
+  "funniest-review",
+  "most-helpful-review",
+  "best-of-year",
+  "most-hated",
+  "hidden-gem",
+  "nobody-agrees",
+] as const;
+
+export type AwardId = (typeof AWARD_IDS)[number];
 
 /**
  * Les deux récompenses qui priment une *review*, pas un jeu. Une rubrique de

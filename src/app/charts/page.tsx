@@ -14,6 +14,8 @@ import {
   chartsHref,
   isChartFilterKey,
 } from "@/lib/charts";
+import { RANKING_SHELVES, type RankingShelf } from "@/lib/rankings";
+import { formatReviewWindow } from "@/lib/reviewWindow";
 import { resolveSteamHeroArt } from "@/lib/steamArtwork";
 import {
   getCataloguePage,
@@ -22,7 +24,7 @@ import {
   getSiteStats,
   getTrendingGames,
 } from "@/lib/data/gameData";
-import type { CatalogueGame } from "@/lib/data/types";
+import type { CatalogueGame, CataloguePage } from "@/lib/data/types";
 
 // Comme la home, la page lit Postgres à chaud (la base n'est pas joignable au
 // build) mais chaque agrégat est caché à part : le héros et les rubriques ne
@@ -35,15 +37,6 @@ const REVALIDATE_SECONDS = 900;
 const PAGE_SIZE = 24;
 const SHELF_SIZE = 8;
 
-// « Hidden gems » : adoré, mais peu commenté. Le plancher de volume écarte le
-// jeu à douze avis qui affiche 100 % par accident ; le plafond écarte les
-// mastodontes, qui n'ont rien de caché ; le plancher de score fait que la
-// rubrique montre moins de huit jeux plutôt que d'y glisser un jeu médiocre
-// sous un titre qui promet le contraire.
-const GEM_MIN_REVIEWS = 500;
-const GEM_MAX_REVIEWS = 200_000;
-const GEM_MIN_PCT = 95;
-
 const enFull = new Intl.NumberFormat("en-US");
 
 function cached<T>(key: string, read: () => Promise<T>) {
@@ -54,24 +47,56 @@ const siteStats = cached("charts-site-stats", getSiteStats);
 const languageScores = cached("charts-language-scores", getLanguageReviewScores);
 const topMover = cached("charts-top-mover", () => getTrendingGames(1));
 
-const shelves = cached(`charts-shelves-${GEM_MIN_REVIEWS}-${GEM_MAX_REVIEWS}-${GEM_MIN_PCT}`, async () => {
-  const [gems, fresh, split] = await Promise.all([
-    getCataloguePage({
-      sort: "best-rated",
-      limit: SHELF_SIZE,
-      minReviews: GEM_MIN_REVIEWS,
-      maxReviews: GEM_MAX_REVIEWS,
-      minPct: GEM_MIN_PCT,
-    }),
-    getCataloguePage({ sort: "recent", limit: SHELF_SIZE, minReviews: chartFilter("recent").minReviews }),
-    getCataloguePage({ sort: "polarised", limit: SHELF_SIZE, minReviews: chartFilter("polarised").minReviews }),
-  ]);
+// Une rubrique par catégorie de la vitrine de la home, plus « Freshly
+// released » : `RANKING_SHELVES` en tient la liste et l'ordre, pour que le
+// lecteur qui arrive du carrousel retrouve la même succession — et pour qu'une
+// récompense ajoutée là-bas ne puisse plus manquer ici.
+type Shelf = {
+  key: ChartFilterKey;
+  title: string;
+  note: string;
+  games: CatalogueGame[];
+};
 
-  return [
-    { title: "Hidden gems", note: "adored, barely reviewed", filter: "best-rated" as const, games: gems.games },
-    { title: "Freshly released", note: "newest games in the catalogue", filter: "recent" as const, games: fresh.games },
-    { title: "Nobody agrees", note: "reviews split hardest", filter: "polarised" as const, games: split.games },
-  ];
+// Le titre d'un classement annuel porte son année, et la tient de la fenêtre
+// que la requête a renvoyée plutôt que de l'horloge : le pipeline peut avoir
+// des jours de retard, et « Best of 2027 » le 2 janvier serait un mensonge.
+function shelfTitle(entry: RankingShelf, page: CataloguePage): string {
+  if (entry.key !== "best-of-year") return entry.shelf.title;
+  const year = page.window?.endsOn.slice(0, 4);
+  return year ? `Best of ${year}` : entry.shelf.title;
+}
+
+// La fenêtre jugée s'écrit sous le titre : sans elle, « Most hated » et
+// « Worst rated » se ressemblent à s'y méprendre, alors qu'ils ne classent pas
+// du tout les mêmes jeux.
+function shelfNote(entry: RankingShelf, page: CataloguePage): string {
+  const range = formatReviewWindow(page.window?.startsOn ?? null, page.window?.endsOn ?? null);
+  return range ? `${entry.shelf.note} · ${range}` : entry.shelf.note;
+}
+
+// Une rubrique dont la requête échoue — mart pas encore matérialisé, fenêtre
+// creuse — disparaît au lieu d'emporter la page entière, comme le fait déjà le
+// carrousel de la home.
+async function readShelf(entry: RankingShelf): Promise<Shelf | null> {
+  try {
+    const page = await getCataloguePage({ sort: entry.key, limit: SHELF_SIZE });
+    if (page.games.length === 0) return null;
+    return {
+      key: entry.key,
+      title: shelfTitle(entry, page),
+      note: shelfNote(entry, page),
+      games: page.games,
+    };
+  } catch (error) {
+    console.error(`[charts] shelf "${entry.key}" unavailable, hiding it:`, error);
+    return null;
+  }
+}
+
+const shelves = cached("charts-shelves-v2", async () => {
+  const read = await Promise.all(RANKING_SHELVES.map(readShelf));
+  return read.filter((shelf): shelf is Shelf => shelf !== null);
 });
 
 // L'illustration panoramique n'est qu'un appel à l'API du magasin Steam, mais
@@ -109,19 +134,22 @@ export default async function ChartsPage({ searchParams }: ChartsPageProps) {
     siteStats(),
     languageScores(),
     topMover(),
+    // Le plancher de volume vient du classement lui-même : le repasser ici
+    // n'ouvrirait que la possibilité d'en servir un autre que la rubrique.
     getCataloguePage({
       sort: filter,
       limit: PAGE_SIZE,
       offset: (page - 1) * PAGE_SIZE,
       search: query,
-      minReviews: active.minReviews,
     }),
   ]);
 
-  // `trending` porte déjà sa variation ; pour les quatre autres tris, on la
-  // complète pour les seules vignettes affichées.
+  // Un classement d'écarts porte déjà sa variation, et c'est la sienne : celle
+  // de la semaine pour « Comeback », des trente jours pour « Trending ». La
+  // récrire avec la variation à trente jours contredirait le tri affiché. Pour
+  // tous les autres, on la complète pour les seules vignettes montrées.
   const games: CatalogueGame[] =
-    filter === "trending"
+    active.source.kind === "movers"
       ? ranking.games
       : await getRecentDeltas(ranking.games.map((g) => g.appId)).then((deltas) =>
           ranking.games.map((g) => ({ ...g, deltaPct: deltas.get(g.appId) })),
@@ -132,6 +160,10 @@ export default async function ChartsPage({ searchParams }: ChartsPageProps) {
   // repousser sous la ligne de flottaison.
   const browsing = !query && page === 1;
   const rubrics = browsing ? await shelves() : [];
+
+  // Les classements fenêtrés disent sur quoi ils jugent : sans la date, le
+  // pourcentage d'une vignette se lit comme un score de toujours.
+  const gridRange = formatReviewWindow(ranking.window?.startsOn ?? null, ranking.window?.endsOn ?? null);
 
   const hero = movers.up[0];
   const art = hero ? await heroArt(hero.appId) : null;
@@ -224,13 +256,13 @@ export default async function ChartsPage({ searchParams }: ChartsPageProps) {
         <div className="border-t border-[#1a2530] px-6 pt-7 pb-2 sm:px-8">
           <div className="mx-auto max-w-[1320px]">
             {rubrics.map((shelf) => (
-              <div key={shelf.title} className="mb-7">
+              <div key={shelf.key} className="mb-7">
                 <SectionHead
                   title={shelf.title}
                   note={shelf.note}
                   action={
                     <Link
-                      href={chartsHref({ filter: shelf.filter })}
+                      href={chartsHref({ filter: shelf.key })}
                       className="font-mono text-[10px] tracking-[0.12em] text-brand-blue uppercase"
                     >
                       see all →
@@ -252,7 +284,7 @@ export default async function ChartsPage({ searchParams }: ChartsPageProps) {
         <div className="mx-auto max-w-[1320px]">
           <SectionHead
             title="All games"
-            note={`${active.note} · ${enFull.format(games.length)} shown`}
+            note={`${active.note}${gridRange ? ` · ${gridRange}` : ""} · ${enFull.format(games.length)} shown`}
             action={
               <ChartsFilterForm filter={filter} defaultValue={query} className="w-full max-w-[320px]" />
             }
