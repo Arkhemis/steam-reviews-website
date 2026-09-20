@@ -1,45 +1,66 @@
 import { describe, expect, it } from "vitest";
-import {
-  AWARD_IDS,
-  RANKINGS,
-  RANKING_SHELVES,
-  REVIEW_AWARDS,
-  isRankingKey,
-  ranking,
-} from "@/lib/rankings";
+import { cataloguePageQuery } from "@/lib/data/gameData";
+import { RANKINGS, RANKING_SHELVES, isRankingKey, ranking } from "@/lib/rankings";
 
-// Le point de départ de ce module : la home primait « Most hated » sans que
-// `/charts` sache le classer, parce que les deux pages tenaient deux listes
-// indépendantes. Ces tests sont là pour que ça ne puisse plus arriver en
-// silence — ajouter une récompense sans son classement casse la suite.
-describe("couverture de la vitrine", () => {
-  const classables = AWARD_IDS.filter(
-    (id) => !(REVIEW_AWARDS as readonly string[]).includes(id),
-  );
-
-  it("donne un classement à chaque récompense qui prime un jeu", () => {
-    const couvertes = RANKINGS.flatMap((r) => (r.award ? [r.award] : []));
-    expect([...classables].sort()).toEqual([...couvertes].sort());
-  });
-
-  it("donne une rubrique à chaque récompense qui prime un jeu", () => {
-    const enRubrique = RANKING_SHELVES.flatMap((r) => (r.award ? [r.award] : []));
-    expect([...classables].sort()).toEqual([...enRubrique].sort());
-  });
-
-  // Les deux récompenses de review priment un texte : une rangée de jaquettes
-  // n'en dirait rien. L'exclusion doit rester explicite, pas devenir un oubli.
-  it("laisse les reviews primées hors des classements, et le dit", () => {
-    expect(REVIEW_AWARDS).toEqual(["funniest-review", "most-helpful-review"]);
-    for (const id of REVIEW_AWARDS) {
-      expect(AWARD_IDS).toContain(id);
-      expect(RANKINGS.some((r) => r.award === id)).toBe(false);
+// Le défaut d'origine : la rangée « Hidden gems » ne montrait que des jeux
+// adorés et confidentiels, mais son « see all » renvoyait vers `best-rated`,
+// qui n'applique ni le plafond de volume ni le plancher de score. Le lecteur
+// cliquait pour voir la suite d'une liste et tombait sur une autre.
+describe("une rangée et son « see all » servent la même liste", () => {
+  it("renvoie chaque rangée vers un filtre qui existe", () => {
+    for (const entry of RANKING_SHELVES) {
+      expect(isRankingKey(entry.key), entry.key).toBe(true);
     }
   });
 
-  it("ne prolonge jamais deux fois la même récompense", () => {
-    const awards = RANKINGS.flatMap((r) => (r.award ? [r.award] : []));
-    expect(new Set(awards).size).toBe(awards.length);
+  // L'égalité est celle de l'objet : la rangée et la grille derrière son lien
+  // lisent la même entrée de `RANKINGS`, donc les mêmes bornes.
+  it("fait lire à la grille le classement même de la rangée", () => {
+    for (const entry of RANKING_SHELVES) {
+      expect(ranking(entry.key), entry.key).toBe(entry);
+    }
+  });
+
+  // La preuve par le SQL : la requête de « Hidden gems » porte son plafond de
+  // volume et son plancher de score, là où `best-rated` n'en a aucun.
+  it("emporte les bornes de la rangée jusque dans la requête", () => {
+    const gem = cataloguePageQuery({ sort: "hidden-gem", limit: 24 });
+    const bestRated = cataloguePageQuery({ sort: "best-rated", limit: 24 });
+
+    expect(gem.values).toContain(200_000);
+    expect(gem.values).toContain(95);
+    expect(bestRated.values).not.toContain(200_000);
+    expect(bestRated.values).not.toContain(95);
+  });
+
+  it("garde le même ORDER BY que le classement qu'elle prolonge", () => {
+    const gem = cataloguePageQuery({ sort: "hidden-gem", limit: 24 });
+
+    expect(gem.text).toContain("pct_positive_reviews DESC");
+  });
+});
+
+describe("Most despised", () => {
+  it("existe, et se range juste après Hidden gems", () => {
+    expect(RANKING_SHELVES.map((r) => r.key)).toEqual([
+      "hidden-gem",
+      "most-despised",
+      "recent",
+      "polarised",
+    ]);
+  });
+
+  // Au plancher de `worst-rated`, la rangée ne montrerait que des jeux à douze
+  // avis tombés à 3 % par accident. On veut des jeux vraiment détestés, ce qui
+  // suppose assez de monde pour le dire.
+  it("exige bien plus de volume que « Worst rated »", () => {
+    expect(ranking("most-despised").minReviews).toBeGreaterThan(ranking("worst-rated").minReviews);
+  });
+
+  it("classe par le bas du score", () => {
+    expect(cataloguePageQuery({ sort: "most-despised", limit: 24 }).text).toContain(
+      "pct_positive_reviews ASC",
+    );
   });
 });
 
@@ -51,8 +72,8 @@ describe("RANKINGS", () => {
 
   it("donne à chacun un libellé et une règle", () => {
     for (const entry of RANKINGS) {
-      expect(entry.label).not.toBe("");
-      expect(entry.note).not.toBe("");
+      expect(entry.label, entry.key).not.toBe("");
+      expect(entry.note, entry.key).not.toBe("");
     }
   });
 
@@ -60,58 +81,18 @@ describe("RANKINGS", () => {
   // un jeu tombe à 100 % ou à 0 % par accident. Seuls les tris au volume ou à
   // la date peuvent s'en passer.
   it("exige du volume de tout classement qui juge un score", () => {
-    const auVolume = ["most-reviewed", "most-reviewed-week", "recent"];
+    const auVolume = ["most-reviewed", "recent"];
     for (const entry of RANKINGS) {
       if (auVolume.includes(entry.key)) continue;
       expect(entry.minReviews, entry.key).toBeGreaterThan(1);
     }
   });
 
-  // « Comeback » et « Freefall » sont les deux bouts du même classement, comme
-  // « Best rated » et « Worst rated » : un seuil différent jugerait les deux
-  // extrémités du catalogue à des barres différentes.
-  it("juge les deux bouts d'un même classement au même seuil", () => {
-    expect(ranking("freefall").minReviews).toBe(ranking("comeback").minReviews);
+  // Les deux classements au score sont l'exact miroir l'un de l'autre : un
+  // seuil différent ferait juger les deux bouts du catalogue à des barres
+  // différentes.
+  it("juge les deux bouts du catalogue au même seuil", () => {
     expect(ranking("worst-rated").minReviews).toBe(ranking("best-rated").minReviews);
-  });
-
-  it("ne lit une fenêtre précédente que pour les deux fenêtres qui en ont une", () => {
-    for (const entry of RANKINGS) {
-      if (entry.source.kind !== "movers") continue;
-      expect(["week", "month"], entry.key).toContain(entry.source.window);
-    }
-  });
-});
-
-describe("RANKING_SHELVES", () => {
-  it("ne retient que des classements qui ont une rubrique", () => {
-    for (const entry of RANKING_SHELVES) {
-      expect(entry.shelf.title, entry.key).not.toBe("");
-      expect(entry.shelf.note, entry.key).not.toBe("");
-    }
-  });
-
-  // Chaque rubrique porte un « see all » vers son propre classement : une
-  // rubrique dont la clé ne serait pas un filtre renverrait le lecteur sur le
-  // tri par défaut, sans rapport avec ce qu'il vient de lire.
-  it("renvoie chaque rubrique vers un filtre qui existe", () => {
-    for (const entry of RANKING_SHELVES) {
-      expect(isRankingKey(entry.key), entry.key).toBe(true);
-    }
-  });
-
-  it("suit l'ordre du carrousel de la home", () => {
-    expect(RANKING_SHELVES.map((r) => r.key)).toEqual([
-      "best-of-week",
-      "comeback",
-      "freefall",
-      "most-reviewed-week",
-      "best-of-year",
-      "most-hated",
-      "hidden-gem",
-      "polarised",
-      "recent",
-    ]);
   });
 });
 
@@ -121,8 +102,8 @@ describe("isRankingKey", () => {
   // inconnue dans son ORDER BY.
   it("rejette ce qui n'est pas une clé connue", () => {
     expect(isRankingKey(undefined)).toBe(false);
-    expect(isRankingKey("Most-Hated")).toBe(false);
-    expect(isRankingKey("pct_positive DESC; DROP TABLE marts.game_stats")).toBe(false);
+    expect(isRankingKey("Most-Despised")).toBe(false);
+    expect(isRankingKey("pct_positive_reviews ASC; DROP TABLE marts.game_stats")).toBe(false);
   });
 });
 

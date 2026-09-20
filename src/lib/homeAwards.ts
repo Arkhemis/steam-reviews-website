@@ -1,5 +1,4 @@
 import { verdictColor } from "@/components/GameCoverTile";
-import type { AwardId } from "@/lib/rankings";
 import { formatReviewWindow } from "@/lib/reviewWindow";
 import type {
   GameStats,
@@ -22,11 +21,17 @@ const enHours = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 });
 // dans la couleur du texte : seul un score a droit au code couleur.
 const NEUTRAL_FIGURE = "#eef2f4";
 
-// L'identité des récompenses vit dans `rankings.ts`, avec le classement de
-// `/charts` qui prolonge chacune : c'est ce qui empêche la vitrine de primer
-// une catégorie que la page de classements ne saurait pas servir. Ce module ne
-// garde que la rédaction des diapositives.
-export type { AwardId } from "@/lib/rankings";
+export type AwardId =
+  | "best-of-week"
+  | "comeback"
+  | "freefall"
+  | "most-reviewed"
+  | "funniest-review"
+  | "most-helpful-review"
+  | "best-of-year"
+  | "most-hated"
+  | "hidden-gem"
+  | "nobody-agrees";
 
 export type AwardSlide = {
   id: AwardId;

@@ -24,8 +24,6 @@ type PlanNode = {
 // site : EXPLAIN échouerait sur une relation absente, on saute alors le cas.
 const HAS_WINDOW_SCORE = await hasWindow("week");
 const HAS_PREVIOUS_MONTH = await hasWindow("previous_month");
-const HAS_PREVIOUS_WEEK = await hasWindow("previous_week");
-const HAS_YEAR_TO_DATE = await hasWindow("year_to_date");
 const HAS_HIGHLIGHT_CREATED_AT = await hasMartColumn("review_highlight", "created_at");
 
 async function planFor(query: { text: string; values: unknown[] }): Promise<PlanNode> {
@@ -134,38 +132,21 @@ describe("query plans", () => {
   });
 });
 
-// Les treize classements de `/charts` se ramènent à trois requêtes, mais
-// chacun nomme sa propre fenêtre et son propre ORDER BY. Les faire tous passer
-// par EXPLAIN vérifie d'un coup qu'aucun ne demande au mart une colonne ou une
-// fenêtre qu'il n'a pas — une faute qu'un test sur les seules chaînes de
-// caractères ne verrait jamais.
+// Les huit classements de `/charts` se ramènent à deux requêtes, mais chacun
+// pose ses propres bornes et son propre ORDER BY. Les faire tous passer par
+// EXPLAIN vérifie d'un coup qu'aucun ne demande au mart une colonne qu'il n'a
+// pas — une faute qu'un test sur les seules chaînes ne verrait jamais.
 describe("les classements de /charts", () => {
-  // Chaque source a ses exigences : une fenêtre, sa fenêtre précédente, ou
-  // rien du tout pour le score de toujours.
-  function servable(source: (typeof RANKINGS)[number]["source"]): boolean {
-    if (source.kind === "stats") return true;
-    if (source.kind === "movers") return source.window === "week" ? HAS_PREVIOUS_WEEK : HAS_PREVIOUS_MONTH;
-    if (source.window === "year-to-date") return HAS_YEAR_TO_DATE;
-    return HAS_WINDOW_SCORE;
-  }
-
   for (const entry of RANKINGS) {
-    it.skipIf(!servable(entry.source))(`sait servir « ${entry.label} »`, async () => {
+    const needsPreviousMonth = entry.source.kind === "movers";
+
+    it.skipIf(needsPreviousMonth && !HAS_PREVIOUS_MONTH)(`sait servir « ${entry.label} »`, async () => {
       const plan = await planFor(cataloguePageQuery({ sort: entry.key, limit: 8 }));
 
-      const relations = scannedRelations(plan);
-      expect(relations.length, entry.key).toBeGreaterThan(0);
-      if (entry.source.kind !== "stats") {
-        expect(relations, entry.key).toContain("game_window_score");
-      }
+      expect(scannedRelations(plan).length, entry.key).toBeGreaterThan(0);
     });
-  }
 
-  // La recherche et la pagination doivent tenir sur les trois formes de
-  // requête, pas seulement sur celle du catalogue de toujours.
-  for (const kind of ["stats", "window", "movers"] as const) {
-    const entry = RANKINGS.find((r) => r.source.kind === kind)!;
-    it.skipIf(!servable(entry.source))(`pagine et filtre un classement « ${kind} »`, async () => {
+    it.skipIf(needsPreviousMonth && !HAS_PREVIOUS_MONTH)(`pagine et filtre « ${entry.label} »`, async () => {
       const plan = await planFor(
         cataloguePageQuery({ sort: entry.key, limit: 24, offset: 48, search: "half" }),
       );

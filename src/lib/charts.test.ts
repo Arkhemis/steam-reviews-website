@@ -41,7 +41,7 @@ describe("chartsHref", () => {
 });
 
 describe("isChartFilterKey", () => {
-  it("reconnaît les treize tris de la page", () => {
+  it("reconnaît les huit tris de la page", () => {
     expect(CHART_FILTERS.map((f) => f.key)).toEqual([
       "most-reviewed",
       "best-rated",
@@ -49,13 +49,8 @@ describe("isChartFilterKey", () => {
       "trending",
       "polarised",
       "recent",
-      "best-of-week",
-      "comeback",
-      "freefall",
-      "most-reviewed-week",
-      "best-of-year",
-      "most-hated",
       "hidden-gem",
+      "most-despised",
     ]);
     expect(CHART_FILTERS.every((f) => isChartFilterKey(f.key))).toBe(true);
   });

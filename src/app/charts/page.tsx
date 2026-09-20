@@ -15,7 +15,6 @@ import {
   isChartFilterKey,
 } from "@/lib/charts";
 import { RANKING_SHELVES, type RankingShelf } from "@/lib/rankings";
-import { formatReviewWindow } from "@/lib/reviewWindow";
 import { resolveSteamHeroArt } from "@/lib/steamArtwork";
 import {
   getCataloguePage,
@@ -24,7 +23,7 @@ import {
   getSiteStats,
   getTrendingGames,
 } from "@/lib/data/gameData";
-import type { CatalogueGame, CataloguePage } from "@/lib/data/types";
+import type { CatalogueGame } from "@/lib/data/types";
 
 // Comme la home, la page lit Postgres à chaud (la base n'est pas joignable au
 // build) mais chaque agrégat est caché à part : le héros et les rubriques ne
@@ -47,10 +46,9 @@ const siteStats = cached("charts-site-stats", getSiteStats);
 const languageScores = cached("charts-language-scores", getLanguageReviewScores);
 const topMover = cached("charts-top-mover", () => getTrendingGames(1));
 
-// Une rubrique par catégorie de la vitrine de la home, plus « Freshly
-// released » : `RANKING_SHELVES` en tient la liste et l'ordre, pour que le
-// lecteur qui arrive du carrousel retrouve la même succession — et pour qu'une
-// récompense ajoutée là-bas ne puisse plus manquer ici.
+// Les rangées en tête de page. `RANKING_SHELVES` en tient la liste : chacune
+// porte la clé du classement qu'elle montre, donc son « see all » prolonge
+// exactement la rangée au lieu de renvoyer sur un classement voisin.
 type Shelf = {
   key: ChartFilterKey;
   title: string;
@@ -58,43 +56,22 @@ type Shelf = {
   games: CatalogueGame[];
 };
 
-// Le titre d'un classement annuel porte son année, et la tient de la fenêtre
-// que la requête a renvoyée plutôt que de l'horloge : le pipeline peut avoir
-// des jours de retard, et « Best of 2027 » le 2 janvier serait un mensonge.
-function shelfTitle(entry: RankingShelf, page: CataloguePage): string {
-  if (entry.key !== "best-of-year") return entry.shelf.title;
-  const year = page.window?.endsOn.slice(0, 4);
-  return year ? `Best of ${year}` : entry.shelf.title;
-}
-
-// La fenêtre jugée s'écrit sous le titre : sans elle, « Most hated » et
-// « Worst rated » se ressemblent à s'y méprendre, alors qu'ils ne classent pas
-// du tout les mêmes jeux.
-function shelfNote(entry: RankingShelf, page: CataloguePage): string {
-  const range = formatReviewWindow(page.window?.startsOn ?? null, page.window?.endsOn ?? null);
-  return range ? `${entry.shelf.note} · ${range}` : entry.shelf.note;
-}
-
-// Une rubrique dont la requête échoue — mart pas encore matérialisé, fenêtre
-// creuse — disparaît au lieu d'emporter la page entière, comme le fait déjà le
-// carrousel de la home.
+// Une rangée dont la requête échoue disparaît au lieu d'emporter la page,
+// comme le fait déjà le carrousel de la home.
 async function readShelf(entry: RankingShelf): Promise<Shelf | null> {
   try {
     const page = await getCataloguePage({ sort: entry.key, limit: SHELF_SIZE });
     if (page.games.length === 0) return null;
-    return {
-      key: entry.key,
-      title: shelfTitle(entry, page),
-      note: shelfNote(entry, page),
-      games: page.games,
-    };
+    return { key: entry.key, title: entry.shelf.title, note: entry.shelf.note, games: page.games };
   } catch (error) {
     console.error(`[charts] shelf "${entry.key}" unavailable, hiding it:`, error);
     return null;
   }
 }
 
-const shelves = cached("charts-shelves-v2", async () => {
+// La liste des rangées fait partie de la clé : en changer une doit invalider
+// l'entrée, pas resservir l'ancienne pendant un quart d'heure.
+const shelves = cached(`charts-shelves-${RANKING_SHELVES.map((s) => s.key).join("-")}`, async () => {
   const read = await Promise.all(RANKING_SHELVES.map(readShelf));
   return read.filter((shelf): shelf is Shelf => shelf !== null);
 });
@@ -144,10 +121,8 @@ export default async function ChartsPage({ searchParams }: ChartsPageProps) {
     }),
   ]);
 
-  // Un classement d'écarts porte déjà sa variation, et c'est la sienne : celle
-  // de la semaine pour « Comeback », des trente jours pour « Trending ». La
-  // récrire avec la variation à trente jours contredirait le tri affiché. Pour
-  // tous les autres, on la complète pour les seules vignettes montrées.
+  // `trending` porte déjà sa variation ; pour les autres tris, on la complète
+  // pour les seules vignettes affichées.
   const games: CatalogueGame[] =
     active.source.kind === "movers"
       ? ranking.games
@@ -160,10 +135,6 @@ export default async function ChartsPage({ searchParams }: ChartsPageProps) {
   // repousser sous la ligne de flottaison.
   const browsing = !query && page === 1;
   const rubrics = browsing ? await shelves() : [];
-
-  // Les classements fenêtrés disent sur quoi ils jugent : sans la date, le
-  // pourcentage d'une vignette se lit comme un score de toujours.
-  const gridRange = formatReviewWindow(ranking.window?.startsOn ?? null, ranking.window?.endsOn ?? null);
 
   const hero = movers.up[0];
   const art = hero ? await heroArt(hero.appId) : null;
@@ -284,7 +255,7 @@ export default async function ChartsPage({ searchParams }: ChartsPageProps) {
         <div className="mx-auto max-w-[1320px]">
           <SectionHead
             title="All games"
-            note={`${active.note}${gridRange ? ` · ${gridRange}` : ""} · ${enFull.format(games.length)} shown`}
+            note={`${active.note} · ${enFull.format(games.length)} shown`}
             action={
               <ChartsFilterForm filter={filter} defaultValue={query} className="w-full max-w-[320px]" />
             }
@@ -295,6 +266,10 @@ export default async function ChartsPage({ searchParams }: ChartsPageProps) {
               <Link
                 key={f.key}
                 href={chartsHref({ filter: f.key, q: query })}
+                // Les pills sont posées juste au-dessus de la grille qu'elles
+                // filtrent : la remontée en haut de page par défaut ferait
+                // perdre au lecteur la seule chose qu'il regardait.
+                scroll={false}
                 aria-current={f.key === filter ? "page" : undefined}
                 className={
                   f.key === filter
