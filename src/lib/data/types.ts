@@ -220,9 +220,11 @@ export type CatalogueTrendDay = {
 };
 
 /**
- * Les entrées du catalogue proposées par `/charts`. Toutes se lisent dans
- * `marts.game_stats` d'un seul ORDER BY ; `trending` seul doit comparer deux
- * fenêtres de `game_review_trend_daily`.
+ * Les entrées du catalogue proposées par `/charts`. Chacune décrit sa source
+ * dans `RANKINGS` (`src/lib/rankings.ts`) : un ORDER BY sur `marts.game_stats`
+ * pour les classements de toujours, une lecture de `marts.game_window_score`
+ * pour les classements fenêtrés, cette même table jointe à elle-même pour les
+ * écarts entre deux fenêtres.
  */
 export type CatalogueSort =
   | "most-reviewed"
@@ -230,7 +232,14 @@ export type CatalogueSort =
   | "worst-rated"
   | "trending"
   | "polarised"
-  | "recent";
+  | "recent"
+  | "best-of-week"
+  | "comeback"
+  | "freefall"
+  | "most-reviewed-week"
+  | "best-of-year"
+  | "most-hated"
+  | "hidden-gem";
 
 /** Une vignette de la grille : de quoi dessiner la jaquette et son verdict. */
 export type CatalogueGame = {
@@ -255,4 +264,11 @@ export type CatalogueGame = {
 export type CataloguePage = {
   games: CatalogueGame[];
   hasNext: boolean;
+  /**
+   * Les bornes de la fenêtre jugée, pour les seuls classements fenêtrés. La
+   * page s'en sert pour dater ce qu'elle montre — « Best of 2026 » tient son
+   * année d'ici, pas de l'horloge : le pipeline peut avoir des jours de retard.
+   * `null` quand le classement porte sur le score de toujours.
+   */
+  window: { startsOn: string; endsOn: string } | null;
 };

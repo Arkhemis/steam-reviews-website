@@ -1,4 +1,5 @@
 import { pool } from "@/lib/db";
+import { type MoverWindow, type StatsOrder, ranking } from "@/lib/rankings";
 import type {
   CatalogueGame,
   CataloguePage,
@@ -225,7 +226,14 @@ type TrendingGameRow = {
 // `review_date` et non sur `CURRENT_DATE` — le pipeline peut avoir des jours de
 // retard, et un ancrage sur « aujourd'hui » renverrait un classement vide dès
 // qu'il en a.
-const MONTH_DELTAS_CTE = `
+// L'écart entre une fenêtre et la précédente, toutes deux pré-agrégées par le
+// mart : une jointure de `game_window_score` sur elle-même, sans rien
+// réagréger. Le mart porte `week`/`previous_week` et `month`/`previous_month` —
+// « Comeback » et « Freefall » lisent la semaine, « Trending » les trente
+// jours. Les noms de fenêtre sont des clés internes, jamais dérivées d'une
+// entrée utilisateur : leur interpolation est sûre.
+function deltasCte(window: MoverWindow): string {
+  return `
   WITH deltas AS (
     SELECT
       m.app_id,
@@ -237,12 +245,15 @@ const MONTH_DELTAS_CTE = `
       ROUND(p.pct_positive * 100, 1) AS previous_pct,
       ROUND((m.pct_positive - p.pct_positive) * 100, 1) AS delta_pct
     FROM marts.game_window_score m
-    JOIN marts.game_window_score p ON p.app_id = m.app_id AND p.window_name = 'previous_month'
+    JOIN marts.game_window_score p ON p.app_id = m.app_id AND p.window_name = 'previous_${window}'
     JOIN marts.game_stats g ON g.steam_app_id = m.app_id
-    WHERE m.window_name = 'month'
+    WHERE m.window_name = '${window}'
       AND m.total_reviews >= $2 AND p.total_reviews >= $2
   )
 `;
+}
+
+const MONTH_DELTAS_CTE = deltasCte("month");
 
 export function trendingGamesQuery(
   limit: number,
@@ -1117,18 +1128,27 @@ export async function getCatalogueTrend(): Promise<CatalogueTrendDay[]> {
 // --- Catalogue de `/charts` ------------------------------------------------
 //
 // La page de classements montre le catalogue en grille de jaquettes, trié
-// selon l'une des six entrées de `CHART_FILTERS`. Cinq d'entre elles ne sont
-// qu'un ORDER BY sur `marts.game_stats` ; `trending` doit comparer deux
-// fenêtres de trente jours, que `marts.game_window_score` porte déjà.
+// selon l'une des entrées de `RANKINGS`. Chacune y décrit sa source, et c'est
+// elle qui décide laquelle des trois requêtes ci-dessous est écrite : un
+// ORDER BY sur `marts.game_stats`, une lecture de `marts.game_window_score`,
+// ou cette même table jointe à elle-même pour un écart entre deux fenêtres.
 
 // Clés internes, jamais dérivées d'une entrée utilisateur (`isChartFilterKey`
 // valide la query string en amont) : leur interpolation dans le SQL est sûre.
-const CATALOGUE_ORDER: Record<Exclude<CatalogueSort, "trending">, string> = {
+const CATALOGUE_ORDER: Record<StatsOrder, string> = {
   "most-reviewed": "total_reviews DESC, steam_app_id",
   "best-rated": "pct_positive_reviews DESC, total_reviews DESC, steam_app_id",
   "worst-rated": "pct_positive_reviews ASC, total_reviews DESC, steam_app_id",
   polarised: "ABS(pct_positive_reviews - 50), total_reviews DESC, steam_app_id",
   recent: "first_release_date DESC NULLS LAST, total_reviews DESC, steam_app_id",
+};
+
+// Le classement fenêtré juge les seuls avis reçus pendant la fenêtre : le tri
+// porte donc sur les colonnes du mart de fenêtre, pas sur le score cumulé.
+const CATALOGUE_WINDOW_ORDER: Record<WindowRankingSort, string> = {
+  best: "s.pct_positive DESC, s.total_reviews DESC, s.app_id",
+  worst: "s.pct_positive ASC, s.total_reviews DESC, s.app_id",
+  "most-reviewed": "s.total_reviews DESC, s.app_id",
 };
 
 type CatalogueRow = {
@@ -1138,6 +1158,8 @@ type CatalogueRow = {
   total_reviews: string;
   pct_positive_reviews: string;
   delta_pct?: string | null;
+  starts_on?: string;
+  ends_on?: string;
 };
 
 function mapCatalogueRow(row: CatalogueRow): CatalogueGame {
@@ -1191,7 +1213,7 @@ export function cataloguePageQuery({
   limit,
   offset = 0,
   search,
-  minReviews = 1,
+  minReviews,
   maxReviews,
   minPct,
 }: CatalogueQuery): { text: string; values: unknown[] } {
@@ -1200,9 +1222,19 @@ export function cataloguePageQuery({
   // s'il existe une page suivante.
   const probe = limit + 1;
 
-  if (sort === "trending") {
+  // Le classement décrit lui-même sa source et son plancher ; l'appelant ne
+  // les repasse que pour une rubrique qui s'écarte du réglage par défaut.
+  const entry = ranking(sort);
+  const source = entry.source;
+  const floor = minReviews ?? entry.minReviews;
+
+  if (source.kind === "movers") {
+    // Le signe du côté est un garde-fou autant qu'un tri : « Comeback » ne doit
+    // jamais montrer une chute parce que le lecteur est allé assez loin dans la
+    // pagination pour en atteindre une, et « Freefall » jamais une hausse.
+    const up = source.direction === "up";
     return {
-      text: `${MONTH_DELTAS_CTE}
+      text: `${deltasCte(source.window)}
          SELECT
            app_id AS steam_app_id,
            game_name,
@@ -1212,11 +1244,49 @@ export function cataloguePageQuery({
            delta_pct
          FROM deltas
          WHERE cover_url IS NOT NULL
+           AND delta_pct ${up ? ">" : "<"} 0
            AND ($4::text IS NULL OR game_name ILIKE '%' || $4 || '%')
            AND ($5::numeric IS NULL OR recent_pct >= $5)
-         ORDER BY delta_pct DESC, recent_reviews DESC, app_id
+         ORDER BY delta_pct ${up ? "DESC" : "ASC"}, recent_reviews DESC, app_id
          LIMIT $1 OFFSET $3`,
-      values: [probe, minReviews, offset, query, minPct ?? null],
+      values: [probe, floor, offset, query, minPct ?? null],
+    };
+  }
+
+  // Le classement fenêtré ne juge que les avis reçus pendant la fenêtre : le
+  // score et le volume affichés sont ceux du mart de fenêtre, pas le cumul de
+  // toujours — sinon « Most hated · 30 jours » montrerait un pourcentage qui
+  // contredit son propre titre. Le plafond, lui, porte bien sur le total
+  // déclaré par Steam : la pépite cachée doit rester un jeu confidentiel.
+  if (source.kind === "window") {
+    return {
+      text: `SELECT
+           s.app_id AS steam_app_id,
+           g.game_name,
+           g.cover_url,
+           s.total_reviews,
+           ROUND(s.pct_positive * 100, 1) AS pct_positive_reviews,
+           TO_CHAR(s.starts_on, 'YYYY-MM-DD') AS starts_on,
+           TO_CHAR(s.ends_on, 'YYYY-MM-DD') AS ends_on
+         FROM marts.game_window_score s
+         JOIN marts.game_stats g ON g.steam_app_id = s.app_id
+         WHERE s.window_name = $4
+           AND s.total_reviews >= $3
+           AND ($5::bigint IS NULL OR g.total_reviews < $5)
+           AND ($6::numeric IS NULL OR s.pct_positive * 100 >= $6)
+           AND g.cover_url IS NOT NULL
+           AND ($7::text IS NULL OR g.game_name ILIKE '%' || $7 || '%')
+         ORDER BY ${CATALOGUE_WINDOW_ORDER[source.sort]}
+         LIMIT $1 OFFSET $2`,
+      values: [
+        probe,
+        offset,
+        floor,
+        WINDOW_NAME[source.window],
+        source.maxTotalReviews ?? maxReviews ?? null,
+        minPct ?? null,
+        query,
+      ],
     };
   }
 
@@ -1228,9 +1298,16 @@ export function cataloguePageQuery({
            AND ($6::numeric IS NULL OR pct_positive_reviews >= $6)
            AND cover_url IS NOT NULL
            AND ($4::text IS NULL OR game_name ILIKE '%' || $4 || '%')
-         ORDER BY ${CATALOGUE_ORDER[sort]}
+         ORDER BY ${CATALOGUE_ORDER[source.order]}
          LIMIT $1 OFFSET $2`,
-    values: [probe, offset, minReviews, query, maxReviews ?? null, minPct ?? null],
+    values: [
+      probe,
+      offset,
+      floor,
+      query,
+      maxReviews ?? source.maxReviews ?? null,
+      minPct ?? source.minPct ?? null,
+    ],
   };
 }
 
@@ -1243,7 +1320,20 @@ export async function getCataloguePage(params: CatalogueQuery): Promise<Catalogu
     catalogueQuery.values,
   );
 
-  return { games: rows.slice(0, limit).map(mapCatalogueRow), hasNext: rows.length > limit };
+  const page = rows.slice(0, limit);
+  // Toutes les lignes d'un classement fenêtré portent les mêmes bornes : le
+  // mart les pose par fenêtre, pas par jeu. La première suffit donc à dater la
+  // page — et une page vide ne date rien.
+  const bounds = page[0];
+
+  return {
+    games: page.map(mapCatalogueRow),
+    hasNext: rows.length > limit,
+    window:
+      bounds?.starts_on && bounds?.ends_on
+        ? { startsOn: bounds.starts_on, endsOn: bounds.ends_on }
+        : null,
+  };
 }
 
 /**
