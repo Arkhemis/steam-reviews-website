@@ -1,4 +1,5 @@
 import { pool } from "@/lib/db";
+import { type StatsOrder, ranking } from "@/lib/rankings";
 import type {
   CatalogueGame,
   CataloguePage,
@@ -1117,13 +1118,14 @@ export async function getCatalogueTrend(): Promise<CatalogueTrendDay[]> {
 // --- Catalogue de `/charts` ------------------------------------------------
 //
 // La page de classements montre le catalogue en grille de jaquettes, trié
-// selon l'une des six entrées de `CHART_FILTERS`. Cinq d'entre elles ne sont
-// qu'un ORDER BY sur `marts.game_stats` ; `trending` doit comparer deux
-// fenêtres de trente jours, que `marts.game_window_score` porte déjà.
+// selon l'une des entrées de `RANKINGS`. Chacune y décrit sa source, et c'est
+// elle qui décide laquelle des trois requêtes ci-dessous est écrite : un
+// ORDER BY sur `marts.game_stats`, une lecture de `marts.game_window_score`,
+// ou cette même table jointe à elle-même pour un écart entre deux fenêtres.
 
 // Clés internes, jamais dérivées d'une entrée utilisateur (`isChartFilterKey`
 // valide la query string en amont) : leur interpolation dans le SQL est sûre.
-const CATALOGUE_ORDER: Record<Exclude<CatalogueSort, "trending">, string> = {
+const CATALOGUE_ORDER: Record<StatsOrder, string> = {
   "most-reviewed": "total_reviews DESC, steam_app_id",
   "best-rated": "pct_positive_reviews DESC, total_reviews DESC, steam_app_id",
   "worst-rated": "pct_positive_reviews ASC, total_reviews DESC, steam_app_id",
@@ -1191,7 +1193,7 @@ export function cataloguePageQuery({
   limit,
   offset = 0,
   search,
-  minReviews = 1,
+  minReviews,
   maxReviews,
   minPct,
 }: CatalogueQuery): { text: string; values: unknown[] } {
@@ -1200,7 +1202,14 @@ export function cataloguePageQuery({
   // s'il existe une page suivante.
   const probe = limit + 1;
 
-  if (sort === "trending") {
+  // Le classement porte ses propres bornes : c'est ce qui fait qu'une rubrique
+  // et la grille derrière son « see all » servent la même liste. L'appelant ne
+  // les repasse que pour s'en écarter délibérément.
+  const entry = ranking(sort);
+  const source = entry.source;
+  const floor = minReviews ?? entry.minReviews;
+
+  if (source.kind === "movers") {
     return {
       text: `${MONTH_DELTAS_CTE}
          SELECT
@@ -1216,7 +1225,7 @@ export function cataloguePageQuery({
            AND ($5::numeric IS NULL OR recent_pct >= $5)
          ORDER BY delta_pct DESC, recent_reviews DESC, app_id
          LIMIT $1 OFFSET $3`,
-      values: [probe, minReviews, offset, query, minPct ?? null],
+      values: [probe, floor, offset, query, minPct ?? null],
     };
   }
 
@@ -1228,9 +1237,16 @@ export function cataloguePageQuery({
            AND ($6::numeric IS NULL OR pct_positive_reviews >= $6)
            AND cover_url IS NOT NULL
            AND ($4::text IS NULL OR game_name ILIKE '%' || $4 || '%')
-         ORDER BY ${CATALOGUE_ORDER[sort]}
+         ORDER BY ${CATALOGUE_ORDER[source.order]}
          LIMIT $1 OFFSET $2`,
-    values: [probe, offset, minReviews, query, maxReviews ?? null, minPct ?? null],
+    values: [
+      probe,
+      offset,
+      floor,
+      query,
+      maxReviews ?? source.maxReviews ?? null,
+      minPct ?? source.minPct ?? null,
+    ],
   };
 }
 

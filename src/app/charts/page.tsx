@@ -14,6 +14,7 @@ import {
   chartsHref,
   isChartFilterKey,
 } from "@/lib/charts";
+import { RANKING_SHELVES, type RankingShelf } from "@/lib/rankings";
 import { resolveSteamHeroArt } from "@/lib/steamArtwork";
 import {
   getCataloguePage,
@@ -35,15 +36,6 @@ const REVALIDATE_SECONDS = 900;
 const PAGE_SIZE = 24;
 const SHELF_SIZE = 8;
 
-// « Hidden gems » : adoré, mais peu commenté. Le plancher de volume écarte le
-// jeu à douze avis qui affiche 100 % par accident ; le plafond écarte les
-// mastodontes, qui n'ont rien de caché ; le plancher de score fait que la
-// rubrique montre moins de huit jeux plutôt que d'y glisser un jeu médiocre
-// sous un titre qui promet le contraire.
-const GEM_MIN_REVIEWS = 500;
-const GEM_MAX_REVIEWS = 200_000;
-const GEM_MIN_PCT = 95;
-
 const enFull = new Intl.NumberFormat("en-US");
 
 function cached<T>(key: string, read: () => Promise<T>) {
@@ -54,24 +46,34 @@ const siteStats = cached("charts-site-stats", getSiteStats);
 const languageScores = cached("charts-language-scores", getLanguageReviewScores);
 const topMover = cached("charts-top-mover", () => getTrendingGames(1));
 
-const shelves = cached(`charts-shelves-${GEM_MIN_REVIEWS}-${GEM_MAX_REVIEWS}-${GEM_MIN_PCT}`, async () => {
-  const [gems, fresh, split] = await Promise.all([
-    getCataloguePage({
-      sort: "best-rated",
-      limit: SHELF_SIZE,
-      minReviews: GEM_MIN_REVIEWS,
-      maxReviews: GEM_MAX_REVIEWS,
-      minPct: GEM_MIN_PCT,
-    }),
-    getCataloguePage({ sort: "recent", limit: SHELF_SIZE, minReviews: chartFilter("recent").minReviews }),
-    getCataloguePage({ sort: "polarised", limit: SHELF_SIZE, minReviews: chartFilter("polarised").minReviews }),
-  ]);
+// Les rangées en tête de page. `RANKING_SHELVES` en tient la liste : chacune
+// porte la clé du classement qu'elle montre, donc son « see all » prolonge
+// exactement la rangée au lieu de renvoyer sur un classement voisin.
+type Shelf = {
+  key: ChartFilterKey;
+  title: string;
+  note: string;
+  games: CatalogueGame[];
+};
 
-  return [
-    { title: "Hidden gems", note: "adored, barely reviewed", filter: "best-rated" as const, games: gems.games },
-    { title: "Freshly released", note: "newest games in the catalogue", filter: "recent" as const, games: fresh.games },
-    { title: "Nobody agrees", note: "reviews split hardest", filter: "polarised" as const, games: split.games },
-  ];
+// Une rangée dont la requête échoue disparaît au lieu d'emporter la page,
+// comme le fait déjà le carrousel de la home.
+async function readShelf(entry: RankingShelf): Promise<Shelf | null> {
+  try {
+    const page = await getCataloguePage({ sort: entry.key, limit: SHELF_SIZE });
+    if (page.games.length === 0) return null;
+    return { key: entry.key, title: entry.shelf.title, note: entry.shelf.note, games: page.games };
+  } catch (error) {
+    console.error(`[charts] shelf "${entry.key}" unavailable, hiding it:`, error);
+    return null;
+  }
+}
+
+// La liste des rangées fait partie de la clé : en changer une doit invalider
+// l'entrée, pas resservir l'ancienne pendant un quart d'heure.
+const shelves = cached(`charts-shelves-${RANKING_SHELVES.map((s) => s.key).join("-")}`, async () => {
+  const read = await Promise.all(RANKING_SHELVES.map(readShelf));
+  return read.filter((shelf): shelf is Shelf => shelf !== null);
 });
 
 // L'illustration panoramique n'est qu'un appel à l'API du magasin Steam, mais
@@ -109,19 +111,20 @@ export default async function ChartsPage({ searchParams }: ChartsPageProps) {
     siteStats(),
     languageScores(),
     topMover(),
+    // Le plancher de volume vient du classement lui-même : le repasser ici
+    // n'ouvrirait que la possibilité d'en servir un autre que la rubrique.
     getCataloguePage({
       sort: filter,
       limit: PAGE_SIZE,
       offset: (page - 1) * PAGE_SIZE,
       search: query,
-      minReviews: active.minReviews,
     }),
   ]);
 
-  // `trending` porte déjà sa variation ; pour les quatre autres tris, on la
-  // complète pour les seules vignettes affichées.
+  // `trending` porte déjà sa variation ; pour les autres tris, on la complète
+  // pour les seules vignettes affichées.
   const games: CatalogueGame[] =
-    filter === "trending"
+    active.source.kind === "movers"
       ? ranking.games
       : await getRecentDeltas(ranking.games.map((g) => g.appId)).then((deltas) =>
           ranking.games.map((g) => ({ ...g, deltaPct: deltas.get(g.appId) })),
@@ -224,13 +227,13 @@ export default async function ChartsPage({ searchParams }: ChartsPageProps) {
         <div className="border-t border-[#1a2530] px-6 pt-7 pb-2 sm:px-8">
           <div className="mx-auto max-w-[1320px]">
             {rubrics.map((shelf) => (
-              <div key={shelf.title} className="mb-7">
+              <div key={shelf.key} className="mb-7">
                 <SectionHead
                   title={shelf.title}
                   note={shelf.note}
                   action={
                     <Link
-                      href={chartsHref({ filter: shelf.filter })}
+                      href={chartsHref({ filter: shelf.key })}
                       className="font-mono text-[10px] tracking-[0.12em] text-brand-blue uppercase"
                     >
                       see all →
@@ -263,6 +266,10 @@ export default async function ChartsPage({ searchParams }: ChartsPageProps) {
               <Link
                 key={f.key}
                 href={chartsHref({ filter: f.key, q: query })}
+                // Les pills sont posées juste au-dessus de la grille qu'elles
+                // filtrent : la remontée en haut de page par défaut ferait
+                // perdre au lecteur la seule chose qu'il regardait.
+                scroll={false}
                 aria-current={f.key === filter ? "page" : undefined}
                 className={
                   f.key === filter

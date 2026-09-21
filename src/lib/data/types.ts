@@ -220,9 +220,10 @@ export type CatalogueTrendDay = {
 };
 
 /**
- * Les entrées du catalogue proposées par `/charts`. Toutes se lisent dans
- * `marts.game_stats` d'un seul ORDER BY ; `trending` seul doit comparer deux
- * fenêtres de `game_review_trend_daily`.
+ * Les entrées du catalogue proposées par `/charts`. Chacune décrit sa source
+ * et ses bornes dans `RANKINGS` (`src/lib/rankings.ts`) : un ORDER BY sur
+ * `marts.game_stats`, ou la comparaison de deux fenêtres de trente jours pour
+ * `trending`.
  */
 export type CatalogueSort =
   | "most-reviewed"
@@ -230,7 +231,9 @@ export type CatalogueSort =
   | "worst-rated"
   | "trending"
   | "polarised"
-  | "recent";
+  | "recent"
+  | "hidden-gem"
+  | "most-despised";
 
 /** Une vignette de la grille : de quoi dessiner la jaquette et son verdict. */
 export type CatalogueGame = {

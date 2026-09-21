@@ -1,33 +1,14 @@
 import type { CatalogueSort } from "@/lib/data/types";
+import { RANKINGS, type Ranking, isRankingKey, ranking } from "@/lib/rankings";
 
-// Les cinq entrées du catalogue proposées par `/charts`. Partagées parce que
-// la home les compte (« N rankings » dans « Dig deeper ») : une liste
-// dupliquée finirait par annoncer un chiffre que la page ne tient pas.
-//
-// `note` sert deux fois : sous le titre de la rubrique « All games », et comme
-// sous-titre de la rubrique de la page d'accueil qui y renvoie.
+// Les entrées du catalogue proposées par `/charts`. Elles ne vivent plus ici :
+// `RANKINGS` (`src/lib/rankings.ts`) décrit chaque classement une fois, pour la
+// vitrine de la home comme pour cette page. Ce module n'en garde que ce qui
+// regarde l'URL et la barre de filtres.
 
-type ChartFilter = {
-  key: CatalogueSort;
-  label: string;
-  note: string;
-  /**
-   * Plancher de volume. Un classement au score (`best-rated`, `polarised`) n'a
-   * de sens qu'au-dessus d'un certain nombre d'avis : à douze avis, un jeu
-   * tombe à 100 % ou à 50 % par accident. Les classements au volume ou à la
-   * date n'en ont pas besoin.
-   */
-  minReviews: number;
-};
+export type ChartFilter = Ranking;
 
-export const CHART_FILTERS: readonly ChartFilter[] = [
-  { key: "most-reviewed", label: "Most reviewed", note: "by total reviews collected", minReviews: 1 },
-  { key: "best-rated", label: "Best rated", note: "highest positive share", minReviews: 500 },
-  { key: "worst-rated", label: "Worst rated", note: "lowest positive share", minReviews: 500 },
-  { key: "trending", label: "Trending", note: "biggest 30-day shift", minReviews: 30 },
-  { key: "polarised", label: "Most polarised", note: "closest to a 50/50 split", minReviews: 5000 },
-  { key: "recent", label: "Recently released", note: "newest games in the catalogue", minReviews: 1 },
-];
+export const CHART_FILTERS: readonly ChartFilter[] = RANKINGS;
 
 export type ChartFilterKey = CatalogueSort;
 
@@ -35,11 +16,11 @@ export type ChartFilterKey = CatalogueSort;
 export const DEFAULT_CHART_FILTER: ChartFilterKey = "most-reviewed";
 
 export function isChartFilterKey(value: string | undefined): value is ChartFilterKey {
-  return CHART_FILTERS.some((f) => f.key === value);
+  return isRankingKey(value);
 }
 
 export function chartFilter(key: ChartFilterKey): ChartFilter {
-  return CHART_FILTERS.find((f) => f.key === key) ?? CHART_FILTERS[0];
+  return ranking(key);
 }
 
 /**

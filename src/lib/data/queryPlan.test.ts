@@ -12,6 +12,7 @@ import {
   windowRankingQuery,
 } from "@/lib/data/gameData";
 import { hasMartColumn, hasWindow } from "@/lib/data/martAvailability";
+import { RANKINGS } from "@/lib/rankings";
 
 type PlanNode = {
   "Node Type": string;
@@ -129,4 +130,28 @@ describe("query plans", () => {
     expect(scannedRelations(plan)).toContain("review_highlight");
     expect(seqScannedRelations(plan)).not.toContain("review_highlight");
   });
+});
+
+// Les huit classements de `/charts` se ramènent à deux requêtes, mais chacun
+// pose ses propres bornes et son propre ORDER BY. Les faire tous passer par
+// EXPLAIN vérifie d'un coup qu'aucun ne demande au mart une colonne qu'il n'a
+// pas — une faute qu'un test sur les seules chaînes ne verrait jamais.
+describe("les classements de /charts", () => {
+  for (const entry of RANKINGS) {
+    const needsPreviousMonth = entry.source.kind === "movers";
+
+    it.skipIf(needsPreviousMonth && !HAS_PREVIOUS_MONTH)(`sait servir « ${entry.label} »`, async () => {
+      const plan = await planFor(cataloguePageQuery({ sort: entry.key, limit: 8 }));
+
+      expect(scannedRelations(plan).length, entry.key).toBeGreaterThan(0);
+    });
+
+    it.skipIf(needsPreviousMonth && !HAS_PREVIOUS_MONTH)(`pagine et filtre « ${entry.label} »`, async () => {
+      const plan = await planFor(
+        cataloguePageQuery({ sort: entry.key, limit: 24, offset: 48, search: "half" }),
+      );
+
+      expect(scannedRelations(plan).length, entry.key).toBeGreaterThan(0);
+    });
+  }
 });

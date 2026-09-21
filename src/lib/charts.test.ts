@@ -41,7 +41,7 @@ describe("chartsHref", () => {
 });
 
 describe("isChartFilterKey", () => {
-  it("reconnaît les six tris de la page", () => {
+  it("reconnaît les huit tris de la page", () => {
     expect(CHART_FILTERS.map((f) => f.key)).toEqual([
       "most-reviewed",
       "best-rated",
@@ -49,8 +49,16 @@ describe("isChartFilterKey", () => {
       "trending",
       "polarised",
       "recent",
+      "hidden-gem",
+      "most-despised",
     ]);
     expect(CHART_FILTERS.every((f) => isChartFilterKey(f.key))).toBe(true);
+  });
+
+  // Le tri par défaut ouvre la liste : c'est lui que sert `/charts` nue, et
+  // celui sur lequel la page retombe quand la query string dit n'importe quoi.
+  it("ouvre la liste par le tri par défaut", () => {
+    expect(CHART_FILTERS[0].key).toBe(DEFAULT_CHART_FILTER);
   });
 
   // La valeur vient de la query string : n'importe quoi peut arriver, et la
