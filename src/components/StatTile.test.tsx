@@ -15,4 +15,11 @@ describe("StatTile", () => {
     render(<StatTile label="median playtime" value="46h" note="all time, per reviewer" />);
     expect(screen.getByText("all time, per reviewer")).toBeInTheDocument();
   });
+
+  it("n'affiche le (?) que lorsqu'une définition est fournie", () => {
+    const { rerender } = render(<StatTile label="refunded" value="2.0%" />);
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    rerender(<StatTile label="refunded" value="2.0%" hint="Share of reviewers who refunded." />);
+    expect(screen.getByRole("button", { name: "Share of reviewers who refunded." })).toBeInTheDocument();
+  });
 });

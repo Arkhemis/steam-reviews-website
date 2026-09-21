@@ -11,10 +11,12 @@ type InfoHintProps = {
 export function InfoHint({ text }: InfoHintProps) {
   return (
     <span className="group relative inline-flex">
+      {/* `tracking-normal` : l'espacement hérité d'un titre en capitales
+          s'ajoute après le « ? » et le pousse hors du centre du cercle. */}
       <button
         type="button"
         aria-label={text}
-        className="flex size-4 cursor-help items-center justify-center rounded-full border border-white/25 text-[10px] font-bold leading-none text-neutral-400 transition-colors hover:border-white/50 hover:text-white focus-visible:border-white/50 focus-visible:text-white"
+        className="flex size-4 cursor-help items-center justify-center rounded-full border border-white/25 text-[10px] font-bold leading-none tracking-normal text-neutral-400 transition-colors hover:border-white/50 hover:text-white focus-visible:border-white/50 focus-visible:text-white"
       >
         ?
       </button>

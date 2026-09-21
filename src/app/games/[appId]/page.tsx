@@ -7,8 +7,9 @@ import { Nav } from "@/components/Nav";
 import { StatTile } from "@/components/StatTile";
 import { CHART_FILTERS } from "@/lib/charts";
 import { LANGUAGE_LABELS } from "@/lib/map";
+import { estimateRevenue } from "@/lib/revenue";
 import { getGameStats } from "@/lib/data/gameData";
-import type { GameStats, GameStoreListing, SteamAppType } from "@/lib/data/types";
+import type { GameProfile, GameStats, GameStoreListing, SteamAppType } from "@/lib/data/types";
 import {
   CoverageBand,
   CoverageBandSkeleton,
@@ -32,6 +33,35 @@ type GamePageProps = {
 
 const enFull = new Intl.NumberFormat("en-US");
 const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+const usdCompact = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+const enCompact = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
+
+/**
+ * La tuile de revenu estimé : un ordre de grandeur, d'où le « ~ » et la note
+ * qui rappelle combien de copies par avis le calcul suppose.
+ */
+function revenueTile(stats: GameProfile): { value: string; note: string } {
+  const estimate = stats.store
+    ? estimateRevenue({
+        totalReviews: stats.totalReviews,
+        priceUsd: stats.store.priceUsd,
+        isFree: stats.store.isFree,
+        firstReleaseDate: stats.firstReleaseDate,
+      })
+    : null;
+  if (estimate) {
+    return {
+      value: `~${usdCompact.format(estimate.grossRevenueUsd)}`,
+      note: `~${enCompact.format(estimate.unitsSold)} copies · ${estimate.multiplier} per review`,
+    };
+  }
+  return { value: "—", note: stats.store?.isFree ? "free to play" : "no price on Steam" };
+}
 
 // « game » n'apprend rien sur la fiche d'un jeu, et « other » mélange
 // playtests, logiciels et vidéos : seuls les autres types méritent un badge.
@@ -287,12 +317,15 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
         </div>
       </div>
 
-      {/* Bandeau de KPI, à fond perdu comme le pouls de la home : les trois
-          chiffres de droite viennent de `game_stats`, seules les barres de
+      {/* Bandeau de KPI, à fond perdu comme le pouls de la home : les
+          quatre chiffres de droite viennent de `game_stats`, seules les barres de
           gauche demandent une requête — d'où leur boundary. */}
-      <div className="grid grid-cols-2 border-y border-[#1a2530] lg:grid-cols-4">
-        <div className="border-r border-[#16202a] px-5 py-4">
-          <div className="font-mono text-[9px] tracking-[0.12em] text-[#7d919c] uppercase">reviews / day · 31d</div>
+      <div className="grid grid-cols-2 border-y border-[#1a2530] lg:grid-cols-5">
+        <div className="col-span-2 border-[#16202a] px-5 py-4 lg:col-span-1 lg:border-r">
+          <div className="flex items-center gap-2 font-mono text-[9px] tracking-[0.12em] text-[#7d919c] uppercase">
+            reviews / day · 31d
+            <InfoHint text="Reviews posted each day over the 31 days leading up to the latest review loaded for this game; not necessarily the last 31 days on the calendar." />
+          </div>
           <div className="mt-2">
             <Suspense fallback={<VolumeSkeleton />}>
               <VolumeSection appId={numericAppId} />
@@ -305,18 +338,28 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
           {...(stats.store?.appType === "dlc"
             ? { value: "—", note: "Steam doesn't track DLC playtime" }
             : { value: `${Math.round(stats.playtimeMedianMinutes / 60)}h`, note: "all time, per reviewer" })}
-          className="lg:border-r lg:border-[#16202a]"
+          hint="Median total playtime of the reviewers, counted up to today rather than at the moment they wrote their review."
+          className="border-r border-[#16202a]"
         />
         <StatTile
           label="steam deck"
           value={`${Math.round(stats.pctSteamDeck * 100)}%`}
           note="played mostly on Deck"
-          className="border-r border-[#16202a]"
+          hint="Share of reviewers Steam flags as having played this game mostly on a Steam Deck."
+          className="lg:border-r lg:border-[#16202a]"
         />
         <StatTile
           label="refunded"
           value={`${(stats.pctRefunded * 100).toFixed(1)}%`}
           note="of reviewers"
+          hint="Share of reviewers who later refunded the game. Steam keeps their review, marked as refunded."
+          className="border-r border-[#16202a]"
+        />
+        {/* Méthode Boxleiter, cf. `src/lib/revenue.ts` : avant la commission de Steam. */}
+        <StatTile
+          label="est. gross revenue"
+          {...revenueTile(stats)}
+          hint="A rough guess: each review stands for about 30 to 70 copies sold, times the price. Could be off by half."
         />
       </div>
 
