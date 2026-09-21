@@ -60,6 +60,21 @@ export type GameProfile = GameStats & { store: GameStoreListing | null };
  * Steam déclare dans `game_stats` : le bandeau de la fiche annonce l'assiette
  * de l'analyse avant de montrer le moindre chiffre.
  */
+/** Résumé des avis d'un jeu, écrit par un LLM en local (`raw.game_review_summaries`). */
+export type GameReviewSummary = {
+  /** Paragraphe de 3-4 phrases, en anglais. */
+  summary: string;
+  /** Jusqu'à 5 points de chaque côté. */
+  pros: string[];
+  cons: string[];
+  /** Modèle Ollama qui l'a écrit, p. ex. `qwen3:8b`. */
+  model: string;
+  /** Avis passés au modèle. */
+  reviewsUsed: number;
+  /** Date de génération (AAAA-MM-JJ). */
+  generatedOn: string;
+};
+
 export type GameCoverage = {
   /** Avis présents en base pour ce jeu, et non ceux que Steam compte. */
   loadedReviews: number;

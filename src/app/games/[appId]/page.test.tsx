@@ -7,6 +7,7 @@ import {
   DlcSection,
   LanguagesSection,
   ReviewsSection,
+  SummarySection,
   TrendsSection,
   VolumeSection,
 } from "@/app/games/[appId]/sections";
@@ -29,6 +30,7 @@ const {
   getGameReviewTrends,
   getGameLanguageDistribution,
   getGameReviewLanguages,
+  getGameReviewSummary,
   getGameTopReviews,
 } = vi.hoisted(() => ({
   getGameDlcs: vi.fn(),
@@ -39,6 +41,7 @@ const {
   getGameReviewTrends: vi.fn(),
   getGameLanguageDistribution: vi.fn(),
   getGameReviewLanguages: vi.fn(),
+  getGameReviewSummary: vi.fn(),
   getGameTopReviews: vi.fn(),
 }));
 
@@ -51,6 +54,7 @@ vi.mock("@/lib/data/gameData", () => ({
   getGameReviewTrends,
   getGameLanguageDistribution,
   getGameReviewLanguages,
+  getGameReviewSummary,
   getGameTopReviews,
   TOP_REVIEWS_PER_SIDE: 20,
 }));
@@ -397,6 +401,34 @@ describe("GamePage sections", () => {
     render(<Suspense fallback={null}>{await LanguagesSection({ appId: BALDURS_GATE_3_APP_ID })}</Suspense>);
 
     expect(await screen.findByRole("group", { name: /^English:/ })).toBeInTheDocument();
+  });
+});
+
+describe("SummarySection", () => {
+  it("disparaît pour un jeu sans résumé", async () => {
+    getGameReviewSummary.mockResolvedValue(null);
+
+    expect(await SummarySection({ appId: 292030 })).toBeNull();
+  });
+
+  it("montre le paragraphe, puis les points pour et contre face à face", async () => {
+    getGameReviewSummary.mockResolvedValue({
+      summary: "Players love the story but not Act 3.",
+      pros: ["Deep story", "Great companions"],
+      cons: ["Act 3 bugs"],
+      model: "qwen3:8b",
+      reviewsUsed: 60,
+      generatedOn: "2026-09-21",
+    });
+
+    render(await SummarySection({ appId: BALDURS_GATE_3_APP_ID }));
+
+    expect(screen.getByText("Players love the story but not Act 3.")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "In a nutshell…" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Pros" }).nextElementSibling?.textContent).toContain("Great companions");
+    expect(screen.getByRole("heading", { name: "Cons" }).nextElementSibling?.textContent).toContain("Act 3 bugs");
+    // Le modèle et la méthode sont dans la bulle d'aide, pas dans le texte.
+    expect(screen.getByRole("button", { name: /qwen3:8b.*60 reviews.*Sep 21, 2026/ })).toBeInTheDocument();
   });
 });
 

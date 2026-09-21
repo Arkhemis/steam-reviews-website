@@ -9,6 +9,7 @@ import {
   getGameLanguageDistribution,
   getGameReviewTrends,
   getGameReviewLanguages,
+  getGameReviewSummary,
   getGameStats,
   getGameTopReviews,
   getPolarisedGames,
@@ -47,6 +48,22 @@ describe("gameData", () => {
     const stats = await getGameStats(BALDURS_GATE_3_APP_ID);
     expect(stats).not.toBeNull();
     expect(stats?.name).toBe("Baldur's Gate III");
+  });
+
+  // Rempli à la main depuis un GPU local : une base qui ne l'a pas encore doit
+  // renvoyer `null` comme pour un jeu sans résumé.
+  it("lit le résumé LLM d'un jeu, ou null quand il n'en a pas", async () => {
+    expect(await getGameReviewSummary(-1)).toBeNull();
+
+    const { rows } = await pool
+      .query<{ app_id: string }>(`SELECT app_id FROM raw.game_review_summaries LIMIT 1`)
+      .catch(() => ({ rows: [] as { app_id: string }[] }));
+    if (rows.length === 0) return;
+    const summary = await getGameReviewSummary(Number(rows[0].app_id));
+    expect(summary?.summary).not.toBe("");
+    expect(summary?.pros.length).toBeGreaterThan(0);
+    expect(summary?.cons.length).toBeGreaterThan(0);
+    expect(summary?.generatedOn).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 
   // Le lien marche dans les deux sens : chaque DLC listé sous un jeu renvoie
