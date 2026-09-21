@@ -1,19 +1,49 @@
 import { LANGUAGE_LABELS, type LanguageKey } from "@/lib/map";
 import type { GameLanguageDistribution } from "@/lib/data/types";
 
-// Fixed language -> categorical slot mapping. Order never changes: it's the
-// CVD-safety mechanism from the dataviz skill's validated palette. A language
-// not in this list, or any language past the top 6 by share, folds into the
-// muted "Other" bucket rather than generating a new hue.
-const LANGUAGE_SLOT_ORDER = ["english", "schinese", "french", "german", "russian", "brazilian"] as const;
-
-const CATEGORICAL_DARK = ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#008300"];
+// Une couleur par langue, tirée du drapeau du pays qu'elle évoque d'abord
+// (Angleterre rouge, France bleu, Espagne jaune, Italie vert…). Beaucoup de
+// drapeaux sont rouges ou bleus : quand deux langues qui cohabitent souvent en
+// tête d'un même jeu tomberaient sur la même teinte, l'une prend une variante
+// (rouge profond pour l'allemand, blanc de la Pologne, rose sakura pour le
+// japonais…) plutôt que la couleur exacte du drapeau. Pas daltonien-safe :
+// c'est le prix de couleurs qui se reconnaissent sans légende.
+const LANGUAGE_COLORS: Record<LanguageKey, string> = {
+  english: "#cf142b", // croix de saint Georges
+  schinese: "#f26522", // rouge de Chine, tiré vers l'orange pour quitter l'anglais
+  tchinese: "#4a5ec8", // canton bleu de Taïwan
+  french: "#2f63d6",
+  german: "#9e1b32", // rouge profond, distinct de l'anglais
+  spanish: "#f1bf00",
+  latam: "#b8860b", // or plus sombre que l'espagnol
+  italian: "#009246",
+  brazilian: "#6cc24a", // vert clair, distinct de l'italien
+  portuguese: "#046a38",
+  russian: "#6fa8ff", // bleu clair, distinct du français
+  ukrainian: "#ffe14d", // jaune citron, distinct de l'espagnol
+  polish: "#e9e4e4", // bande blanche du drapeau
+  turkish: "#ff5a5f", // rouge clair, distinct de l'anglais
+  japanese: "#f19cbb", // sakura
+  koreana: "#1c4fa0",
+  dutch: "#ff7f00", // oranje
+  swedish: "#006aa7",
+  norwegian: "#ba0c2f",
+  danish: "#c8102e",
+  finnish: "#2a5caa",
+  czech: "#11457e",
+  hungarian: "#477050",
+  romanian: "#fcd116",
+  bulgarian: "#00966e",
+  greek: "#5a9bd5",
+  arabic: "#1f8a5b",
+  thai: "#a51931",
+  vietnamese: "#da251d",
+};
 
 const OTHER = "Other";
 
 function colorForLanguage(language: string): string {
-  const index = LANGUAGE_SLOT_ORDER.indexOf(language as (typeof LANGUAGE_SLOT_ORDER)[number]);
-  return index === -1 ? "var(--series-fallback)" : CATEGORICAL_DARK[index];
+  return LANGUAGE_COLORS[language as LanguageKey] ?? "var(--series-fallback)";
 }
 
 function labelFor(language: string): string {
