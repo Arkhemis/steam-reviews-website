@@ -29,7 +29,28 @@ export type GameStoreListing = {
   isComingSoon: boolean;
   /** Faux quand l'app a été retirée du store. */
   isAvailable: boolean;
+  /**
+   * Le jeu dont ce DLC dépend, quand il est dans `game_stats`. Réservé aux
+   * DLC : Steam renseigne aussi un parent pour les playtests et quelques mods,
+   * que la fiche ne présente pas comme des extensions.
+   */
+  parentGame: { appId: number; name: string } | null;
 };
+
+/** Un DLC tel que la fiche de son jeu parent le liste. */
+export type GameDlc = {
+  appId: number;
+  name: string;
+  coverUrl: string | null;
+  /** Null quand Steam n'a pas encore compté d'avis pour ce DLC. */
+  pctPositive: number | null;
+  totalReviews: number;
+  priceUsd: number | null;
+  isFree: boolean;
+};
+
+/** Les DLC d'un jeu : les plus commentés, et le compte de tous les autres. */
+export type GameDlcs = { dlcs: GameDlc[]; total: number };
 
 /** `GameStats` plus la fiche store, null tant que Steam n'a pas été interrogé. */
 export type GameProfile = GameStats & { store: GameStoreListing | null };

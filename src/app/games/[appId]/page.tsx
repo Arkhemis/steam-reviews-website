@@ -12,6 +12,7 @@ import type { GameStats, GameStoreListing, SteamAppType } from "@/lib/data/types
 import {
   CoverageBand,
   CoverageBandSkeleton,
+  DlcSection,
   HeroArt,
   LanguagesSection,
   LanguagesSkeleton,
@@ -210,6 +211,14 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
                 ))}
               </div>
             )}
+            {stats.store?.parentGame && (
+              <p className="mt-2.5 text-sm text-[#9fb2bd]">
+                DLC for{" "}
+                <Link href={`/games/${stats.store.parentGame.appId}`} className="font-bold text-[#eef2f4] hover:text-brand-blue">
+                  {stats.store.parentGame.name} →
+                </Link>
+              </p>
+            )}
             {tags.length > 0 && (
               <div className={`${badges.length > 0 ? "mt-2" : "mt-4"} flex flex-wrap gap-2`}>
                 {tags.map((tag) => (
@@ -308,6 +317,10 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
           </Suspense>
         </div>
       </div>
+
+      <Suspense fallback={null}>
+        <DlcSection appId={numericAppId} />
+      </Suspense>
 
       <DigDeeper title="Keep digging" note="three ways out of this page" doors={doorsFor(stats)} />
     </div>

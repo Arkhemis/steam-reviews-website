@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import GamePage from "@/app/games/[appId]/page";
 import {
   CoverageBand,
+  DlcSection,
   LanguagesSection,
   ReviewsSection,
   TrendsSection,
@@ -23,12 +24,14 @@ const {
   getGameStats,
   getGameCoverage,
   getGameDailyTrend,
+  getGameDlcs,
   getGameEvents,
   getGameReviewTrends,
   getGameLanguageDistribution,
   getGameReviewLanguages,
   getGameTopReviews,
 } = vi.hoisted(() => ({
+  getGameDlcs: vi.fn(),
   getGameStats: vi.fn(),
   getGameCoverage: vi.fn(),
   getGameDailyTrend: vi.fn(),
@@ -43,6 +46,7 @@ vi.mock("@/lib/data/gameData", () => ({
   getGameStats,
   getGameCoverage,
   getGameDailyTrend,
+  getGameDlcs,
   getGameEvents,
   getGameReviewTrends,
   getGameLanguageDistribution,
@@ -78,6 +82,7 @@ const game: GameProfile = {
     isEarlyAccess: false,
     isComingSoon: false,
     isAvailable: true,
+    parentGame: null,
   },
 };
 
@@ -203,6 +208,7 @@ describe("GamePage", () => {
         isEarlyAccess: true,
         isComingSoon: true,
         isAvailable: true,
+        parentGame: null,
       });
 
       for (const label of ["Free", "DLC", "Coming soon", "Early Access"]) {
@@ -220,9 +226,20 @@ describe("GamePage", () => {
         isEarlyAccess: false,
         isComingSoon: false,
         isAvailable: false,
+        parentGame: null,
       });
 
       expect(screen.getByLabelText("Steam store listing")).toHaveTextContent(/^Removed from Steam$/);
+    });
+
+    it("links a DLC back to the game it extends", async () => {
+      await renderWithStore({
+        ...game.store!,
+        appType: "dlc",
+        parentGame: { appId: 292030, name: "The Witcher 3: Wild Hunt" },
+      });
+
+      expect(screen.getByRole("link", { name: /The Witcher 3: Wild Hunt/ })).toHaveAttribute("href", "/games/292030");
     });
 
     it("renders no store row when Steam has not been asked yet", async () => {
@@ -230,6 +247,17 @@ describe("GamePage", () => {
 
       expect(screen.queryByLabelText("Steam store listing")).not.toBeInTheDocument();
     });
+  });
+
+  // La section DLC a sa propre boundary : la page ne l'attend pas.
+  it("streams the DLC list instead of awaiting it", async () => {
+    const jsx = await GamePage({
+      params: Promise.resolve({ appId: String(BALDURS_GATE_3_APP_ID) }),
+      searchParams: Promise.resolve({}),
+    });
+
+    expect(getGameDlcs).not.toHaveBeenCalled();
+    expect(findElement(jsx, DlcSection)?.props).toMatchObject({ appId: BALDURS_GATE_3_APP_ID });
   });
 
   it("hands the requested language to the reviews section", async () => {
@@ -334,5 +362,52 @@ describe("GamePage sections", () => {
     render(<Suspense fallback={null}>{await LanguagesSection({ appId: BALDURS_GATE_3_APP_ID })}</Suspense>);
 
     expect(await screen.findByRole("group", { name: /^English:/ })).toBeInTheDocument();
+  });
+});
+
+describe("DlcSection", () => {
+  const dlc = {
+    appId: 378648,
+    name: "Blood and Wine",
+    coverUrl: null,
+    pctPositive: 0.97,
+    totalReviews: 10255,
+    priceUsd: 19.99,
+    isFree: false,
+  };
+
+  it("renders nothing for a game without DLC", async () => {
+    getGameDlcs.mockResolvedValue({ dlcs: [], total: 0 });
+
+    expect(await DlcSection({ appId: 292030 })).toBeNull();
+  });
+
+  it("links each DLC to its own page, with its score and price", async () => {
+    getGameDlcs.mockResolvedValue({ dlcs: [dlc], total: 1 });
+    render(await DlcSection({ appId: 292030 }));
+
+    expect(screen.getByRole("link", { name: /Blood and Wine/ })).toHaveAttribute("href", "/games/378648");
+    expect(screen.getByText("97%")).toBeInTheDocument();
+    expect(screen.getByText("$19.99")).toBeInTheDocument();
+    expect(screen.queryByText(/on Steam ↗/)).not.toBeInTheDocument();
+  });
+
+  // Un DLC que Steam n'a pas encore noté n'a pas de score : pas de 0 % trompeur.
+  it("says a DLC has no reviews rather than scoring it 0%", async () => {
+    getGameDlcs.mockResolvedValue({ dlcs: [{ ...dlc, pctPositive: null, totalReviews: 0 }], total: 1 });
+    render(await DlcSection({ appId: 292030 }));
+
+    expect(screen.getByText("no reviews")).toBeInTheDocument();
+    expect(screen.queryByText("0%")).not.toBeInTheDocument();
+  });
+
+  it("points to the Steam DLC page when it only shows part of the list", async () => {
+    getGameDlcs.mockResolvedValue({ dlcs: [dlc], total: 31 });
+    render(await DlcSection({ appId: 24010 }));
+
+    expect(screen.getByRole("link", { name: /all 31 on Steam/ })).toHaveAttribute(
+      "href",
+      "https://store.steampowered.com/dlc/24010/",
+    );
   });
 });
