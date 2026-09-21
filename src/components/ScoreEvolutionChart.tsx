@@ -240,7 +240,7 @@ export function ScoreEvolutionChart({ trends, events = [] }: ScoreEvolutionChart
         <svg
           viewBox={`0 0 ${WIDTH} ${height}`}
           role="img"
-          aria-label="Positive score over time, with the number of reviews written each month"
+          aria-label="Monthly and cumulative positive score over time, with the number of reviews written each month"
           className="absolute inset-0 h-full w-full"
         >
           {[0, 0.5, 1].map((fraction) => (
@@ -366,14 +366,16 @@ export function ScoreEvolutionChart({ trends, events = [] }: ScoreEvolutionChart
             <tr>
               <th scope="col">Month</th>
               <th scope="col">Positive share</th>
+              <th scope="col">Cumulative score</th>
               <th scope="col">Reviews</th>
             </tr>
           </thead>
           <tbody>
-            {trends.map((trend) => (
+            {trends.map((trend, index) => (
               <tr key={trend.periodMonth}>
                 <th scope="row">{formatMonth(trend.periodMonth)}</th>
                 <td>{Math.round(trend.pctPositivePeriod * 100)}%</td>
+                <td>{Math.round(cumulativePoints[index].pct * 100)}%</td>
                 <td>{formatReviews(trend.reviewsInPeriod)}</td>
               </tr>
             ))}

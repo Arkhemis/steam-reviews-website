@@ -193,8 +193,8 @@ export function TrendsHeading() {
       <div className="flex flex-wrap items-baseline gap-3">
         <h2 className="m-0 text-[26px] font-extrabold tracking-tight">What each month thought</h2>
         <span className="flex items-center gap-1.5 text-sm text-[#7d919c]">
-          share of positive reviews written that month — not the cumulative score
-          <InfoHint text="Each point covers only the reviews written during that month, so a bad patch shows up here long before it moves the score at the top of the page." />
+          share of positive reviews written that month, against the cumulative score
+          <InfoHint text="The blue line covers only the reviews written during that month, so a bad patch shows up there long before it moves the score at the top of the page. The green line is the cumulative score: every review written up to the end of that month." />
         </span>
       </div>
     </div>

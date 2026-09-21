@@ -287,9 +287,9 @@ describe("ScoreEvolutionChart", () => {
       );
 
       expect(rows).toEqual([
-        ["Jul 2026", "90%", "100 reviews"],
-        ["Aug 2026", "80%", "1,600 reviews"],
-        ["Sep 2026", "54%", "400 reviews"],
+        ["Jul 2026", "90%", "90%", "100 reviews"],
+        ["Aug 2026", "80%", "81%", "1,600 reviews"],
+        ["Sep 2026", "54%", "76%", "400 reviews"],
       ]);
     });
 

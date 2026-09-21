@@ -390,7 +390,7 @@ describe("GamePage sections", () => {
   it("renders the score chart once the section resolves", async () => {
     render(<Suspense fallback={null}>{await TrendsSection({ appId: BALDURS_GATE_3_APP_ID })}</Suspense>);
 
-    expect(await screen.findByRole("img", { name: /Positive score over time/ })).toBeInTheDocument();
+    expect(await screen.findByRole("img", { name: /positive score over time/ })).toBeInTheDocument();
   });
 
   it("renders the language breakdown once the section resolves", async () => {
