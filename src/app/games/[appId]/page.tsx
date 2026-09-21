@@ -84,6 +84,10 @@ function storeBadges(store: GameStoreListing | null): StoreBadge[] {
   const badges: StoreBadge[] = [];
   if (store.isFree) badges.push({ label: "Free", color: "var(--status-good)" });
   else if (store.priceUsd !== null) badges.push({ label: usd.format(store.priceUsd), color: "var(--color-brand-blue)" });
+  // Un DLC sans offre d'achat ne s'obtient qu'avec une édition du jeu (Blood
+  // and Wine, les DLC offerts de The Witcher 3). Annoncé, il n'a juste pas
+  // encore de prix.
+  else if (store.appType === "dlc" && !store.isComingSoon) badges.push({ label: "Not sold separately" });
 
   const type = APP_TYPE_LABELS[store.appType];
   if (type) badges.push({ label: type, ...STEAM_TYPE_BADGES[store.appType] });
@@ -295,10 +299,12 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
             </Suspense>
           </div>
         </div>
+        {/* Steam compte le temps de jeu sur le jeu de base : la médiane d'un DLC vaut toujours 0. */}
         <StatTile
           label="median playtime"
-          value={`${Math.round(stats.playtimeMedianMinutes / 60)}h`}
-          note="all time, per reviewer"
+          {...(stats.store?.appType === "dlc"
+            ? { value: "—", note: "Steam doesn't track DLC playtime" }
+            : { value: `${Math.round(stats.playtimeMedianMinutes / 60)}h`, note: "all time, per reviewer" })}
           className="lg:border-r lg:border-[#16202a]"
         />
         <StatTile

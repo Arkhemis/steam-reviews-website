@@ -242,6 +242,41 @@ describe("GamePage", () => {
       expect(screen.getByRole("link", { name: /The Witcher 3: Wild Hunt/ })).toHaveAttribute("href", "/games/292030");
     });
 
+    // Blood and Wine n'a plus d'offre d'achat : il ne s'obtient qu'avec la
+    // Complete Edition. Pas de prix, mais pas « gratuit » non plus.
+    it("says a DLC with no purchase option is not sold separately", async () => {
+      await renderWithStore({
+        ...game.store!,
+        appType: "dlc",
+        priceUsd: null,
+        isFree: false,
+      });
+
+      expect(screen.getByText("Not sold separately")).toBeInTheDocument();
+    });
+
+    // Un DLC annoncé n'a pas encore de prix : il sera vendu, simplement pas encore.
+    it("does not call an upcoming DLC unsold", async () => {
+      await renderWithStore({
+        ...game.store!,
+        appType: "dlc",
+        priceUsd: null,
+        isFree: false,
+        isComingSoon: true,
+      });
+
+      expect(screen.queryByText("Not sold separately")).not.toBeInTheDocument();
+    });
+
+    // Steam compte le temps de jeu sur le jeu de base : un DLC affiche toujours 0.
+    it("does not show a 0h median playtime for a DLC", async () => {
+      await renderWithStore({ ...game.store!, appType: "dlc" });
+
+      expect(screen.queryByText("0h")).not.toBeInTheDocument();
+      expect(screen.queryByText("100h")).not.toBeInTheDocument();
+      expect(screen.getByText("Steam doesn't track DLC playtime")).toBeInTheDocument();
+    });
+
     it("renders no store row when Steam has not been asked yet", async () => {
       await renderWithStore(null);
 
