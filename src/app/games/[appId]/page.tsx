@@ -8,7 +8,7 @@ import { StatTile } from "@/components/StatTile";
 import { CHART_FILTERS } from "@/lib/charts";
 import { LANGUAGE_LABELS } from "@/lib/map";
 import { getGameStats } from "@/lib/data/gameData";
-import type { GameStats } from "@/lib/data/types";
+import type { GameStats, GameStoreListing, SteamAppType } from "@/lib/data/types";
 import {
   CoverageBand,
   CoverageBandSkeleton,
@@ -30,6 +30,37 @@ type GamePageProps = {
 };
 
 const enFull = new Intl.NumberFormat("en-US");
+const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+
+// « game » n'apprend rien sur la fiche d'un jeu, et « other » mélange
+// playtests, logiciels et vidéos : seuls les autres types méritent un badge.
+const APP_TYPE_LABELS: Partial<Record<SteamAppType, string>> = {
+  dlc: "DLC",
+  demo: "Demo",
+  mod: "Mod",
+  music: "Soundtrack",
+};
+
+type StoreBadge = { label: string; color?: string };
+
+/**
+ * Ce que la fiche store dit du jeu, dans l'ordre où un acheteur le lit : une
+ * app retirée n'a plus ni prix ni statut, elle n'a donc que ce badge-là.
+ */
+function storeBadges(store: GameStoreListing | null): StoreBadge[] {
+  if (!store) return [];
+  if (!store.isAvailable) return [{ label: "Removed from Steam", color: "var(--status-critical)" }];
+
+  const badges: StoreBadge[] = [];
+  if (store.isFree) badges.push({ label: "Free", color: "var(--status-good)" });
+  else if (store.priceUsd !== null) badges.push({ label: usd.format(store.priceUsd), color: "var(--color-brand-blue)" });
+
+  const type = APP_TYPE_LABELS[store.appType];
+  if (type) badges.push({ label: type });
+  if (store.isComingSoon) badges.push({ label: "Coming soon", color: "var(--color-brand-blue)" });
+  if (store.isEarlyAccess) badges.push({ label: "Early Access", color: "var(--status-warning)" });
+  return badges;
+}
 
 // Le nombre de langues que la carte sait nommer : c'est ce qu'elle promet
 // d'ouvrir, et rien ici n'a le compte du jeu sous la main sans une requête de
@@ -116,6 +147,7 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
   // review set — ni sur le CDN de Steam pour l'illustration.
   const rating = getSteamRating(stats.pctPositive, stats.totalReviews);
   const tags = stats.genres.slice(0, 3);
+  const badges = storeBadges(stats.store);
 
   return (
     <div className="min-h-screen bg-[#0c1116] text-[#eef2f4]">
@@ -165,8 +197,21 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
                 {releaseLine(stats)}
               </span>
             </div>
+            {badges.length > 0 && (
+              <div className="mt-4 flex flex-wrap gap-2" aria-label="Steam store listing">
+                {badges.map((badge) => (
+                  <span
+                    key={badge.label}
+                    className="rounded-[4px] border border-current bg-[#0c1116]/60 px-2.5 py-1 font-mono text-[11px] font-bold tracking-[0.1em] uppercase"
+                    style={{ color: badge.color ?? "#cfdae1" }}
+                  >
+                    {badge.label}
+                  </span>
+                ))}
+              </div>
+            )}
             {tags.length > 0 && (
-              <div className="mt-4 flex flex-wrap gap-2">
+              <div className={`${badges.length > 0 ? "mt-2" : "mt-4"} flex flex-wrap gap-2`}>
                 {tags.map((tag) => (
                   <span
                     key={tag}

@@ -14,6 +14,26 @@ export type GameStats = {
   pctRefunded: number;
 };
 
+export type SteamAppType = "game" | "demo" | "mod" | "dlc" | "music" | "other";
+
+/**
+ * La fiche store Steam d'un jeu, telle que `game_stats` la reprend de
+ * `game_detail`. Seule la page du jeu la lit : les listes s'en passent.
+ */
+export type GameStoreListing = {
+  appType: SteamAppType;
+  /** Prix de base en dollars, hors promo ; null si gratuit ou pas en vente. */
+  priceUsd: number | null;
+  isFree: boolean;
+  isEarlyAccess: boolean;
+  isComingSoon: boolean;
+  /** Faux quand l'app a été retirée du store. */
+  isAvailable: boolean;
+};
+
+/** `GameStats` plus la fiche store, null tant que Steam n'a pas été interrogé. */
+export type GameProfile = GameStats & { store: GameStoreListing | null };
+
 /**
  * Ce que le site a réellement chargé d'un jeu, par opposition aux totaux que
  * Steam déclare dans `game_stats` : le bandeau de la fiche annonce l'assiette

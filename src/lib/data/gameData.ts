@@ -7,15 +7,18 @@ import type {
   GameCoverage,
   GameEvent,
   GameLanguageDistribution,
+  GameProfile,
   GameReviewLanguage,
   GameReviewTrend,
   GameStats,
+  GameStoreListing,
   GameTopReview,
   LanguageReviewScore,
   RankedWindow,
   ReviewDuel,
   ReviewWindow,
   SiteStats,
+  SteamAppType,
   TrendingGame,
   TrendingGames,
   WindowMover,
@@ -124,14 +127,48 @@ function mapGameStatsRow(row: GameStatsRow): GameStats {
   };
 }
 
-export async function getGameStats(appId: number): Promise<GameStats | null> {
-  const { rows } = await pool.query(
-    `SELECT ${GAME_STATS_COLUMNS} FROM marts.game_stats WHERE steam_app_id = $1`,
+const STORE_LISTING_COLUMNS = `
+  price_usd,
+  app_type,
+  is_free,
+  is_early_access,
+  is_coming_soon,
+  is_available
+`;
+
+type StoreListingRow = {
+  price_usd: string | null;
+  app_type: SteamAppType | null;
+  is_free: boolean | null;
+  is_early_access: boolean | null;
+  is_coming_soon: boolean | null;
+  is_available: boolean | null;
+};
+
+// `game_stats` joint `game_detail` en LEFT JOIN : un jeu dont Steam n'a pas
+// encore renvoyé la fiche a toutes ces colonnes à NULL, `is_available` compris
+// alors que le staging le garantit non nul. C'est lui qui trahit l'absence.
+function mapStoreListingRow(row: StoreListingRow): GameStoreListing | null {
+  if (row.is_available === null || row.app_type === null) return null;
+
+  return {
+    appType: row.app_type,
+    priceUsd: row.price_usd === null ? null : Number(row.price_usd),
+    isFree: row.is_free ?? false,
+    isEarlyAccess: row.is_early_access ?? false,
+    isComingSoon: row.is_coming_soon ?? false,
+    isAvailable: row.is_available,
+  };
+}
+
+export async function getGameStats(appId: number): Promise<GameProfile | null> {
+  const { rows } = await pool.query<GameStatsRow & StoreListingRow>(
+    `SELECT ${GAME_STATS_COLUMNS}, ${STORE_LISTING_COLUMNS} FROM marts.game_stats WHERE steam_app_id = $1`,
     [appId],
   );
 
   const row = rows[0];
-  return row ? mapGameStatsRow(row) : null;
+  return row ? { ...mapGameStatsRow(row), store: mapStoreListingRow(row) } : null;
 }
 
 export async function getTopGames(limit: number, search?: string, offset = 0): Promise<GameStats[]> {

@@ -14,7 +14,7 @@ import {
   baldursGate3LanguageDistribution,
   baldursGate3ReviewTrends,
 } from "@/lib/data/fixtures/baldursGate3";
-import type { GameStats, GameTopReview } from "@/lib/data/types";
+import type { GameProfile, GameTopReview } from "@/lib/data/types";
 
 // La page tape Postgres ; comme pour la carte, on mocke la couche data pour
 // tester le rendu (et le découpage en boundaries Suspense) sans base locale.
@@ -57,7 +57,7 @@ vi.mock("@/lib/steamArtwork", () => ({ resolveSteamHeroArt: vi.fn().mockResolved
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
-const game: GameStats = {
+const game: GameProfile = {
   appId: BALDURS_GATE_3_APP_ID,
   name: "Baldur's Gate III",
   genres: ["RPG"],
@@ -71,6 +71,14 @@ const game: GameStats = {
   playtimeMedianMinutes: 6000,
   pctSteamDeck: 0.1,
   pctRefunded: 0.02,
+  store: {
+    appType: "game",
+    priceUsd: 59.99,
+    isFree: false,
+    isEarlyAccess: false,
+    isComingSoon: false,
+    isAvailable: true,
+  },
 };
 
 function review(overrides: Partial<GameTopReview>): GameTopReview {
@@ -167,6 +175,61 @@ describe("GamePage", () => {
 
     render(jsx);
     expect(screen.getByText(/87,000 reviews on Steam/)).toBeInTheDocument();
+  });
+
+  describe("store listing", () => {
+    async function renderWithStore(store: GameProfile["store"]) {
+      getGameStats.mockResolvedValue({ ...game, store });
+      render(
+        await GamePage({
+          params: Promise.resolve({ appId: String(BALDURS_GATE_3_APP_ID) }),
+          searchParams: Promise.resolve({}),
+        }),
+      );
+    }
+
+    it("shows the base price, and no type badge for a plain game", async () => {
+      await renderWithStore(game.store);
+
+      expect(screen.getByText("$59.99")).toBeInTheDocument();
+      expect(screen.queryByText("Game")).not.toBeInTheDocument();
+    });
+
+    it("flags a free early-access DLC that has not shipped yet", async () => {
+      await renderWithStore({
+        appType: "dlc",
+        priceUsd: null,
+        isFree: true,
+        isEarlyAccess: true,
+        isComingSoon: true,
+        isAvailable: true,
+      });
+
+      for (const label of ["Free", "DLC", "Coming soon", "Early Access"]) {
+        expect(screen.getByText(label)).toBeInTheDocument();
+      }
+    });
+
+    // Steam renvoie une fiche vide pour une app retirée : son prix et son type
+    // n'existent plus, seul le retrait se dit.
+    it("only says the app was removed when it left the store", async () => {
+      await renderWithStore({
+        appType: "other",
+        priceUsd: null,
+        isFree: false,
+        isEarlyAccess: false,
+        isComingSoon: false,
+        isAvailable: false,
+      });
+
+      expect(screen.getByLabelText("Steam store listing")).toHaveTextContent(/^Removed from Steam$/);
+    });
+
+    it("renders no store row when Steam has not been asked yet", async () => {
+      await renderWithStore(null);
+
+      expect(screen.queryByLabelText("Steam store listing")).not.toBeInTheDocument();
+    });
   });
 
   it("hands the requested language to the reviews section", async () => {

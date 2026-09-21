@@ -36,6 +36,7 @@ const HAS_HIGHLIGHT_CREATED_AT = await hasMartColumn("review_highlight", "create
 const PODIUM_FLOOR = 100;
 const HAS_PODIUM = await hasWindowRanking("month", PODIUM_FLOOR);
 const HAS_DUEL_COVERAGE = await hasDuelCoverage();
+const HAS_STORE_LISTING = await hasMartColumn("game_stats", "is_available");
 
 const BALDURS_GATE_3_APP_ID = 1086940;
 
@@ -44,6 +45,19 @@ describe("gameData", () => {
     const stats = await getGameStats(BALDURS_GATE_3_APP_ID);
     expect(stats).not.toBeNull();
     expect(stats?.name).toBe("Baldur's Gate III");
+  });
+
+  it.skipIf(!HAS_STORE_LISTING)("lit la fiche store Steam avec les stats du jeu", async () => {
+    const stats = await getGameStats(BALDURS_GATE_3_APP_ID);
+
+    // Fiche pas encore chargée : null, jamais un objet à moitié rempli.
+    if (stats?.store) {
+      expect(stats.store.appType).toBe("game");
+      expect(typeof stats.store.isAvailable).toBe("boolean");
+      expect(stats.store.priceUsd === null || typeof stats.store.priceUsd === "number").toBe(true);
+    } else {
+      expect(stats?.store).toBeNull();
+    }
   });
 
   it("compte les avis réellement chargés, pas ceux que Steam déclare", async () => {
