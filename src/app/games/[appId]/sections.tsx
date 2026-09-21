@@ -1,4 +1,7 @@
 import Image from "next/image";
+import Link from "next/link";
+import { verdictColor } from "@/components/GameCoverTile";
+import { SectionHead } from "@/components/HomeEditorial";
 import { InfoHint } from "@/components/InfoHint";
 import { LanguageDistribution } from "@/components/LanguageDistribution";
 import { ReviewBattle } from "@/components/ReviewBattle";
@@ -9,12 +12,14 @@ import { resolveSteamHeroArt } from "@/lib/steamArtwork";
 import {
   getGameCoverage,
   getGameDailyTrend,
+  getGameDlcs,
   getGameEvents,
   getGameLanguageDistribution,
   getGameReviewLanguages,
   getGameReviewTrends,
   getGameTopReviews,
 } from "@/lib/data/gameData";
+import type { GameDlc } from "@/lib/data/types";
 import { resolveReviewLanguage } from "@/lib/reviewLanguage";
 
 // Each section owns one query and one Suspense boundary, so the page shell (and
@@ -29,6 +34,8 @@ import { resolveReviewLanguage } from "@/lib/reviewLanguage";
 // doesn't override that. Static imports it is.
 
 const enFull = new Intl.NumberFormat("en-US");
+const enCompact = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
+const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 
 const VOLUME_DAYS = 31;
 
@@ -257,4 +264,69 @@ export async function ReviewsSection({ appId, lang }: { appId: number; lang?: st
   const reviews = await getGameTopReviews(appId, { language });
 
   return <ReviewBattle reviews={reviews} languages={languages} selectedLanguage={language} />;
+}
+
+// --- DLC ---------------------------------------------------------------------
+//
+// Le sens inverse du lien « DLC for » du héros : depuis un jeu, ses extensions.
+// La section disparaît entièrement pour un jeu sans DLC — l'immense majorité —
+// d'où l'absence de skeleton : réserver sa place ferait sauter la page à vide.
+
+function DlcTile({ dlc }: { dlc: GameDlc }) {
+  const color = dlc.pctPositive === null ? "#5f7481" : verdictColor(dlc.pctPositive * 100);
+  const price = dlc.isFree ? "Free" : dlc.priceUsd === null ? null : usd.format(dlc.priceUsd);
+
+  return (
+    <Link href={`/games/${dlc.appId}`} className="group block text-[#eef2f4]">
+      <span className="relative block aspect-[2/3] overflow-hidden rounded-[3px] bg-white/5">
+        {dlc.coverUrl && <Image src={dlc.coverUrl} alt="" fill sizes="(min-width: 1024px) 110px, 30vw" className="object-cover" />}
+        <span className="absolute inset-x-0 top-0 h-[3px]" style={{ backgroundColor: color }} />
+      </span>
+      <span className="mt-[7px] line-clamp-2 text-xs leading-tight font-bold group-hover:text-brand-blue">{dlc.name}</span>
+      <span className="mt-1 flex flex-wrap items-baseline gap-x-[7px] font-mono text-[11px]">
+        {dlc.pctPositive === null ? (
+          <span className="text-[#5f7481]">no reviews</span>
+        ) : (
+          <>
+            <span style={{ color }}>{Math.round(dlc.pctPositive * 100)}%</span>
+            <span className="text-[#7d919c]">{enCompact.format(dlc.totalReviews)}</span>
+          </>
+        )}
+        {price && <span className="text-[#cfdae1]">{price}</span>}
+      </span>
+    </Link>
+  );
+}
+
+export async function DlcSection({ appId }: { appId: number }) {
+  const { dlcs, total } = await getGameDlcs(appId);
+  if (dlcs.length === 0) return null;
+
+  return (
+    <div id="dlc" className="border-t border-[#1a2530] px-6 py-8 sm:px-8">
+      <div className="mx-auto max-w-[1320px]">
+        <SectionHead
+          title="Downloadable content"
+          note={total > dlcs.length ? `the ${dlcs.length} most reviewed of ${total}` : `${total} on Steam`}
+          action={
+            total > dlcs.length && (
+              <a
+                href={`https://store.steampowered.com/dlc/${appId}/`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-mono text-[10px] tracking-[0.12em] text-brand-blue uppercase"
+              >
+                all {total} on Steam ↗
+              </a>
+            )
+          }
+        />
+        <div className="grid grid-cols-3 gap-x-4 gap-y-5 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-12">
+          {dlcs.map((dlc) => (
+            <DlcTile key={dlc.appId} dlc={dlc} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }

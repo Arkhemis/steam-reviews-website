@@ -6,17 +6,21 @@ import type {
   CatalogueSort,
   CatalogueTrendDay,
   GameCoverage,
+  GameDlcs,
   GameEvent,
   GameLanguageDistribution,
+  GameProfile,
   GameReviewLanguage,
   GameReviewTrend,
   GameStats,
+  GameStoreListing,
   GameTopReview,
   LanguageReviewScore,
   RankedWindow,
   ReviewDuel,
   ReviewWindow,
   SiteStats,
+  SteamAppType,
   TrendingGame,
   TrendingGames,
   WindowMover,
@@ -125,14 +129,105 @@ function mapGameStatsRow(row: GameStatsRow): GameStats {
   };
 }
 
-export async function getGameStats(appId: number): Promise<GameStats | null> {
-  const { rows } = await pool.query(
-    `SELECT ${GAME_STATS_COLUMNS} FROM marts.game_stats WHERE steam_app_id = $1`,
+const STORE_LISTING_COLUMNS = `
+  price_usd,
+  app_type,
+  is_free,
+  is_early_access,
+  is_coming_soon,
+  is_available,
+  parent_steam_app_id,
+  (SELECT p.game_name FROM marts.game_stats AS p WHERE p.steam_app_id = game_stats.parent_steam_app_id)
+    AS parent_game_name
+`;
+
+type StoreListingRow = {
+  price_usd: string | null;
+  app_type: SteamAppType | null;
+  is_free: boolean | null;
+  is_early_access: boolean | null;
+  is_coming_soon: boolean | null;
+  is_available: boolean | null;
+  parent_steam_app_id: number | null;
+  parent_game_name: string | null;
+};
+
+// `game_stats` joint `game_detail` en LEFT JOIN : un jeu dont Steam n'a pas
+// encore renvoyé la fiche a toutes ces colonnes à NULL, `is_available` compris
+// alors que le staging le garantit non nul. C'est lui qui trahit l'absence.
+function mapStoreListingRow(row: StoreListingRow): GameStoreListing | null {
+  if (row.is_available === null || row.app_type === null) return null;
+
+  return {
+    appType: row.app_type,
+    priceUsd: row.price_usd === null ? null : Number(row.price_usd),
+    isFree: row.is_free ?? false,
+    isEarlyAccess: row.is_early_access ?? false,
+    isComingSoon: row.is_coming_soon ?? false,
+    isAvailable: row.is_available,
+    parentGame:
+      row.app_type === "dlc" && row.parent_steam_app_id !== null && row.parent_game_name !== null
+        ? { appId: row.parent_steam_app_id, name: row.parent_game_name }
+        : null,
+  };
+}
+
+export async function getGameStats(appId: number): Promise<GameProfile | null> {
+  const { rows } = await pool.query<GameStatsRow & StoreListingRow>(
+    `SELECT ${GAME_STATS_COLUMNS}, ${STORE_LISTING_COLUMNS} FROM marts.game_stats WHERE steam_app_id = $1`,
     [appId],
   );
 
   const row = rows[0];
-  return row ? mapGameStatsRow(row) : null;
+  return row ? { ...mapGameStatsRow(row), store: mapStoreListingRow(row) } : null;
+}
+
+// Assez pour une rangée de vignettes sur grand écran, deux sur mobile. Au-delà,
+// la section renvoie vers la page DLC du store plutôt que de tout dérouler.
+export const DLCS_SHOWN = 12;
+
+type GameDlcRow = {
+  steam_app_id: string;
+  game_name: string;
+  cover_url: string | null;
+  total_reviews: string | null;
+  pct_positive_reviews: string | null;
+  price_usd: string | null;
+  is_free: boolean;
+  total_dlcs: string;
+};
+
+/**
+ * Les DLC d'un jeu, les plus commentés d'abord. `parent_steam_app_id` n'est pas
+ * indexé : le filtre parcourt `game_stats`, une table de quelques centaines de
+ * milliers de lignes, dans la boundary de sa section.
+ */
+export async function getGameDlcs(appId: number, limit = DLCS_SHOWN): Promise<GameDlcs> {
+  const { rows } = await pool.query<GameDlcRow>(
+    `SELECT steam_app_id, game_name, cover_url, total_reviews, pct_positive_reviews, price_usd,
+            COALESCE(is_free, FALSE) AS is_free, COUNT(*) OVER () AS total_dlcs
+     FROM marts.game_stats
+     WHERE parent_steam_app_id = $1 AND app_type = 'dlc'
+     ORDER BY total_reviews DESC NULLS LAST, steam_app_id
+     LIMIT $2`,
+    [appId, limit],
+  );
+
+  return {
+    dlcs: rows.map((row) => {
+      const totalReviews = Number(row.total_reviews ?? 0);
+      return {
+        appId: Number(row.steam_app_id),
+        name: row.game_name,
+        coverUrl: row.cover_url,
+        totalReviews,
+        pctPositive: totalReviews > 0 && row.pct_positive_reviews !== null ? Number(row.pct_positive_reviews) / 100 : null,
+        priceUsd: row.price_usd === null ? null : Number(row.price_usd),
+        isFree: row.is_free,
+      };
+    }),
+    total: Number(rows[0]?.total_dlcs ?? 0),
+  };
 }
 
 export async function getTopGames(limit: number, search?: string, offset = 0): Promise<GameStats[]> {

@@ -4,6 +4,7 @@ import {
   getAwardReview,
   getCataloguePage,
   getCatalogueTrend,
+  getGameDlcs,
   getGameEvents,
   getGameLanguageDistribution,
   getGameReviewTrends,
@@ -36,6 +37,8 @@ const HAS_HIGHLIGHT_CREATED_AT = await hasMartColumn("review_highlight", "create
 const PODIUM_FLOOR = 100;
 const HAS_PODIUM = await hasWindowRanking("month", PODIUM_FLOOR);
 const HAS_DUEL_COVERAGE = await hasDuelCoverage();
+const HAS_STORE_LISTING = await hasMartColumn("game_stats", "is_available");
+const HAS_PARENT_APP = await hasMartColumn("game_stats", "parent_steam_app_id");
 
 const BALDURS_GATE_3_APP_ID = 1086940;
 
@@ -44,6 +47,41 @@ describe("gameData", () => {
     const stats = await getGameStats(BALDURS_GATE_3_APP_ID);
     expect(stats).not.toBeNull();
     expect(stats?.name).toBe("Baldur's Gate III");
+  });
+
+  // Le lien marche dans les deux sens : chaque DLC listé sous un jeu renvoie
+  // vers ce jeu depuis sa propre fiche.
+  it.skipIf(!HAS_PARENT_APP)("relie les DLC à leur jeu, dans les deux sens", async () => {
+    const { rows } = await pool.query<{ parent: number }>(
+      `SELECT parent_steam_app_id AS parent FROM marts.game_stats
+       WHERE app_type = 'dlc' AND parent_steam_app_id IN (SELECT steam_app_id FROM marts.game_stats)
+       LIMIT 1`,
+    );
+    if (rows.length === 0) return;
+
+    const { dlcs, total } = await getGameDlcs(rows[0].parent, 3);
+    expect(dlcs.length).toBeGreaterThan(0);
+    expect(total).toBeGreaterThanOrEqual(dlcs.length);
+
+    const dlc = await getGameStats(dlcs[0].appId);
+    expect(dlc?.store?.parentGame?.appId).toBe(rows[0].parent);
+  });
+
+  it.skipIf(!HAS_PARENT_APP)("ne trouve aucun DLC à un jeu inconnu", async () => {
+    expect(await getGameDlcs(999999999)).toEqual({ dlcs: [], total: 0 });
+  });
+
+  it.skipIf(!HAS_STORE_LISTING)("lit la fiche store Steam avec les stats du jeu", async () => {
+    const stats = await getGameStats(BALDURS_GATE_3_APP_ID);
+
+    // Fiche pas encore chargée : null, jamais un objet à moitié rempli.
+    if (stats?.store) {
+      expect(stats.store.appType).toBe("game");
+      expect(typeof stats.store.isAvailable).toBe("boolean");
+      expect(stats.store.priceUsd === null || typeof stats.store.priceUsd === "number").toBe(true);
+    } else {
+      expect(stats?.store).toBeNull();
+    }
   });
 
   it("compte les avis réellement chargés, pas ceux que Steam déclare", async () => {
