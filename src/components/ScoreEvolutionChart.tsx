@@ -176,6 +176,18 @@ export function ScoreEvolutionChart({ trends, events = [] }: ScoreEvolutionChart
     trend,
   }));
 
+  // Score cumulé : part d'avis positifs parmi tous ceux écrits jusqu'à ce mois
+  // inclus — ce que la page de Steam aurait affiché à la fin du mois.
+  let runningReviews = 0;
+  let runningPositive = 0;
+  const cumulativePoints = trends.map((trend, index) => {
+    runningReviews += trend.reviewsInPeriod;
+    runningPositive += trend.positiveInPeriod;
+    const pct = runningReviews > 0 ? runningPositive / runningReviews : 0;
+    return { x: PADDING + index * stepX, y: PADDING + plotHeight * (1 - pct), pct };
+  });
+  const cumulativePath = cumulativePoints.map((p, i) => `${i === 0 ? "M" : "L"}${p.x},${p.y}`).join(" ");
+
   const peakReviews = Math.max(...trends.map((trend) => trend.reviewsInPeriod), 1);
   const barWidth = Math.max(stepX > 0 ? Math.min(stepX * 0.6, VOLUME_BAR_MAX_WIDTH) : VOLUME_BAR_MAX_WIDTH, 1);
 
@@ -278,6 +290,16 @@ export function ScoreEvolutionChart({ trends, events = [] }: ScoreEvolutionChart
             );
           })}
 
+          <path
+            data-cumulative-line=""
+            d={cumulativePath}
+            fill="none"
+            stroke="var(--series-3)"
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+
           <path d={linePath} fill="none" stroke="var(--series-1)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
 
           {points.map((p, i) =>
@@ -378,6 +400,18 @@ export function ScoreEvolutionChart({ trends, events = [] }: ScoreEvolutionChart
 
       <ul className="mt-2 flex flex-wrap gap-4 font-mono text-[10px] tracking-[0.1em] text-[#5f7481] uppercase">
         <li className="flex items-center gap-1.5">
+          <svg width={18} height={8} aria-hidden className="shrink-0">
+            <line x1={0} x2={18} y1={4} y2={4} stroke="var(--series-1)" strokeWidth={2} />
+          </svg>
+          That month
+        </li>
+        <li className="flex items-center gap-1.5">
+          <svg width={18} height={8} aria-hidden className="shrink-0">
+            <line x1={0} x2={18} y1={4} y2={4} stroke="var(--series-3)" strokeWidth={2} />
+          </svg>
+          Cumulative
+        </li>
+        <li className="flex items-center gap-1.5">
           <svg width={10} height={8} aria-hidden className="shrink-0">
             <rect x={2} y={0} width={6} height={8} rx={1} fill="var(--ink-muted)" opacity={VOLUME_BAR_OPACITY} />
           </svg>
@@ -455,7 +489,10 @@ export function ScoreEvolutionChart({ trends, events = [] }: ScoreEvolutionChart
           className="pointer-events-none absolute top-0 rounded-md border border-white/10 bg-black/90 px-2 py-1 text-xs text-white"
           style={tooltipAnchor(hovered.x)}
         >
-          <div className="font-semibold">{Math.round(hovered.trend.pctPositivePeriod * 100)}%</div>
+          <div className="font-semibold">{Math.round(hovered.trend.pctPositivePeriod * 100)}% that month</div>
+          <div className="text-[color:var(--series-3)]">
+            {Math.round(cumulativePoints[hoverIndex as number].pct * 100)}% cumulative
+          </div>
           <div className="text-neutral-300">{formatReviews(hovered.trend.reviewsInPeriod)}</div>
           <div className="text-neutral-400">{formatMonth(hovered.trend.periodMonth)}</div>
         </div>
