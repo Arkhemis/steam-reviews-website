@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { AwardsCarousel } from "@/components/AwardsCarousel";
+import { verdictColor } from "@/components/GameCoverTile";
 import { Nav } from "@/components/Nav";
 import type { AwardSlide } from "@/lib/homeAwards";
 
@@ -33,12 +34,6 @@ export type HomeData = {
   /** `reviews` : avis chargés en base, pas le total déclaré par Steam. */
   totals: { reviews: number; games: number; languages: number; weekReviews: number; lists: number };
 };
-
-function verdictColor(pct: number): string {
-  if (pct >= 85) return "var(--status-good)";
-  if (pct >= 60) return "var(--status-warning)";
-  return "var(--status-critical)";
-}
 
 // Courbe lissée (Bézier horizontale) normalisée sur les valeurs reçues.
 function curve(vals: number[], w: number, h: number, pad: number) {

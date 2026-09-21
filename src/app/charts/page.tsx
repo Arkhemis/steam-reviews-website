@@ -3,6 +3,7 @@ import Link from "next/link";
 import { unstable_cache } from "next/cache";
 import { CatalogueTile, ShelfTile } from "@/components/CatalogueTile";
 import { ChartsFilterForm } from "@/components/ChartsFilterForm";
+import { verdictColor } from "@/components/GameCoverTile";
 import { ScaleBand, SectionHead } from "@/components/HomeEditorial";
 import { InfoHint } from "@/components/InfoHint";
 import { Nav } from "@/components/Nav";
@@ -89,12 +90,6 @@ function heroArt(appId: number) {
 // voile posé dessus.
 const HERO_MASK =
   "linear-gradient(90deg,transparent 0%,rgba(0,0,0,0.12) 28%,rgba(0,0,0,0.5) 56%,rgba(0,0,0,0.85) 100%)";
-
-function verdictColor(pct: number): string {
-  if (pct >= 85) return "var(--status-good)";
-  if (pct >= 60) return "var(--status-warning)";
-  return "var(--status-critical)";
-}
 
 type ChartsPageProps = {
   searchParams: Promise<{ filter?: string; q?: string; page?: string }>;

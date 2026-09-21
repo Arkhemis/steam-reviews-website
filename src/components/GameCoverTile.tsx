@@ -3,9 +3,12 @@ import Link from "next/link";
 
 const enCompact = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
 
+// Les paliers de Steam : sous 40 % c'est « Negative », sous 70 % « Mixed »,
+// au-delà « Positive ». Le libellé du héros de la page jeu suit les mêmes
+// seuils — une jaquette ne doit pas dire rouge quand Steam dit « Mixed ».
 export function verdictColor(pct: number): string {
-  if (pct >= 85) return "var(--status-good)";
-  if (pct >= 60) return "var(--status-warning)";
+  if (pct >= 70) return "var(--status-good)";
+  if (pct >= 40) return "var(--status-warning)";
   return "var(--status-critical)";
 }
 
