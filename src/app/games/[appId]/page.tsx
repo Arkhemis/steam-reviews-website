@@ -42,7 +42,36 @@ const APP_TYPE_LABELS: Partial<Record<SteamAppType, string>> = {
   music: "Soundtrack",
 };
 
-type StoreBadge = { label: string; color?: string };
+type StoreBadge = { label: string; color?: string; fill?: { background: string; border: string } };
+
+// Les aplats que le store Steam donne à ses propres bandeaux — le violet de
+// `.game_area_dlc_bubble`, l'or de `.game_area_mod_bubble`, le bleu de
+// `.early_access_header` — pour qu'un habitué reconnaisse le statut avant même
+// de lire le badge.
+const STEAM_DLC_BADGE: Omit<StoreBadge, "label"> = {
+  color: "#d5d6d8",
+  fill: {
+    background: "linear-gradient(-60deg, rgba(72,23,70,0.8) 10%, rgba(165,84,177,0.8) 100%)",
+    border: "rgba(165,84,177,0.8)",
+  },
+};
+// Steam écrit en gris clair sur son or, illisible à cette taille : le texte
+// passe au fond du site, l'aplat reste celui de Steam.
+const STEAM_MOD_BADGE: Omit<StoreBadge, "label"> = {
+  color: "#0c1116",
+  fill: {
+    background: "linear-gradient(-45deg, rgba(190,150,25,0.6) 10%, rgba(224,177,29,0.8) 100%)",
+    border: "rgba(224,177,29,0.8)",
+  },
+};
+const STEAM_TYPE_BADGES: Partial<Record<SteamAppType, Omit<StoreBadge, "label">>> = {
+  dlc: STEAM_DLC_BADGE,
+  mod: STEAM_MOD_BADGE,
+};
+const STEAM_EARLY_ACCESS_BADGE: Omit<StoreBadge, "label"> = {
+  color: "#b8e0fd",
+  fill: { background: "linear-gradient(to right, #27475d, #4e81ae)", border: "#4e81ae" },
+};
 
 /**
  * Ce que la fiche store dit du jeu, dans l'ordre où un acheteur le lit : une
@@ -57,9 +86,9 @@ function storeBadges(store: GameStoreListing | null): StoreBadge[] {
   else if (store.priceUsd !== null) badges.push({ label: usd.format(store.priceUsd), color: "var(--color-brand-blue)" });
 
   const type = APP_TYPE_LABELS[store.appType];
-  if (type) badges.push({ label: type });
+  if (type) badges.push({ label: type, ...STEAM_TYPE_BADGES[store.appType] });
   if (store.isComingSoon) badges.push({ label: "Coming soon", color: "var(--color-brand-blue)" });
-  if (store.isEarlyAccess) badges.push({ label: "Early Access", color: "var(--status-warning)" });
+  if (store.isEarlyAccess) badges.push({ label: "Early Access", ...STEAM_EARLY_ACCESS_BADGE });
   return badges;
 }
 
@@ -204,7 +233,10 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
                   <span
                     key={badge.label}
                     className="rounded-[4px] border border-current bg-[#0c1116]/60 px-2.5 py-1 font-mono text-[11px] font-bold tracking-[0.1em] uppercase"
-                    style={{ color: badge.color ?? "#cfdae1" }}
+                    style={{
+                      color: badge.color ?? "#cfdae1",
+                      ...(badge.fill && { background: badge.fill.background, borderColor: badge.fill.border }),
+                    }}
                   >
                     {badge.label}
                   </span>
