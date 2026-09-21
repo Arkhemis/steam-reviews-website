@@ -334,26 +334,30 @@ export function ScoreEvolutionChart({ trends, events = [] }: ScoreEvolutionChart
       </div>
 
       {/* L'infobulle ne s'ouvre qu'au pointeur : ce tableau donne les mêmes
-          chiffres aux lecteurs d'écran, sans rien changer au dessin. */}
-      <table className="sr-only">
-        <caption>Positive score and reviews by month</caption>
-        <thead>
-          <tr>
-            <th scope="col">Month</th>
-            <th scope="col">Positive share</th>
-            <th scope="col">Reviews</th>
-          </tr>
-        </thead>
-        <tbody>
-          {trends.map((trend) => (
-            <tr key={trend.periodMonth}>
-              <th scope="row">{formatMonth(trend.periodMonth)}</th>
-              <td>{Math.round(trend.pctPositivePeriod * 100)}%</td>
-              <td>{formatReviews(trend.reviewsInPeriod)}</td>
+          chiffres aux lecteurs d'écran, sans rien changer au dessin. Le
+          `sr-only` va sur une div : un tableau ignore `height: 1px` et
+          `overflow: hidden`, et étirerait la page d'une ligne par mois. */}
+      <div className="sr-only">
+        <table>
+          <caption>Positive score and reviews by month</caption>
+          <thead>
+            <tr>
+              <th scope="col">Month</th>
+              <th scope="col">Positive share</th>
+              <th scope="col">Reviews</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {trends.map((trend) => (
+              <tr key={trend.periodMonth}>
+                <th scope="row">{formatMonth(trend.periodMonth)}</th>
+                <td>{Math.round(trend.pctPositivePeriod * 100)}%</td>
+                <td>{formatReviews(trend.reviewsInPeriod)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       {ticks.length > 0 && (
         // Chaque étiquette est posée sur l'abscisse de son point, centrée

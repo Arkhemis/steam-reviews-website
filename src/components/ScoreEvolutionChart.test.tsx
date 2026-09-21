@@ -293,6 +293,17 @@ describe("ScoreEvolutionChart", () => {
       ]);
     });
 
+    // Un tableau ne se laisse ni réduire à 1px ni rogner par `overflow` :
+    // `sr-only` posé sur le <table> le laisse déborder sous la page, qui se
+    // scrolle alors dans le vide d'une ligne par mois.
+    it("masque le tableau par un conteneur, pas sur le tableau lui-même", () => {
+      render(<ScoreEvolutionChart trends={uneven} />);
+      const table = screen.getByRole("table", { name: /positive score and reviews by month/i });
+
+      expect(table).not.toHaveClass("sr-only");
+      expect(table.parentElement).toHaveClass("sr-only");
+    });
+
     it("légende le volume même sans annonce", () => {
       render(<ScoreEvolutionChart trends={uneven} />);
       expect(screen.getByText("Reviews / month")).toBeInTheDocument();
