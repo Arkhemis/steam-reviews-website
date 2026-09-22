@@ -40,6 +40,49 @@ describe("BBCodeText", () => {
     expect(link).toHaveAttribute("href", "https://example.com");
   });
 
+  it("renders [hr][/hr] as a separator instead of showing it literally", () => {
+    const { container } = render(<BBCodeText text="Avant[hr][/hr]Après" />);
+
+    expect(container.querySelectorAll("hr")).toHaveLength(1);
+    expect(container.textContent).toBe("AvantAprès");
+  });
+
+  it("keeps rendering the text that follows a [hr]", () => {
+    render(<BBCodeText text="[hr][/hr]Connections f." />);
+    expect(screen.getByText(/Connections f\./)).toBeInTheDocument();
+  });
+
+  it("renders [quote] with its author", () => {
+    render(<BBCodeText text="[quote=Gaben]Rien de neuf[/quote]" />);
+    expect(screen.getByText("Gaben")).toBeInTheDocument();
+    expect(screen.getByText("Rien de neuf")).toBeInTheDocument();
+  });
+
+  it("renders [table] rows as a real table", () => {
+    render(<BBCodeText text="[table][tr][th]Note[/th][/tr]\n[tr][td]10/10[/td][/tr][/table]" />);
+    expect(screen.getByRole("table")).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Note" })).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "10/10" })).toBeInTheDocument();
+  });
+
+  it("leaves the contents of [noparse] untouched", () => {
+    render(<BBCodeText text="[noparse][b]pas gras[/b][/noparse]" />);
+    expect(screen.getByText("[b]pas gras[/b]")).toBeInTheDocument();
+  });
+
+  it("drops medias it cannot render, contents included", () => {
+    const { container } = render(
+      <BBCodeText text="Verdict[img]https://example.com/a.png[/img][previewyoutube=abc;full][/previewyoutube]" />,
+    );
+    expect(container.textContent).toBe("Verdict");
+  });
+
+  it("refuses a non-http link and keeps only its label", () => {
+    render(<BBCodeText text="[url=javascript:alert(1)]clique ici[/url]" />);
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    expect(screen.getByText("clique ici")).toBeInTheDocument();
+  });
+
   it("passes plain text through untouched", () => {
     render(<BBCodeText text="Rien de spécial ici." />);
     expect(screen.getByText("Rien de spécial ici.")).toBeInTheDocument();
