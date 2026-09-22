@@ -19,6 +19,7 @@ import {
   LanguagesSkeleton,
   ReviewsSection,
   ReviewsSkeleton,
+  SummarySection,
   TrendsHeading,
   TrendsSection,
   TrendsSkeleton,
@@ -377,6 +378,10 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
           <LanguagesSection appId={numericAppId} />
         </Suspense>
       </div>
+
+      <Suspense fallback={null}>
+        <SummarySection appId={numericAppId} />
+      </Suspense>
 
       <div className="px-6 py-8 sm:px-8">
         <div className="mx-auto max-w-[1320px]">

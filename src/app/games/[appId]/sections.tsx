@@ -16,6 +16,7 @@ import {
   getGameEvents,
   getGameLanguageDistribution,
   getGameReviewLanguages,
+  getGameReviewSummary,
   getGameReviewTrends,
   getGameTopReviews,
 } from "@/lib/data/gameData";
@@ -177,6 +178,69 @@ export function LanguagesSkeleton() {
 export async function LanguagesSection({ appId }: { appId: number }) {
   const languages = await getGameLanguageDistribution(appId);
   return <LanguageDistribution languages={languages} />;
+}
+
+// --- Résumé des avis --------------------------------------------------------
+//
+// Seuls les jeux assez commentés des deux côtés ont un résumé : la section
+// disparaît sinon, sans skeleton, pour la même raison que les DLC.
+
+function PointList({ tone, title, points }: { tone: "good" | "critical"; title: string; points: string[] }) {
+  const color = `var(--status-${tone})`;
+  return (
+    <div
+      className="rounded-md border border-[#1e2b36] border-l-[3px] p-4"
+      style={{ borderLeftColor: color, backgroundColor: `color-mix(in srgb, ${color} 7%, #0a0f14)` }}
+    >
+      <h4 className="m-0 font-mono text-[11px] font-bold tracking-[0.12em] uppercase" style={{ color }}>
+        {title}
+      </h4>
+      <ul className="mt-2.5 space-y-1.5">
+        {points.map((point) => (
+          <li key={point} className="flex gap-2.5 text-sm leading-snug text-[#cfdae1]">
+            <span aria-hidden className="font-mono font-bold" style={{ color }}>
+              {tone === "good" ? "+" : "−"}
+            </span>
+            {point}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+export async function SummarySection({ appId }: { appId: number }) {
+  const summary = await getGameReviewSummary(appId);
+  if (!summary) return null;
+
+  const hint =
+    `Written by ${summary.model}, an open language model run by steam.reviews, from ${enFull.format(summary.reviewsUsed)} reviews: ` +
+    "the most helpful and a few of the funniest on each side, spread across languages by how much each one reviews the game. " +
+    `Generated ${formatDay(summary.generatedOn)}. It can get things wrong.`;
+
+  return (
+    <div className="border-b border-[#1a2530] px-6 py-8 sm:px-8">
+      <div className="mx-auto max-w-[1320px]">
+        <SectionHead
+          title="What players say"
+          note={
+            <span className="flex items-center gap-1.5">
+              an AI summary of the reviews
+              <InfoHint text={hint} />
+            </span>
+          }
+        />
+        <div className="rounded-md border border-[#1e2b36] bg-[#0a0f14] p-5">
+          <p className="m-0 max-w-[80ch] text-[15px] leading-relaxed text-[#cfdae1]">{summary.summary}</p>
+          <h3 className="mt-6 mb-3 text-lg font-extrabold tracking-tight">In a nutshell…</h3>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <PointList tone="good" title="Pros" points={summary.pros} />
+            <PointList tone="critical" title="Cons" points={summary.cons} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // --- Courbe du score -------------------------------------------------------

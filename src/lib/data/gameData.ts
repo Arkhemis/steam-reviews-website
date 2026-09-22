@@ -11,6 +11,7 @@ import type {
   GameLanguageDistribution,
   GameProfile,
   GameReviewLanguage,
+  GameReviewSummary,
   GameReviewTrend,
   GameStats,
   GameStoreListing,
@@ -566,6 +567,43 @@ export async function getGameCoverage(appId: number): Promise<GameCoverage> {
     languageCount: Number(row?.language_count ?? 0),
     latestReviewOn: row?.latest_review_on ?? null,
   };
+}
+
+/**
+ * Le résumé LLM des avis du jeu, ou `null` quand il n'en a pas : seuls les jeux
+ * assez commentés des deux côtés en reçoivent un. La table est remplie hors
+ * Dagster par `orchestration/llm/summaries.py` ; une base qui ne l'a pas encore
+ * (42P01) se lit comme un jeu sans résumé plutôt que de faire tomber la fiche.
+ */
+export async function getGameReviewSummary(appId: number): Promise<GameReviewSummary | null> {
+  try {
+    const { rows } = await pool.query<{
+      summary: string;
+      pros: string[];
+      cons: string[];
+      model: string;
+      reviews_used: number;
+      generated_on: string;
+    }>(
+      `SELECT summary, pros, cons, model, reviews_used, TO_CHAR(generated_at, 'YYYY-MM-DD') AS generated_on
+       FROM raw.game_review_summaries
+       WHERE app_id = $1`,
+      [appId],
+    );
+    const row = rows[0];
+    if (!row) return null;
+    return {
+      summary: row.summary,
+      pros: row.pros,
+      cons: row.cons,
+      model: row.model,
+      reviewsUsed: row.reviews_used,
+      generatedOn: row.generated_on,
+    };
+  } catch (error) {
+    if ((error as { code?: string }).code === "42P01") return null;
+    throw error;
+  }
 }
 
 type GameEventRow = {
