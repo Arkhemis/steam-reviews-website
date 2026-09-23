@@ -11,6 +11,7 @@ import { LANGUAGE_LABELS } from "@/lib/map";
 import { estimateRevenue } from "@/lib/revenue";
 import { getGameStats } from "@/lib/data/gameData";
 import { SITE_NAME } from "@/lib/site";
+import { getSteamRating } from "@/lib/steamRating";
 import type { GameProfile, GameStats, GameStoreListing, SteamAppType } from "@/lib/data/types";
 import {
   CoverageBand,
@@ -133,22 +134,6 @@ function storeBadges(store: GameStoreListing | null): StoreBadge[] {
 // d'ouvrir, et rien ici n'a le compte du jeu sous la main sans une requête de
 // plus — celle du bandeau, qui vit dans sa propre boundary.
 const MAPPED_LANGUAGES = Object.keys(LANGUAGE_LABELS).length;
-
-function getSteamRating(pctPositive: number, totalReviews: number): { label: string; color: string } {
-  const pct = pctPositive * 100;
-
-  if (pct < 20) {
-    if (totalReviews >= 500) return { label: "Overwhelmingly Negative", color: "var(--status-critical)" };
-    if (totalReviews >= 50) return { label: "Very Negative", color: "var(--status-critical)" };
-    return { label: "Negative", color: "var(--status-critical)" };
-  }
-  if (pct < 40) return { label: "Mostly Negative", color: "var(--status-critical)" };
-  if (pct < 70) return { label: "Mixed", color: "var(--status-warning)" };
-  if (pct < 80) return { label: "Mostly Positive", color: "var(--status-good)" };
-  if (totalReviews >= 500) return { label: "Overwhelmingly Positive", color: "var(--status-good)" };
-  if (totalReviews >= 50) return { label: "Very Positive", color: "var(--status-good)" };
-  return { label: "Positive", color: "var(--status-good)" };
-}
 
 function releaseLine(stats: GameStats): string {
   const released = stats.firstReleaseDate
