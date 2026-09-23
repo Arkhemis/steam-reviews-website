@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import Link from "next/link";
 import { cache } from "react";
 import { BattleRivalries } from "@/components/BattleRivalries";
 import { DuelArena, type DuelCorner, type DuelQuote } from "@/components/DuelArena";
 import { SectionHead } from "@/components/HomeEditorial";
 import { Nav } from "@/components/Nav";
-import { battleHref, DEFAULT_LANGUAGE, resolveLanguage, resolveMatchup } from "@/lib/battle";
+import { battleHref, DEFAULT_LANGUAGE, languageFromAcceptLanguage, resolveLanguage, resolveMatchup } from "@/lib/battle";
 import { getGameReviewLanguages, getGameStats, getGameTopReviews } from "@/lib/data/gameData";
 import type { GameProfile, GameTopReview } from "@/lib/data/types";
 import { duelStats, pickQuotes } from "@/lib/duel";
@@ -128,12 +129,21 @@ export default async function Battle3Page({ searchParams }: Battle3PageProps) {
     );
   }
 
-  const language = resolveLanguage(params.lang);
-  const [leftReviews, rightReviews, leftLanguages, rightLanguages] = await Promise.all([
-    // Toutes les reviews en vedette dans la langue choisie (quelques dizaines
-    // par jeu) : `pickQuotes` y cherche les plus drôles qui tiennent dans une bulle.
-    getGameTopReviews(leftAppId, { language, perSide: 60 }),
-    getGameTopReviews(rightAppId, { language, perSide: 60 }),
+  // Sans `?lang=`, la langue du navigateur ; l'anglais si l'un des deux jeux
+  // n'a aucune review dans cette langue.
+  const explicit = params.lang !== undefined;
+  const wanted = explicit
+    ? resolveLanguage(params.lang)
+    : (languageFromAcceptLanguage((await headers()).get("accept-language")) ?? DEFAULT_LANGUAGE);
+  // Toutes les reviews en vedette dans la langue choisie (quelques dizaines
+  // par jeu) : `pickQuotes` y cherche les plus drôles qui tiennent dans une bulle.
+  const topReviews = (lang: LanguageKey) =>
+    Promise.all([
+      getGameTopReviews(leftAppId, { language: lang, perSide: 60 }),
+      getGameTopReviews(rightAppId, { language: lang, perSide: 60 }),
+    ]);
+  const [[wantedLeft, wantedRight], leftLanguages, rightLanguages] = await Promise.all([
+    topReviews(wanted),
     getGameReviewLanguages(leftAppId),
     getGameReviewLanguages(rightAppId),
   ]);
@@ -147,6 +157,10 @@ export default async function Battle3Page({ searchParams }: Battle3PageProps) {
     .map((l) => ({ key: l.language, count: Math.min(l.reviewCount, rightCounts.get(l.language) ?? 0) }))
     .sort((a, b) => b.count - a.count)
     .map((l) => l.key);
+
+  const fallBack = !explicit && wanted !== DEFAULT_LANGUAGE && !shared.includes(wanted);
+  const language = fallBack ? DEFAULT_LANGUAGE : wanted;
+  const [leftReviews, rightReviews] = fallBack ? await topReviews(DEFAULT_LANGUAGE) : [wantedLeft, wantedRight];
   const languageKeys = [...new Set([DEFAULT_LANGUAGE, language, ...shared])];
   const languages = languageKeys.map((key) => ({ key, label: LANGUAGE_LABELS[key as LanguageKey] }));
 
@@ -170,6 +184,7 @@ export default async function Battle3Page({ searchParams }: Battle3PageProps) {
             right={cornerFor(right, rightReviews)}
             language={language}
             languages={languages}
+            langParam={explicit ? language : undefined}
           />
         </div>
       </div>
@@ -189,7 +204,7 @@ export default async function Battle3Page({ searchParams }: Battle3PageProps) {
         </div>
       </div>
 
-      <BattleRivalries leftAppId={leftAppId} rightAppId={rightAppId} lang={language} />
+      <BattleRivalries leftAppId={leftAppId} rightAppId={rightAppId} lang={explicit ? language : undefined} />
     </div>
   );
 }

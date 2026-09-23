@@ -33,10 +33,80 @@ export function resolveMatchup(game?: string, vs?: string): { leftAppId: number;
   return { leftAppId, rightAppId };
 }
 
-/** L'anglais, langue par défaut, reste hors de l'URL. */
-export function battleHref(leftAppId: number, rightAppId: number, lang: string = DEFAULT_LANGUAGE): string {
-  const suffix = lang === DEFAULT_LANGUAGE ? "" : `&lang=${lang}`;
+/**
+ * Sans langue, l'URL laisse le serveur choisir d'après le navigateur ; une
+ * langue donnée y est toujours écrite, anglais compris, pour qu'un choix
+ * explicite l'emporte sur celui du navigateur.
+ */
+export function battleHref(leftAppId: number, rightAppId: number, lang?: string): string {
+  const suffix = lang ? `&lang=${lang}` : "";
   return `/battle?game=${leftAppId}&vs=${rightAppId}${suffix}`;
+}
+
+// Langue BCP 47 (sans région) → langue Steam. Portugais, espagnol et chinois
+// dépendent aussi de la région : voir `steamLanguageOf`.
+const BASE_LANGUAGES: Record<string, LanguageKey> = {
+  ar: "arabic",
+  bg: "bulgarian",
+  cs: "czech",
+  da: "danish",
+  nl: "dutch",
+  en: "english",
+  fi: "finnish",
+  fr: "french",
+  de: "german",
+  el: "greek",
+  hu: "hungarian",
+  it: "italian",
+  ja: "japanese",
+  ko: "koreana",
+  nb: "norwegian",
+  nn: "norwegian",
+  no: "norwegian",
+  pl: "polish",
+  pt: "portuguese",
+  ro: "romanian",
+  ru: "russian",
+  es: "spanish",
+  sv: "swedish",
+  th: "thai",
+  tr: "turkish",
+  uk: "ukrainian",
+  vi: "vietnamese",
+  zh: "schinese",
+};
+
+/** Une étiquette BCP 47 (« pt-BR », « zh-Hant-TW », « es-419 ») → langue Steam, ou null. */
+function steamLanguageOf(tag: string): LanguageKey | null {
+  const [base, ...rest] = tag.toLowerCase().split("-");
+  const subtags = new Set(rest);
+  if (base === "pt" && subtags.has("br")) return "brazilian";
+  if (base === "zh" && (subtags.has("hant") || subtags.has("tw") || subtags.has("hk") || subtags.has("mo"))) return "tchinese";
+  // Tout espagnol d'une autre région que l'Espagne est celui d'Amérique latine.
+  if (base === "es" && rest.some((t) => /^(\d{3}|[a-z]{2})$/.test(t) && t !== "es")) return "latam";
+  return BASE_LANGUAGES[base] ?? null;
+}
+
+/**
+ * La langue Steam préférée d'après l'en-tête `Accept-Language` : la première
+ * reconnue par ordre de préférence (`q`), ou null si aucune ne l'est.
+ */
+export function languageFromAcceptLanguage(header: string | null | undefined): LanguageKey | null {
+  if (!header) return null;
+  const tags = header
+    .split(",")
+    .map((part, index) => {
+      const [tag, ...params] = part.trim().split(";");
+      const q = params.map((p) => p.trim()).find((p) => p.startsWith("q="));
+      return { tag: tag.trim(), q: q ? Number(q.slice(2)) : 1, index };
+    })
+    .filter((t) => t.tag && t.tag !== "*" && t.q > 0)
+    .sort((a, b) => b.q - a.q || a.index - b.index);
+  for (const { tag } of tags) {
+    const language = steamLanguageOf(tag);
+    if (language) return language;
+  }
+  return null;
 }
 
 export type Rivalry = {

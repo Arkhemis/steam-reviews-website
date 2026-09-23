@@ -79,7 +79,10 @@ const CPU_STYLES: { pitch: number; rate: number; volume?: number }[] = [
   { pitch: 0.5, rate: 0.5 }, // ralenti
   { pitch: 0.2, rate: 0.55 }, // géant ensommeillé
   { pitch: 0.3, rate: 0.75, volume: 0.4 }, // menace chuchotée
+  { pitch: 1.6, rate: 1.1 }, // gamin pleurnichard
+  { pitch: 1.5, rate: 0.95 }, // elfe suffisant
 ];
+
 export class DuelVoices {
   private cast: Record<VoiceRole, Casting> = {
     player: { voice: null, pitch: 1, rate: 1.05 },

@@ -433,6 +433,8 @@ type Props = {
   language: string;
   /** Langues où les deux jeux ont des reviews en vedette, pour le sélecteur. */
   languages: { key: string; label: string }[];
+  /** La langue telle que l'URL l'impose ; absente, elle suit le navigateur et reste hors des liens. */
+  langParam?: string;
 };
 
 const CHIP =
@@ -480,7 +482,7 @@ function AudioCredits() {
   );
 }
 
-export function DuelArena({ left, right, language, languages }: Props) {
+export function DuelArena({ left, right, language, languages, langParam }: Props) {
   const router = useRouter();
   const [isNavigating, startNavigation] = useTransition();
   const corners: Record<Side, DuelCorner> = { left, right };
@@ -811,6 +813,25 @@ export function DuelArena({ left, right, language, languages }: Props) {
     ]);
   }
 
+  // Retour à l'écran de choix : le duel en cours s'arrête net, voix et musique comprises.
+  function backToMenu() {
+    generation.current++;
+    timers.current.forEach(clearTimeout);
+    timers.current = [];
+    voicesRef.current?.cancel();
+    const audio = audioRef.current;
+    audio?.setDanger(false);
+    audio?.duck(false);
+    audio?.stopMusic(0.3);
+    duelRef.current = null;
+    setPlayer(null);
+    setSnap(null);
+    setBusy(false);
+    setPops([]);
+    setBubble(null);
+    setLog([]);
+  }
+
   // Le premier tour de l'ordinateur part tout seul, une fois l'arène montée.
   useEffect(() => {
     const duel = duelRef.current;
@@ -841,11 +862,11 @@ export function DuelArena({ left, right, language, languages }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [canPlay, player, resolve, sound]);
 
-  const go = (l: number, r: number) => startNavigation(() => router.push(battleHref(l, r, language)));
+  const go = (l: number, r: number) => startNavigation(() => router.push(battleHref(l, r, langParam)));
 
   async function copyLink() {
     try {
-      await navigator.clipboard.writeText(`${window.location.origin}${battleHref(left.fighter.appId, right.fighter.appId, language)}`);
+      await navigator.clipboard.writeText(`${window.location.origin}${battleHref(left.fighter.appId, right.fighter.appId, langParam)}`);
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
     } catch {
@@ -861,11 +882,11 @@ export function DuelArena({ left, right, language, languages }: Props) {
         const response = await fetch("/api/battle/random", { cache: "no-store" });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const { leftAppId, rightAppId } = (await response.json()) as { leftAppId: number; rightAppId: number };
-        router.push(battleHref(leftAppId, rightAppId, language));
+        router.push(battleHref(leftAppId, rightAppId, langParam));
       } catch {
         const others = RIVALRIES.filter((r) => !(r.left.appId === left.fighter.appId && r.right.appId === right.fighter.appId));
         const r = others[Math.floor(Math.random() * others.length)];
-        router.push(battleHref(r.left.appId, r.right.appId, language));
+        router.push(battleHref(r.left.appId, r.right.appId, langParam));
       }
     });
   }
@@ -926,6 +947,11 @@ export function DuelArena({ left, right, language, languages }: Props) {
           </div>
         </div>
         <p className="mt-6 text-center text-sm text-[#7d919c]">The CPU takes the other one. Moves are picked by you, stats by Steam.</p>
+        <div className="mt-3 flex justify-center">
+          <button type="button" onClick={randomRivalry} disabled={isNavigating} className={btn}>
+            {isNavigating ? "Rolling…" : "🎲 Random rivalry"}
+          </button>
+        </div>
         {languages.length > 1 && (
           <div className="mt-4 flex items-center justify-center gap-2 font-mono text-[10px] tracking-[0.1em] text-[#7d919c] uppercase">
             <label htmlFor="duel-language">Reviews &amp; voices in</label>
@@ -973,6 +999,9 @@ export function DuelArena({ left, right, language, languages }: Props) {
       <div className="grid overflow-hidden rounded-md border border-[#1e2b36] bg-[linear-gradient(180deg,#152029_0%,#0c1116_55%,#0f1a14_100%)] lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="relative">
           <div className="absolute top-2 left-2 z-30 flex items-center gap-1.5">
+            <button type="button" onClick={backToMenu} aria-label="Back to the fighter menu" className={CHIP}>
+              ← menu
+            </button>
             <button
               type="button"
               onClick={toggleMute}
@@ -1114,6 +1143,9 @@ export function DuelArena({ left, right, language, languages }: Props) {
               </button>
               <button type="button" onClick={randomRivalry} disabled={isNavigating} className={btn}>
                 🎲 Random rivalry
+              </button>
+              <button type="button" onClick={backToMenu} className={btn}>
+                Menu
               </button>
               <button type="button" onClick={copyLink} className={btn}>
                 {copied ? "Copied!" : "Copy link"}
