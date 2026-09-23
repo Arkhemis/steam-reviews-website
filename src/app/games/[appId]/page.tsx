@@ -1,6 +1,7 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { Suspense } from "react";
+import { cache, Suspense } from "react";
 import { DigDeeper, SectionHead, type Door } from "@/components/HomeEditorial";
 import { InfoHint } from "@/components/InfoHint";
 import { Nav } from "@/components/Nav";
@@ -9,6 +10,7 @@ import { CHART_FILTERS } from "@/lib/charts";
 import { LANGUAGE_LABELS } from "@/lib/map";
 import { estimateRevenue } from "@/lib/revenue";
 import { getGameStats } from "@/lib/data/gameData";
+import { SITE_NAME } from "@/lib/site";
 import type { GameProfile, GameStats, GameStoreListing, SteamAppType } from "@/lib/data/types";
 import {
   CoverageBand,
@@ -189,12 +191,53 @@ function doorsFor(stats: GameStats): Door[] {
   ];
 }
 
+// `generateMetadata` et la page lisent la même fiche : `cache` fait qu'une
+// seule requête part par rendu.
+const loadGame = cache(getGameStats);
+
+/**
+ * Le titre et la description que Google affiche : le nom du jeu d'abord, c'est
+ * ce que les gens tapent, puis les chiffres de la fiche, pour que l'extrait
+ * dise déjà quelque chose. La canonique laisse tomber `?lang=`, qui ne change
+ * que la paire de reviews.
+ */
+export async function generateMetadata({ params }: GamePageProps): Promise<Metadata> {
+  const { appId } = await params;
+  const stats = await loadGame(Number(appId));
+  if (!stats) return { title: "Game not found", robots: { index: false } };
+
+  const rating = getSteamRating(stats.pctPositive, stats.totalReviews);
+  const title = `${stats.name} Steam reviews: score, trends & playtime`;
+  const playtime =
+    stats.store?.appType === "dlc" ? "" : ` Median playtime ${Math.round(stats.playtimeMedianMinutes / 60)}h.`;
+  const description =
+    `${stats.name} is rated ${rating.label} on Steam: ${Math.round(stats.pctPositive * 100)}% of ` +
+    `${enFull.format(stats.totalReviews)} reviews are positive.${playtime} ` +
+    "Monthly score trend, reviews by language and the most upvoted review on each side.";
+  const url = `/games/${stats.appId}`;
+
+  return {
+    title,
+    description,
+    alternates: { canonical: url },
+    openGraph: {
+      type: "website",
+      siteName: SITE_NAME,
+      locale: "en_US",
+      url,
+      title,
+      description,
+      ...(stats.coverUrl && { images: [{ url: stats.coverUrl, alt: `${stats.name} cover` }] }),
+    },
+  };
+}
+
 export default async function GamePage({ params, searchParams }: GamePageProps) {
   const { appId } = await params;
   const { lang } = await searchParams;
   const numericAppId = Number(appId);
 
-  const stats = await getGameStats(numericAppId);
+  const stats = await loadGame(numericAppId);
 
   if (!stats) {
     return (

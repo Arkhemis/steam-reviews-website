@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { isValidElement, Suspense } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import GamePage from "@/app/games/[appId]/page";
+import GamePage, { generateMetadata } from "@/app/games/[appId]/page";
 import {
   CoverageBand,
   DlcSection,
@@ -444,5 +444,43 @@ describe("DlcSection", () => {
       "href",
       "https://store.steampowered.com/dlc/24010/",
     );
+  });
+});
+
+describe("generateMetadata", () => {
+  const props = {
+    params: Promise.resolve({ appId: String(BALDURS_GATE_3_APP_ID) }),
+    searchParams: Promise.resolve({ lang: "french" }),
+  };
+
+  it("nomme le jeu dans le titre et met les chiffres de la fiche dans la description", async () => {
+    getGameStats.mockResolvedValue(game);
+    const metadata = await generateMetadata(props);
+
+    expect(metadata.title).toBe("Baldur's Gate III Steam reviews: score, trends & playtime");
+    expect(metadata.description).toContain("rated Overwhelmingly Positive on Steam: 97% of 87,000 reviews");
+    expect(metadata.description).toContain("Median playtime 100h.");
+  });
+
+  it("pointe la canonique sur la fiche sans ?lang= et prend la jaquette pour l'aperçu", async () => {
+    getGameStats.mockResolvedValue(game);
+    const metadata = await generateMetadata(props);
+
+    expect(metadata.alternates?.canonical).toBe(`/games/${BALDURS_GATE_3_APP_ID}`);
+    expect(metadata.openGraph?.images).toEqual([{ url: game.coverUrl, alt: "Baldur's Gate III cover" }]);
+  });
+
+  it("tait le temps de jeu d'un DLC, que Steam ne compte pas", async () => {
+    getGameStats.mockResolvedValue({ ...game, store: { ...game.store!, appType: "dlc" } });
+    const metadata = await generateMetadata(props);
+
+    expect(metadata.description).not.toContain("playtime");
+  });
+
+  it("demande de ne pas indexer un jeu inconnu", async () => {
+    getGameStats.mockResolvedValue(null);
+    const metadata = await generateMetadata(props);
+
+    expect(metadata.robots).toEqual({ index: false });
   });
 });
