@@ -1,49 +1,22 @@
 import { Nav } from "@/components/Nav";
 import { Skeleton } from "@/components/Skeleton";
 
-// Le battle attend deux `getGameStats` avant de rendre quoi que ce soit. On
-// réserve les deux jaquettes et les six barres comparatives de `page.tsx` pour
-// que l'arrivée des données ne pousse pas la page vers le bas.
-const STATS = 6;
-
+// Le duel attend les deux fiches et leurs reviews : on réserve le bandeau de
+// titre et l'écran de choix du camp.
 export default function Loading() {
   return (
     <div className="min-h-screen bg-[#0c1116] text-[#eef2f4]">
-      <div className="mx-auto max-w-[1320px] px-5 py-8 sm:px-7">
-        <Nav />
-
-        <p className="mt-6 text-center text-sm text-[#9fb2bd]">
-          Head-to-head computed entirely from the data already collected — no vote, no account.
-        </p>
-
-        <div className="mt-6 flex items-center justify-center gap-8">
-          {[0, 1].map((i) => (
-            <div key={i} className="flex flex-col items-center gap-2">
-              <Skeleton className="h-24 w-24 rounded-2xl" />
-              <Skeleton className="h-6 w-36" />
-              <Skeleton className="h-8 w-20" />
-            </div>
-          ))}
+      <Nav variant="banded" />
+      <div className="border-b border-[#1a2530] bg-[linear-gradient(115deg,#0d2018_0%,#0c1116_50%,#2a1206_100%)] px-5 py-8 sm:px-8">
+        <div className="mx-auto max-w-[1320px]">
+          <Skeleton className="h-3 w-40" />
+          <Skeleton className="mt-3 h-12 w-[min(640px,100%)]" />
+          <Skeleton className="mt-3 h-4 w-[min(520px,100%)]" />
         </div>
-
-        <div className="mx-auto mt-6 max-w-2xl space-y-4">
-          {Array.from({ length: STATS }, (_, i) => (
-            <div key={i}>
-              <Skeleton className="mx-auto mb-1 h-3 w-40" />
-              <div className="flex items-center gap-3">
-                <Skeleton className="h-4 w-16" />
-                <Skeleton className="h-2.5 flex-1" />
-                <Skeleton className="h-4 w-16" />
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <Skeleton className="mx-auto mt-8 mb-3 h-3 w-56" />
-        <div className="mx-auto grid max-w-2xl grid-cols-1 gap-3 sm:grid-cols-2">
-          {[0, 1].map((i) => (
-            <Skeleton key={i} className="h-40 w-full rounded-xl" />
-          ))}
+      </div>
+      <div className="px-5 py-8 sm:px-8">
+        <div className="mx-auto max-w-[1320px]">
+          <Skeleton className="h-[520px] w-full rounded-md" />
         </div>
       </div>
     </div>

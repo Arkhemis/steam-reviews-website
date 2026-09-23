@@ -1,212 +1,201 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
+import { cache } from "react";
+import { BattleRivalries } from "@/components/BattleRivalries";
+import { DuelArena, type DuelCorner, type DuelQuote } from "@/components/DuelArena";
+import { SectionHead } from "@/components/HomeEditorial";
 import { Nav } from "@/components/Nav";
-import { EmptyReviewCard, ReviewCard } from "@/components/ReviewCard";
-import { getGameStats, getGameTopReviews } from "@/lib/data/gameData";
-import type { GameStats } from "@/lib/data/types";
+import { battleHref, DEFAULT_LANGUAGE, resolveLanguage, resolveMatchup } from "@/lib/battle";
+import { getGameReviewLanguages, getGameStats, getGameTopReviews } from "@/lib/data/gameData";
+import type { GameProfile, GameTopReview } from "@/lib/data/types";
+import { duelStats, pickQuotes } from "@/lib/duel";
+import { LANGUAGE_LABELS, type LanguageKey } from "@/lib/map";
+import { SITE_NAME } from "@/lib/site";
+import { getSteamRating } from "@/lib/steamRating";
 
-const DEFAULT_LEFT_APP_ID = 1086940; // Baldur's Gate III
-const DEFAULT_RIGHT_APP_ID = 1716740; // Starfield
+// Le battle : deux jeux réglés en duel au tour par tour, façon Pokémon. Le
+// serveur lit les deux fiches, en tire les stats et les répliques ; les coups,
+// eux, sont choisis par le joueur dans le navigateur.
 
-export const metadata: Metadata = {
-  title: "Steam game battle: compare two games",
-  description: "Put two Steam games head to head: review score, playtime, refunds and the best review from each camp.",
+type Battle3PageProps = {
+  searchParams: Promise<{ game?: string; vs?: string; lang?: string }>;
 };
 
-type BattlePageProps = {
-  searchParams: Promise<{ game?: string; vs?: string }>;
-};
+const loadGame = cache(getGameStats);
 
-type BattleStat = {
-  label: string;
-  left: string;
-  right: string;
-  leftFillPct: number;
-  rightFillPct: number;
-  leftWins: boolean;
-  rightWins: boolean;
-};
+const enCompact = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
 
-const compactNumber = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
+export async function generateMetadata({ searchParams }: Battle3PageProps): Promise<Metadata> {
+  const params = await searchParams;
+  const { leftAppId, rightAppId } = resolveMatchup(params.game, params.vs);
+  const [left, right] = await Promise.all([loadGame(leftAppId), loadGame(rightAppId)]);
+  if (!left || !right) return { title: "Steam game duel", robots: { index: false } };
 
-function buildStats(left: GameStats, right: GameStats): BattleStat[] {
-  function stat(
-    label: string,
-    leftValue: number,
-    rightValue: number,
-    format: (n: number) => string,
-    higherIsBetter: boolean,
-    // Percentage-type stats already live on a fixed 0-100 scale, so each side's bar
-    // length should reflect its own value directly. Count-type stats have no fixed
-    // max, so they're scaled against whichever side is larger — the leader's bar
-    // reaches the edge, the other is proportionally shorter. Either way the two
-    // bars encode true magnitude, not an arbitrary share of their combined total.
-    scaleMax: number = 100,
-  ): BattleStat {
-    const leftFillPct = scaleMax > 0 ? Math.min(100, (leftValue / scaleMax) * 100) : 0;
-    const rightFillPct = scaleMax > 0 ? Math.min(100, (rightValue / scaleMax) * 100) : 0;
-    const leftWins = higherIsBetter ? leftValue > rightValue : leftValue < rightValue;
-    const rightWins = higherIsBetter ? rightValue > leftValue : rightValue < leftValue;
-    return { label, left: format(leftValue), right: format(rightValue), leftFillPct, rightFillPct, leftWins, rightWins };
-  }
-
-  return [
-    stat("Positive score", left.pctPositive * 100, right.pctPositive * 100, (n) => `${Math.round(n)}%`, true),
-    stat(
-      "Median playtime",
-      left.playtimeMedianMinutes,
-      right.playtimeMedianMinutes,
-      (n) => `${Math.round(n / 60)}h`,
-      true,
-      Math.max(left.playtimeMedianMinutes, right.playtimeMedianMinutes),
-    ),
-    stat(
-      "Review volume",
-      left.totalReviews,
-      right.totalReviews,
-      (n) => compactNumber.format(n),
-      true,
-      Math.max(left.totalReviews, right.totalReviews),
-    ),
-    stat("Refund rate", left.pctRefunded * 100, right.pctRefunded * 100, (n) => `${n.toFixed(1)}%`, false),
-  ];
+  const title = `${left.name} vs ${right.name}: turn-based Steam duel`;
+  const description =
+    `Pick ${left.name} or ${right.name} and fight the CPU turn by turn. Hit points come from playtime, ` +
+    "power from positive reviews, and every attack quotes a real Steam review.";
+  const url = battleHref(leftAppId, rightAppId);
+  return {
+    title,
+    description,
+    alternates: { canonical: url },
+    openGraph: { type: "website", siteName: SITE_NAME, locale: "en_US", url, title, description },
+  };
 }
 
-export default async function BattlePage({ searchParams }: BattlePageProps) {
+function quotesOf(reviews: GameTopReview[], up: boolean): DuelQuote[] {
+  return pickQuotes(reviews, up).map((r) => ({
+    text: r.text,
+    author: r.authorPersonaname,
+    hours: Math.round(r.authorPlaytimeAtReviewMinutes / 60),
+  }));
+}
+
+function cornerFor(game: GameProfile, reviews: GameTopReview[]): DuelCorner {
+  const rating = getSteamRating(game.pctPositive, game.totalReviews);
+  return {
+    fighter: {
+      appId: game.appId,
+      name: game.name,
+      coverUrl: game.coverUrl,
+      pct: game.pctPositive,
+      ratingLabel: rating.label,
+      ratingColor: rating.color,
+      totalReviews: game.totalReviews,
+    },
+    stats: duelStats(game),
+    sources: {
+      reviews: enCompact.format(game.totalReviews),
+      hours: `${Math.round(game.playtimeMedianMinutes / 60)}h`,
+      positive: `${Math.round(game.pctPositive * 100)}%`,
+      refunded: `${(game.pctRefunded * 100).toFixed(1)}%`,
+      deck: `${(game.pctSteamDeck * 100).toFixed(1)}%`,
+    },
+    cheers: quotesOf(reviews, true),
+    jeers: quotesOf(reviews, false),
+  };
+}
+
+// Ce que chaque chiffre de Steam devient en duel.
+const RULES: { stat: string; becomes: string; why: string }[] = [
+  {
+    stat: "Median playtime",
+    becomes: "Hit points",
+    why: "Games people stick with take a beating: 0h → 80 HP, 4h → 102, 60h → 168, capped at 200.",
+  },
+  {
+    stat: "Positive reviews",
+    becomes: "Power & aim",
+    why: "Damage per hit runs from 8 to 32 with the positive share. It also aims the Review Bomb: a loved game rarely misses, a hated one blows itself up.",
+  },
+  {
+    stat: "Reviews",
+    becomes: "Initiative & crits",
+    why: "The most-reviewed game moves first, and a bigger crowd lands more critical hits: 5% at 1K reviews, 11% at 1M.",
+  },
+  {
+    stat: "Refunds",
+    becomes: "Refund risk",
+    why: "A Refund Request barely scratches, but it can freeze the target for a turn. The more its players refund, the likelier it sticks.",
+  },
+  {
+    stat: "Steam Deck",
+    becomes: "Dodge",
+    why: "Portable games are slippery: 3% base dodge, plus eight times the Deck share, up to 30%.",
+  },
+];
+
+export default async function Battle3Page({ searchParams }: Battle3PageProps) {
   const params = await searchParams;
-
-  const leftAppId = Number(params.game) || DEFAULT_LEFT_APP_ID;
-  let rightAppId = Number(params.vs) || DEFAULT_RIGHT_APP_ID;
-  if (rightAppId === leftAppId) {
-    rightAppId = leftAppId === DEFAULT_LEFT_APP_ID ? DEFAULT_RIGHT_APP_ID : DEFAULT_LEFT_APP_ID;
-  }
-
-  const [left, right] = await Promise.all([getGameStats(leftAppId), getGameStats(rightAppId)]);
+  const { leftAppId, rightAppId } = resolveMatchup(params.game, params.vs);
+  const [left, right] = await Promise.all([loadGame(leftAppId), loadGame(rightAppId)]);
 
   if (!left || !right) {
     return (
       <div className="min-h-screen bg-[#0c1116] text-[#eef2f4]">
-        <div className="mx-auto max-w-[1320px] px-5 py-8 sm:px-7">
-          <Nav />
-          <p className="mt-12 text-center text-[#9fb2bd]">One of the two games was not found.</p>
+        <Nav variant="banded" />
+        <div className="mx-auto max-w-[640px] px-6 py-16 text-center">
+          <p className="font-mono text-[10px] tracking-[0.14em] text-[#7d919c] uppercase">no duel</p>
+          <p className="mt-2 text-2xl font-extrabold tracking-tight">One of the two duelists didn&apos;t show up.</p>
+          <p className="mt-2 text-sm text-[#9fb2bd]">That game isn&apos;t in the catalogue. Pick another matchup.</p>
+          <Link href="/battle" className="mt-6 inline-block rounded-full bg-brand-blue px-[18px] py-2.5 text-sm font-bold text-[#0c1116]">
+            Back to the duel
+          </Link>
         </div>
+        <BattleRivalries leftAppId={leftAppId} rightAppId={rightAppId} />
       </div>
     );
   }
 
-  // One card per side, and only ever the best positive one — asking for a single
-  // review per polarity keeps this to two rows per game instead of the whole
-  // highlight set.
-  const [leftReviews, rightReviews] = await Promise.all([
-    getGameTopReviews(leftAppId, { perSide: 1 }),
-    getGameTopReviews(rightAppId, { perSide: 1 }),
+  const language = resolveLanguage(params.lang);
+  const [leftReviews, rightReviews, leftLanguages, rightLanguages] = await Promise.all([
+    // Toutes les reviews en vedette dans la langue choisie (quelques dizaines
+    // par jeu) : `pickQuotes` y cherche les plus drôles qui tiennent dans une bulle.
+    getGameTopReviews(leftAppId, { language, perSide: 60 }),
+    getGameTopReviews(rightAppId, { language, perSide: 60 }),
+    getGameReviewLanguages(leftAppId),
+    getGameReviewLanguages(rightAppId),
   ]);
-  const leftTopReview = leftReviews.find((review) => review.votedUp);
-  const rightTopReview = rightReviews.find((review) => review.votedUp);
 
-  const stats = buildStats(left, right);
-  const leftWinCount = stats.filter((s) => s.leftWins).length;
-  const rightWinCount = stats.filter((s) => s.rightWins).length;
-  const winner = leftWinCount === rightWinCount ? null : leftWinCount > rightWinCount ? left : right;
+  // Le sélecteur ne propose que les langues où les deux jeux ont de quoi se
+  // lancer des reviews, les mieux fournies d'abord ; l'anglais et la langue
+  // en cours y restent toujours.
+  const rightCounts = new Map(rightLanguages.map((l) => [l.language, l.reviewCount]));
+  const shared = leftLanguages
+    .filter((l) => l.language in LANGUAGE_LABELS && rightCounts.has(l.language))
+    .map((l) => ({ key: l.language, count: Math.min(l.reviewCount, rightCounts.get(l.language) ?? 0) }))
+    .sort((a, b) => b.count - a.count)
+    .map((l) => l.key);
+  const languageKeys = [...new Set([DEFAULT_LANGUAGE, language, ...shared])];
+  const languages = languageKeys.map((key) => ({ key, label: LANGUAGE_LABELS[key as LanguageKey] }));
 
   return (
     <div className="min-h-screen bg-[#0c1116] text-[#eef2f4]">
-      <div className="mx-auto max-w-[1320px] px-5 py-8 sm:px-7">
-        <Nav />
+      <Nav variant="banded" />
 
-        <p className="mt-6 text-center text-sm text-[#9fb2bd]">
-          Head-to-head computed entirely from the data already collected — no vote, no account.
-        </p>
-
-        <div className="mt-6 flex items-center justify-center gap-8">
-          {[left, right].map((game, i) => (
-            <Link key={game.appId} href={`/games/${game.appId}`} className="flex flex-col items-center gap-2">
-              <div className="relative h-24 w-24 overflow-hidden rounded-2xl bg-white/10">
-                {game.coverUrl && <Image src={game.coverUrl} alt="" fill sizes="96px" className="object-cover" />}
-                {winner?.appId === game.appId && (
-                  <Image
-                    src="/chad.png"
-                    alt=""
-                    fill
-                    sizes="96px"
-                    className="animate-chad-blink object-cover"
-                  />
-                )}
-              </div>
-              <h2 className="text-lg font-bold text-white">{game.name}</h2>
-              <div
-                className={
-                  i === 0
-                    ? "bg-gradient-to-r from-brand-blue to-brand-red bg-clip-text text-2xl font-black text-transparent"
-                    : "text-2xl font-black text-neutral-300"
-                }
-              >
-                {Math.round(game.pctPositive * 100)}%
-              </div>
-            </Link>
-          ))}
-        </div>
-
-        {winner && (
-          <div
-            className="mx-auto mt-6 max-w-md rounded-lg border border-white/10 px-4 py-2 text-center text-sm"
-            style={{ backgroundColor: "rgba(12,163,12,0.08)", color: "var(--status-good)" }}
-          >
-            🏆 {winner.name} wins on {Math.max(leftWinCount, rightWinCount)} of {stats.length} stats
-          </div>
-        )}
-
-        <div className="mx-auto mt-6 max-w-2xl space-y-4">
-          {stats.map((stat) => (
-            <div key={stat.label}>
-              <div className="mb-1 text-center text-xs uppercase tracking-wide text-neutral-400">{stat.label}</div>
-              <div className="flex items-center gap-3">
-                <span className="w-16 text-right text-sm font-bold text-white">{stat.left}</span>
-                <div className="flex h-2.5 flex-1 items-stretch gap-[2px]">
-                  <div className="flex h-full flex-1 justify-end">
-                    <div
-                      className="h-full rounded-l-[4px]"
-                      style={{ width: `${stat.leftFillPct}%`, backgroundColor: "var(--series-1)" }}
-                    />
-                  </div>
-                  <div className="flex h-full flex-1 justify-start">
-                    <div
-                      className="h-full rounded-r-[4px]"
-                      style={{ width: `${stat.rightFillPct}%`, backgroundColor: "var(--series-2)" }}
-                    />
-                  </div>
-                </div>
-                <span className="w-16 text-sm font-bold text-white">{stat.right}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <h2 className="mx-auto mt-8 mb-3 max-w-2xl text-xs uppercase tracking-wide text-neutral-400">
-          Best review from each side
-        </h2>
-        <div className="mx-auto grid max-w-2xl grid-cols-1 gap-3 sm:grid-cols-2">
-          {[
-            { game: left, review: leftTopReview },
-            { game: right, review: rightTopReview },
-          ].map(({ game, review }) => (
-            <div key={game.appId}>
-              <div className="mb-1 text-xs text-neutral-400">{game.name}</div>
-              {review ? <ReviewCard review={review} /> : <EmptyReviewCard label="No positive review available." />}
-            </div>
-          ))}
-        </div>
-
-        <div className="mx-auto mt-8 flex max-w-2xl items-center justify-center gap-2">
-          <div className="w-full max-w-sm truncate rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs text-neutral-400">
-            steam.reviews/battle?game={left.appId}&vs={right.appId}
-          </div>
-          <button className="rounded-full bg-gradient-to-r from-brand-blue to-brand-red px-4 py-2 text-xs font-bold text-black">
-            Copy link
-          </button>
+      <div className="border-b border-[#1a2530] bg-[linear-gradient(115deg,#0d2018_0%,#0c1116_50%,#2a1206_100%)] px-5 py-8 sm:px-8">
+        <div className="mx-auto max-w-[1320px]">
+          <p className="font-mono text-[11px] tracking-[0.16em] text-brand-blue uppercase">battle · turn-based duel</p>
+          <h1 className="mt-2.5 text-3xl leading-[0.98] font-extrabold tracking-tight text-balance sm:text-5xl">
+            {left.name} <span className="font-black text-brand-red italic">vs</span> {right.name}
+          </h1>
+          <p className="mt-3 max-w-[62ch] text-[15px] text-[#9fb2bd]">
+            Steam sets the stats, you pick the moves. Every attack quotes a real review, and the CPU fights back.
+          </p>
         </div>
       </div>
+
+      <div className="px-5 py-8 sm:px-8">
+        <div className="mx-auto max-w-[1320px]">
+          {/* Une clé par duel : naviguer vers une autre paire (Random rivalry, Change game…)
+              garde la même page, et sans elle l'arène resterait sur le duel terminé. */}
+          <DuelArena
+            key={`${leftAppId}-${rightAppId}-${language}`}
+            left={cornerFor(left, leftReviews)}
+            right={cornerFor(right, rightReviews)}
+            language={language}
+            languages={languages}
+          />
+        </div>
+      </div>
+
+      <div className="border-t border-[#1a2530] px-5 py-8 sm:px-8">
+        <div className="mx-auto max-w-[1320px]">
+          <SectionHead title="How the numbers fight" note="what Steam's stats become in a duel" />
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-5">
+            {RULES.map((rule) => (
+              <div key={rule.stat} className="rounded-md border border-[#1e2b36] bg-[#0a0f14] p-4">
+                <div className="font-mono text-[10px] tracking-[0.12em] text-[#7d919c] uppercase">{rule.stat}</div>
+                <div className="mt-1 text-lg font-extrabold tracking-tight">→ {rule.becomes}</div>
+                <p className="mt-2 text-[13px] leading-relaxed text-[#9fb2bd]">{rule.why}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <BattleRivalries leftAppId={leftAppId} rightAppId={rightAppId} lang={language} />
     </div>
   );
 }
