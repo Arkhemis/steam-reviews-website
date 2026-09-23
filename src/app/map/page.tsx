@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { geoNaturalEarth1 } from "d3-geo";
@@ -87,6 +88,11 @@ function SelectedGameHeader({ game, scoreRows }: { game: GameStats; scoreRows: L
     </div>
   );
 }
+
+export const metadata: Metadata = {
+  title: "Steam review scores by language",
+  description: "A world map of how Steam players rate games in each language, overall or for a single game.",
+};
 
 type MapPageProps = {
   searchParams: Promise<{ app?: string }>;

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Bricolage_Grotesque, Geist, Geist_Mono } from "next/font/google";
+import { SITE_NAME, SITE_URL } from "@/lib/site";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -17,9 +18,20 @@ const bricolage = Bricolage_Grotesque({
   subsets: ["latin"],
 });
 
+const SITE_DESCRIPTION =
+  "Statistics and analysis of Steam reviews: scores, trends, playtime and the most upvoted reviews for every game on Steam.";
+
+// Chaque page nomme son sujet dans `title` ; le gabarit y accole le nom du
+// site. `openGraph` n'hérite que s'il n'est pas redéfini plus bas : une page
+// qui pose ses propres balises OG doit reprendre `siteName` elle-même. Pas de
+// description ici, sans quoi l'aperçu d'une page qui a la sienne afficherait
+// celle du site.
 export const metadata: Metadata = {
-  title: "steam.reviews",
-  description: "Statistics and analysis of Steam reviews.",
+  metadataBase: new URL(SITE_URL),
+  title: { default: `${SITE_NAME} — Steam review statistics`, template: `%s | ${SITE_NAME}` },
+  description: SITE_DESCRIPTION,
+  openGraph: { type: "website", siteName: SITE_NAME, locale: "en_US" },
+  twitter: { card: "summary" },
 };
 
 export default function RootLayout({

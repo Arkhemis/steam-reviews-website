@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { unstable_cache } from "next/cache";
 import { HomeEditorial, type HomeData, type PodiumGame } from "@/components/HomeEditorial";
 import { dailyVolume, monthlySentiment, reviewsInLastDays } from "@/lib/cataloguePulse";
@@ -24,6 +25,8 @@ import type { RankedWindow, WindowedGame } from "@/lib/data/types";
 // rythme du pipeline : chacun est caché à part, et la page n'attend plus que
 // le cache. Voir `docs/home-data.md` pour ce que chaque bloc lit vraiment.
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = { alternates: { canonical: "/" } };
 
 const REVALIDATE_SECONDS = 900;
 

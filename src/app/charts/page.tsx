@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { unstable_cache } from "next/cache";
@@ -94,6 +95,19 @@ const HERO_MASK =
 type ChartsPageProps = {
   searchParams: Promise<{ filter?: string; q?: string; page?: string }>;
 };
+
+// Chaque classement est une page à part pour Google : le titre nomme le tri,
+// et la canonique laisse tomber la recherche et la pagination.
+export async function generateMetadata({ searchParams }: ChartsPageProps): Promise<Metadata> {
+  const { filter: rawFilter } = await searchParams;
+  const filter: ChartFilterKey = isChartFilterKey(rawFilter) ? rawFilter : DEFAULT_CHART_FILTER;
+  const { label, note } = chartFilter(filter);
+  return {
+    title: `${label} Steam games`,
+    description: `${label} games on Steam, ${note}. Scores, review counts and trends from every Steam review.`,
+    alternates: { canonical: chartsHref({ filter }) },
+  };
+}
 
 export default async function ChartsPage({ searchParams }: ChartsPageProps) {
   const { filter: rawFilter, q: rawQuery, page: rawPage } = await searchParams;

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { Nav } from "@/components/Nav";
@@ -7,6 +8,11 @@ import type { GameStats } from "@/lib/data/types";
 
 const DEFAULT_LEFT_APP_ID = 1086940; // Baldur's Gate III
 const DEFAULT_RIGHT_APP_ID = 1716740; // Starfield
+
+export const metadata: Metadata = {
+  title: "Steam game battle: compare two games",
+  description: "Put two Steam games head to head: review score, playtime, refunds and the best review from each camp.",
+};
 
 type BattlePageProps = {
   searchParams: Promise<{ game?: string; vs?: string }>;

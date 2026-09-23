@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { GameCoverTile } from "@/components/GameCoverTile";
 import { GameSearchForm } from "@/components/GameSearchForm";
@@ -5,6 +6,12 @@ import { Nav } from "@/components/Nav";
 import { getTopGames } from "@/lib/data/gameData";
 
 const PAGE_SIZE = 24;
+
+export const metadata: Metadata = {
+  title: "All Steam games by review count",
+  description: "Browse every game on Steam, most reviewed first, with its review score, trends and playtime.",
+  alternates: { canonical: "/games" },
+};
 
 type GamesIndexPageProps = {
   searchParams: Promise<{ q?: string; page?: string }>;
