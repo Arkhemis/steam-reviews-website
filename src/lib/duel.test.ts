@@ -14,6 +14,7 @@ import {
   pickQuotes,
   QUOTE_MAX,
   quoteText,
+  shuffle,
   takeTurn,
   type DuelStats,
 } from "@/lib/duel";
@@ -179,5 +180,20 @@ describe("répliques", () => {
     );
     expect(picked.map((q) => q.votesFunny)).toEqual([40, 3, 0]);
     expect(picked.every((q) => q.text.length <= QUOTE_MAX)).toBe(true);
+  });
+});
+
+describe("mélange des répliques", () => {
+  it("garde les mêmes répliques sans toucher à l'original", () => {
+    const items = [1, 2, 3, 4, 5, 6, 7, 8];
+    const out = shuffle(items);
+    expect([...out].sort((a, b) => a - b)).toEqual(items);
+    expect(items).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+  });
+
+  it("change l'ordre selon le tirage", () => {
+    const items = [1, 2, 3, 4];
+    expect(shuffle(items, () => 0)).toEqual([2, 3, 4, 1]);
+    expect(shuffle(items, () => 0.999)).toEqual([1, 2, 3, 4]);
   });
 });

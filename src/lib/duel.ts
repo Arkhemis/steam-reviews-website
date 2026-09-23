@@ -260,6 +260,16 @@ export function aiMove(state: DuelState): MoveId {
 export const QUOTE_MAX = 90;
 const QUOTE_MIN = 20;
 
+/** Une copie mélangée (Fisher-Yates) : chaque duel lance ses répliques dans un ordre neuf. */
+export function shuffle<T>(items: readonly T[], random: () => number = Math.random): T[] {
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
 /** Ce qu'il faut d'une review pour en faire une réplique. */
 export type QuoteSource = { reviewText: string; votedUp: boolean; votesFunny: number; votesUp: number };
 

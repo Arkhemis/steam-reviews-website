@@ -455,6 +455,27 @@ export function reviewDuelQuery(minReviews = 5000): { text: string; values: unkn
   };
 }
 
+// Le « Random rivalry » du battle : deux vrais jeux (ni DLC, ni démo, ni mod)
+// assez commentés pour que les stats et les répliques du duel aient du corps.
+// Tirer dans `game_stats` seul reste bon marché : quelques milliers de lignes
+// étroites passent le filtre.
+export function randomRivalryQuery(minReviews = 5000): { text: string; values: unknown[] } {
+  return {
+    text: `SELECT steam_app_id FROM marts.game_stats
+     WHERE total_reviews >= $1 AND app_type = 'game'
+     ORDER BY RANDOM()
+     LIMIT 2`,
+    values: [minReviews],
+  };
+}
+
+export async function getRandomRivalry(minReviews = 5000): Promise<{ leftAppId: number; rightAppId: number } | null> {
+  const query = randomRivalryQuery(minReviews);
+  const { rows } = await pool.query<{ steam_app_id: number }>(query.text, query.values);
+  if (rows.length < 2) return null;
+  return { leftAppId: Number(rows[0].steam_app_id), rightAppId: Number(rows[1].steam_app_id) };
+}
+
 export async function getReviewDuel(minReviews = 5000): Promise<ReviewDuel | null> {
   const query = reviewDuelQuery(minReviews);
   const { rows } = await pool.query<TopReviewRow & GameStatsRow & { side: "positive" | "negative" }>(

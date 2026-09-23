@@ -13,6 +13,7 @@ import {
   getGameStats,
   getGameTopReviews,
   getPolarisedGames,
+  getRandomRivalry,
   getReviewDuel,
   getRecentDeltas,
   getSiteStats,
@@ -40,6 +41,7 @@ const HAS_PODIUM = await hasWindowRanking("month", PODIUM_FLOOR);
 const HAS_DUEL_COVERAGE = await hasDuelCoverage();
 const HAS_STORE_LISTING = await hasMartColumn("game_stats", "is_available");
 const HAS_PARENT_APP = await hasMartColumn("game_stats", "parent_steam_app_id");
+const HAS_APP_TYPE = await hasMartColumn("game_stats", "app_type");
 
 const BALDURS_GATE_3_APP_ID = 1086940;
 
@@ -336,6 +338,15 @@ describe("gameData", () => {
     const duels = await Promise.all(Array.from({ length: 10 }, () => getReviewDuel()));
     expect(duels.every((d) => d !== null)).toBe(true);
     expect(duels.every((d) => d!.positive.review.votedUp && !d!.negative.review.votedUp)).toBe(true);
+  });
+
+  it.skipIf(!HAS_APP_TYPE)("tire deux jeux distincts à 5 000 reviews ou plus pour le Random rivalry", async () => {
+    const rivalry = await getRandomRivalry();
+    expect(rivalry).not.toBeNull();
+    expect(rivalry!.leftAppId).not.toBe(rivalry!.rightAppId);
+    const [left, right] = await Promise.all([getGameStats(rivalry!.leftAppId), getGameStats(rivalry!.rightAppId)]);
+    expect(left!.totalReviews).toBeGreaterThanOrEqual(5000);
+    expect(right!.totalReviews).toBeGreaterThanOrEqual(5000);
   });
 
   it.skipIf(!HAS_DUEL_COVERAGE)("returns one positive and one negative review for the review duel", async () => {

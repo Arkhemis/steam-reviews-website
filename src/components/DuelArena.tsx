@@ -16,6 +16,7 @@ import {
   opponent,
   PATCH_HEAL,
   REFUND_MULTIPLIER,
+  shuffle,
   takeTurn,
   SUCKS_ACCURACY,
   type DuelEvent,
@@ -294,10 +295,25 @@ const CANNED: Record<MoveId, string> = {
 /** Seul le soin vient des fans : toute attaque cite un hater de l'adversaire. */
 const isFanMove = (move: MoveId) => move === "patch";
 
-function quoteFor(move: MoveId, actor: Side, corners: Record<Side, DuelCorner>, count: number): LogQuote {
+/** La réserve où puise un coup : les fans du jeu qui soigne, les haters du jeu visé. */
+function quoteKey(move: MoveId, actor: Side): string {
+  const fan = isFanMove(move);
+  return `${fan ? "cheer" : "jeer"}-${fan ? actor : opponent(actor)}`;
+}
+
+/** Les quatre réserves d'un duel, chacune mélangée : l'ordre change à chaque partie. */
+function shuffledPools(corners: Record<Side, DuelCorner>): Record<string, DuelQuote[]> {
+  return {
+    "cheer-left": shuffle(corners.left.cheers),
+    "cheer-right": shuffle(corners.right.cheers),
+    "jeer-left": shuffle(corners.left.jeers),
+    "jeer-right": shuffle(corners.right.jeers),
+  };
+}
+
+function quoteFor(move: MoveId, actor: Side, corners: Record<Side, DuelCorner>, pool: DuelQuote[], count: number): LogQuote {
   const fan = isFanMove(move);
   const owner = corners[fan ? actor : opponent(actor)];
-  const pool = fan ? owner.cheers : owner.jeers;
   const quote = pool.length ? pool[count % pool.length] : undefined;
   return quote
     ? { text: quote.text, fan, of: owner.fighter.name, author: quote.author, hours: quote.hours }
@@ -384,6 +400,51 @@ type Props = {
   languages: { key: string; label: string }[];
 };
 
+const CHIP =
+  "rounded-full border border-[#24333f] bg-[#0a0f14]/80 px-2.5 py-1 font-mono text-[10px] tracking-[0.1em] text-[#9fb2bd] uppercase hover:border-white/30 hover:text-[#eef2f4]";
+
+// D'où vient ce qu'on entend : musique et bruitages sont synthétisés par
+// `duel/sound.ts` (aucun fichier tiers), les voix sont celles du système.
+function AudioCredits() {
+  return (
+    // Le panneau s'ancre à la rangée de pastilles, pas au (i) : sur mobile il
+    // déborderait de l'arène, qui coupe tout ce qui dépasse.
+    <details className="group flex">
+      <summary
+        aria-label="Audio credits"
+        title="Audio credits"
+        className="flex h-[22px] w-[22px] cursor-pointer list-none items-center justify-center rounded-full text-[#9fb2bd] hover:text-[#eef2f4] group-open:text-[#eef2f4] [&::-webkit-details-marker]:hidden"
+      >
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+          <circle cx="12" cy="12" r="10" />
+          <path d="M12 16v-4" />
+          <circle cx="12" cy="8" r="0.5" fill="currentColor" />
+        </svg>
+      </summary>
+      <div className="absolute top-7 left-0 w-[min(300px,calc(100vw-64px))] rounded-md border border-[#24333f] bg-[#0a0f14] p-3 text-[11px] leading-relaxed text-[#c6d4df] shadow-lg">
+        <p className="mb-1.5 font-mono text-[10px] tracking-[0.1em] text-[#9fb2bd] uppercase">Audio credits</p>
+        <dl className="space-y-1.5">
+          <div>
+            <dt className="font-semibold text-[#eef2f4]">Music &amp; sound effects</dt>
+            <dd>
+              An original chiptune loop, plus every hit, crit, miss, refund &ldquo;ka-ching&rdquo; and fanfare, all
+              synthesized live in your browser with the Web Audio API. No samples, no third-party tracks.
+            </dd>
+          </div>
+          <div>
+            <dt className="font-semibold text-[#eef2f4]">Voices</dt>
+            <dd>Your device&rsquo;s own text-to-speech voices, through the Web Speech API.</dd>
+          </div>
+          <div>
+            <dt className="font-semibold text-[#eef2f4]">Quotes</dt>
+            <dd>Real Steam reviews, credited to their authors in the battle log.</dd>
+          </div>
+        </dl>
+      </div>
+    </details>
+  );
+}
+
 export function DuelArena({ left, right, language, languages }: Props) {
   const router = useRouter();
   const [isNavigating, startNavigation] = useTransition();
@@ -394,6 +455,8 @@ export function DuelArena({ left, right, language, languages }: Props) {
   const nextId = useRef(1);
   /** Reviews déjà lancées par réserve (fans/haters de chaque camp) : on les fait tourner. */
   const quoteCount = useRef<Record<string, number>>({});
+  /** Les réserves du duel en cours, mélangées à son lancement. */
+  const quotePools = useRef<Record<string, DuelQuote[]>>({});
   const logRef = useRef<HTMLDivElement>(null);
   const coverRefs = { left: useRef<HTMLSpanElement>(null), right: useRef<HTMLSpanElement>(null) };
 
@@ -531,11 +594,10 @@ export function DuelArena({ left, right, language, languages }: Props) {
       const event = takeTurn(duel, move);
       let quote: LogQuote | undefined;
       if (event.move) {
-        const fan = isFanMove(event.move);
-        const key = `${fan ? "cheer" : "jeer"}-${fan ? event.actor : opponent(event.actor)}`;
+        const key = quoteKey(event.move, event.actor);
         const count = quoteCount.current[key] ?? 0;
         quoteCount.current[key] = count + 1;
-        quote = quoteFor(event.move, event.actor, corners, count);
+        quote = quoteFor(event.move, event.actor, corners, quotePools.current[key] ?? [], count);
       }
       const id = nextId.current++;
       setSnap(snapshot(duel));
@@ -665,6 +727,7 @@ export function DuelArena({ left, right, language, languages }: Props) {
     const duel = createDuel(left.stats, right.stats, freshSeed());
     duelRef.current = duel;
     quoteCount.current = {};
+    quotePools.current = shuffledPools(corners);
     setPlayer(side);
     setSnap(snapshot(duel));
     setPops([]);
@@ -721,10 +784,21 @@ export function DuelArena({ left, right, language, languages }: Props) {
     }
   }
 
+  // Le serveur tire deux jeux à 5 000 reviews ou plus ; s'il ne répond pas,
+  // on retombe sur un des grands classiques.
   function randomRivalry() {
-    const others = RIVALRIES.filter((r) => !(r.left.appId === left.fighter.appId && r.right.appId === right.fighter.appId));
-    const r = others[Math.floor(Math.random() * others.length)];
-    go(r.left.appId, r.right.appId);
+    startNavigation(async () => {
+      try {
+        const response = await fetch("/api/battle/random", { cache: "no-store" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const { leftAppId, rightAppId } = (await response.json()) as { leftAppId: number; rightAppId: number };
+        router.push(battleHref(leftAppId, rightAppId, language));
+      } catch {
+        const others = RIVALRIES.filter((r) => !(r.left.appId === left.fighter.appId && r.right.appId === right.fighter.appId));
+        const r = others[Math.floor(Math.random() * others.length)];
+        router.push(battleHref(r.left.appId, r.right.appId, language));
+      }
+    });
   }
 
   const btn =
@@ -829,27 +903,30 @@ export function DuelArena({ left, right, language, languages }: Props) {
     <div>
       <div className="grid overflow-hidden rounded-md border border-[#1e2b36] bg-[linear-gradient(180deg,#152029_0%,#0c1116_55%,#0f1a14_100%)] lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="relative">
-          <button
-            type="button"
-            onClick={toggleMute}
-            aria-label={muted ? "Turn music on" : "Turn music off"}
-            aria-pressed={muted}
-            title={muted ? "Music on (M)" : "Music off (M)"}
-            className="absolute top-2 left-2 z-30 rounded-full border border-[#24333f] bg-[#0a0f14]/80 px-2.5 py-1 font-mono text-[10px] tracking-[0.1em] text-[#9fb2bd] uppercase hover:border-white/30 hover:text-[#eef2f4]"
-          >
-            {muted ? "🔇 music off" : "🎵 music on"}
-          </button>
-          {DuelVoices.supported() && (
+          <div className="absolute top-2 left-2 z-30 flex items-center gap-1.5">
             <button
               type="button"
-              onClick={toggleVoices}
-              aria-pressed={!voicesOn}
-              aria-label={voicesOn ? "Stop reading reviews aloud" : "Read reviews aloud"}
-              className="absolute top-2 left-[122px] z-30 rounded-full border border-[#24333f] bg-[#0a0f14]/80 px-2.5 py-1 font-mono text-[10px] tracking-[0.1em] text-[#9fb2bd] uppercase hover:border-white/30 hover:text-[#eef2f4]"
+              onClick={toggleMute}
+              aria-label={muted ? "Turn music on" : "Turn music off"}
+              aria-pressed={muted}
+              title={muted ? "Music on (M)" : "Music off (M)"}
+              className={CHIP}
             >
-              {voicesOn ? "🗣 voices on" : "🤐 voices off"}
+              {muted ? "🔇 music off" : "🎵 music on"}
             </button>
-          )}
+            {DuelVoices.supported() && (
+              <button
+                type="button"
+                onClick={toggleVoices}
+                aria-pressed={!voicesOn}
+                aria-label={voicesOn ? "Stop reading reviews aloud" : "Read reviews aloud"}
+                className={CHIP}
+              >
+                {voicesOn ? "🗣 voices on" : "🤐 voices off"}
+              </button>
+            )}
+            <AudioCredits />
+          </div>
           {/* Le sol en perspective : une grille qui fuit vers l'horizon. */}
           <div
             aria-hidden

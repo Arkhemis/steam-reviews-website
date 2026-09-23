@@ -154,17 +154,11 @@ export default async function Battle3Page({ searchParams }: Battle3PageProps) {
     <div className="min-h-screen bg-[#0c1116] text-[#eef2f4]">
       <Nav variant="banded" />
 
-      <div className="border-b border-[#1a2530] bg-[linear-gradient(115deg,#0d2018_0%,#0c1116_50%,#2a1206_100%)] px-5 py-8 sm:px-8">
-        <div className="mx-auto max-w-[1320px]">
-          <p className="font-mono text-[11px] tracking-[0.16em] text-brand-blue uppercase">battle · turn-based duel</p>
-          <h1 className="mt-2.5 text-3xl leading-[0.98] font-extrabold tracking-tight text-balance sm:text-5xl">
-            {left.name} <span className="font-black text-brand-red italic">vs</span> {right.name}
-          </h1>
-          <p className="mt-3 max-w-[62ch] text-[15px] text-[#9fb2bd]">
-            Steam sets the stats, you pick the moves. Every attack quotes a real review, and the CPU fights back.
-          </p>
-        </div>
-      </div>
+      {/* Plus de bandeau de titre : l'arène suffit à l'œil, le titre reste pour
+          les lecteurs d'écran et les moteurs. */}
+      <h1 className="sr-only">
+        {left.name} vs {right.name}
+      </h1>
 
       <div className="px-5 py-8 sm:px-8">
         <div className="mx-auto max-w-[1320px]">
