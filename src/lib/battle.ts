@@ -1,4 +1,5 @@
 import type { GameProfile } from "@/lib/data/types";
+import { LANGUAGE_LABELS, type LanguageKey } from "@/lib/map";
 
 // Ce que la page battle partage avec son moteur de duel (`@/lib/duel`) : la
 // paire de jeux lue dans l'URL, le lien d'un duel, et les grands classiques.
@@ -7,6 +8,14 @@ export const DEFAULT_LEFT_APP_ID = 1086940; // Baldur's Gate III
 export const DEFAULT_RIGHT_APP_ID = 1716740; // Starfield
 
 export type Side = "left" | "right";
+
+/** La langue des reviews lancées (et lues à voix haute) : une clé de langue Steam. */
+export const DEFAULT_LANGUAGE: LanguageKey = "english";
+
+/** `?lang=` tel que l'URL le donne, ramené à une langue Steam connue. */
+export function resolveLanguage(lang?: string): LanguageKey {
+  return lang && lang in LANGUAGE_LABELS ? (lang as LanguageKey) : DEFAULT_LANGUAGE;
+}
 
 /** Ce que le duel a besoin de savoir d'un jeu pour en tirer ses stats. */
 export type Fighter = Pick<
@@ -24,8 +33,10 @@ export function resolveMatchup(game?: string, vs?: string): { leftAppId: number;
   return { leftAppId, rightAppId };
 }
 
-export function battleHref(leftAppId: number, rightAppId: number): string {
-  return `/battle?game=${leftAppId}&vs=${rightAppId}`;
+/** L'anglais, langue par défaut, reste hors de l'URL. */
+export function battleHref(leftAppId: number, rightAppId: number, lang: string = DEFAULT_LANGUAGE): string {
+  const suffix = lang === DEFAULT_LANGUAGE ? "" : `&lang=${lang}`;
+  return `/battle?game=${leftAppId}&vs=${rightAppId}${suffix}`;
 }
 
 export type Rivalry = {

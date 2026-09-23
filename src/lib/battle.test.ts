@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { battleHref, resolveMatchup } from "@/lib/battle";
+import { battleHref, resolveLanguage, resolveMatchup } from "@/lib/battle";
 
 describe("resolveMatchup", () => {
   it("n'oppose jamais un jeu à lui-même", () => {
@@ -15,5 +15,18 @@ describe("resolveMatchup", () => {
 describe("battleHref", () => {
   it("pointe vers /battle", () => {
     expect(battleHref(570, 730)).toBe("/battle?game=570&vs=730");
+  });
+
+  it("n'ajoute la langue que hors anglais", () => {
+    expect(battleHref(570, 730, "english")).toBe("/battle?game=570&vs=730");
+    expect(battleHref(570, 730, "french")).toBe("/battle?game=570&vs=730&lang=french");
+  });
+});
+
+describe("resolveLanguage", () => {
+  it("ramène une langue inconnue à l'anglais", () => {
+    expect(resolveLanguage("french")).toBe("french");
+    expect(resolveLanguage("klingon")).toBe("english");
+    expect(resolveLanguage(undefined)).toBe("english");
   });
 });

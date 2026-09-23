@@ -5,10 +5,11 @@ import { BattleRivalries } from "@/components/BattleRivalries";
 import { DuelArena, type DuelCorner, type DuelQuote } from "@/components/DuelArena";
 import { SectionHead } from "@/components/HomeEditorial";
 import { Nav } from "@/components/Nav";
-import { battleHref, resolveMatchup } from "@/lib/battle";
-import { getGameStats, getGameTopReviews } from "@/lib/data/gameData";
+import { battleHref, DEFAULT_LANGUAGE, resolveLanguage, resolveMatchup } from "@/lib/battle";
+import { getGameReviewLanguages, getGameStats, getGameTopReviews } from "@/lib/data/gameData";
 import type { GameProfile, GameTopReview } from "@/lib/data/types";
 import { duelStats, pickQuotes } from "@/lib/duel";
+import { LANGUAGE_LABELS, type LanguageKey } from "@/lib/map";
 import { SITE_NAME } from "@/lib/site";
 import { getSteamRating } from "@/lib/steamRating";
 
@@ -17,7 +18,7 @@ import { getSteamRating } from "@/lib/steamRating";
 // eux, sont choisis par le joueur dans le navigateur.
 
 type Battle3PageProps = {
-  searchParams: Promise<{ game?: string; vs?: string }>;
+  searchParams: Promise<{ game?: string; vs?: string; lang?: string }>;
 };
 
 const loadGame = cache(getGameStats);
@@ -127,12 +128,27 @@ export default async function Battle3Page({ searchParams }: Battle3PageProps) {
     );
   }
 
-  const [leftReviews, rightReviews] = await Promise.all([
-    // Toutes les reviews anglaises en vedette (quelques dizaines par jeu) :
-    // `pickQuotes` y cherche les plus drôles qui tiennent dans une bulle.
-    getGameTopReviews(leftAppId, { language: "english", perSide: 60 }),
-    getGameTopReviews(rightAppId, { language: "english", perSide: 60 }),
+  const language = resolveLanguage(params.lang);
+  const [leftReviews, rightReviews, leftLanguages, rightLanguages] = await Promise.all([
+    // Toutes les reviews en vedette dans la langue choisie (quelques dizaines
+    // par jeu) : `pickQuotes` y cherche les plus drôles qui tiennent dans une bulle.
+    getGameTopReviews(leftAppId, { language, perSide: 60 }),
+    getGameTopReviews(rightAppId, { language, perSide: 60 }),
+    getGameReviewLanguages(leftAppId),
+    getGameReviewLanguages(rightAppId),
   ]);
+
+  // Le sélecteur ne propose que les langues où les deux jeux ont de quoi se
+  // lancer des reviews, les mieux fournies d'abord ; l'anglais et la langue
+  // en cours y restent toujours.
+  const rightCounts = new Map(rightLanguages.map((l) => [l.language, l.reviewCount]));
+  const shared = leftLanguages
+    .filter((l) => l.language in LANGUAGE_LABELS && rightCounts.has(l.language))
+    .map((l) => ({ key: l.language, count: Math.min(l.reviewCount, rightCounts.get(l.language) ?? 0) }))
+    .sort((a, b) => b.count - a.count)
+    .map((l) => l.key);
+  const languageKeys = [...new Set([DEFAULT_LANGUAGE, language, ...shared])];
+  const languages = languageKeys.map((key) => ({ key, label: LANGUAGE_LABELS[key as LanguageKey] }));
 
   return (
     <div className="min-h-screen bg-[#0c1116] text-[#eef2f4]">
@@ -154,7 +170,13 @@ export default async function Battle3Page({ searchParams }: Battle3PageProps) {
         <div className="mx-auto max-w-[1320px]">
           {/* Une clé par duel : naviguer vers une autre paire (Random rivalry, Change game…)
               garde la même page, et sans elle l'arène resterait sur le duel terminé. */}
-          <DuelArena key={`${leftAppId}-${rightAppId}`} left={cornerFor(left, leftReviews)} right={cornerFor(right, rightReviews)} />
+          <DuelArena
+            key={`${leftAppId}-${rightAppId}-${language}`}
+            left={cornerFor(left, leftReviews)}
+            right={cornerFor(right, rightReviews)}
+            language={language}
+            languages={languages}
+          />
         </div>
       </div>
 
@@ -173,7 +195,7 @@ export default async function Battle3Page({ searchParams }: Battle3PageProps) {
         </div>
       </div>
 
-      <BattleRivalries leftAppId={leftAppId} rightAppId={rightAppId} />
+      <BattleRivalries leftAppId={leftAppId} rightAppId={rightAppId} lang={language} />
     </div>
   );
 }

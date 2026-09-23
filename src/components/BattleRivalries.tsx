@@ -3,7 +3,7 @@ import { SectionHead } from "@/components/HomeEditorial";
 import { battleHref, RIVALRIES } from "@/lib/battle";
 
 // Les grands classiques en pied du battle : un clic, un duel.
-export function BattleRivalries({ leftAppId, rightAppId }: { leftAppId: number; rightAppId: number }) {
+export function BattleRivalries({ leftAppId, rightAppId, lang }: { leftAppId: number; rightAppId: number; lang?: string }) {
   const others = RIVALRIES.filter((r) => !(r.left.appId === leftAppId && r.right.appId === rightAppId));
   return (
     <div className="border-t border-[#1a2530] bg-[#0e141a] px-5 py-8 sm:px-8">
@@ -13,7 +13,7 @@ export function BattleRivalries({ leftAppId, rightAppId }: { leftAppId: number; 
           {others.map((r) => (
             <Link
               key={`${r.left.appId}-${r.right.appId}`}
-              href={battleHref(r.left.appId, r.right.appId)}
+              href={battleHref(r.left.appId, r.right.appId, lang)}
               className="group block rounded-md border border-[#1e2b36] bg-[#0c1116] p-[18px] transition-colors hover:border-brand-blue"
             >
               <span className="block font-mono text-[10px] tracking-[0.14em] text-brand-blue uppercase">{r.tagline}</span>

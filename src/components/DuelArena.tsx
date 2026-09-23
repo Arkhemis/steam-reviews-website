@@ -360,7 +360,7 @@ function Bubble({ quote, placement }: { quote: LogQuote; placement: "right" | "l
       <span
         aria-hidden
         className={`absolute h-3 w-3 rotate-45 border-2 bg-[#eef2f4] ${
-          placement === "right" ? "top-4 -left-[8px] border-t-0 border-r-0" : "bottom-12 -right-[8px] border-b-0 border-l-0"
+          placement === "right" ? "top-4 -left-[8px] border-t-0 border-r-0" : "top-3 -right-[8px] border-b-0 border-l-0"
         }`}
         style={{ borderColor: accent }}
       />
@@ -375,9 +375,16 @@ function Bubble({ quote, placement }: { quote: LogQuote; placement: "right" | "l
 
 // --- Arène -------------------------------------------------------------------
 
-type Props = { left: DuelCorner; right: DuelCorner };
+type Props = {
+  left: DuelCorner;
+  right: DuelCorner;
+  /** Langue Steam des reviews lancées : les voix la parlent. */
+  language: string;
+  /** Langues où les deux jeux ont des reviews en vedette, pour le sélecteur. */
+  languages: { key: string; label: string }[];
+};
 
-export function DuelArena({ left, right }: Props) {
+export function DuelArena({ left, right, language, languages }: Props) {
   const router = useRouter();
   const [isNavigating, startNavigation] = useTransition();
   const corners: Record<Side, DuelCorner> = { left, right };
@@ -404,8 +411,6 @@ export function DuelArena({ left, right }: Props) {
   // Les callbacks du duel lisent ces réglages sans dépendre de leur rendu.
   const speechEnabled = useRef(true);
   const speechToken = useRef(0);
-  const voicesOnRef = useRef(true);
-  const mutedRef = useRef(false);
   /** Change à chaque duel : une suite de tour d'un duel abandonné ne joue plus. */
   const generation = useRef(0);
 
@@ -592,38 +597,34 @@ export function DuelArena({ left, right }: Props) {
   // Le son démarre au clic sur « Play as… » (ou Rematch) : les navigateurs
   // exigent un geste avant de jouer quoi que ce soit.
   function startSound() {
-    let off = muted;
+    let musicOff = muted;
     let voices = voicesOn;
     try {
-      off = window.localStorage.getItem("duel-muted") === "1";
+      musicOff = window.localStorage.getItem("duel-music") === "0";
       voices = window.localStorage.getItem("duel-voices") !== "0";
     } catch {
       // Stockage indisponible : on garde l'état courant.
     }
     setVoicesOn(voices);
-    voicesOnRef.current = voices;
-    mutedRef.current = off;
-    speechEnabled.current = voices && !off;
+    speechEnabled.current = voices;
     const cast = (voicesRef.current ??= DuelVoices.supported() ? new DuelVoices() : null);
     cast?.cancel();
-    cast?.recast();
+    cast?.recast(language);
     const audio = (audioRef.current ??= new DuelAudio());
-    audio.setMuted(off);
-    setMuted(off);
+    audio.setMusicMuted(musicOff);
+    setMuted(musicOff);
     audio.unlock();
     audio.startMusic();
     audio.play("fight", 100);
   }
 
+  // Le bouton ne coupe que la musique : bruitages et voix ont chacun le leur.
   const toggleMute = useCallback(() => {
     setMuted((was) => {
       const next = !was;
-      audioRef.current?.setMuted(next);
-      mutedRef.current = next;
-      speechEnabled.current = !next && voicesOnRef.current;
-      if (next) voicesRef.current?.cancel();
+      audioRef.current?.setMusicMuted(next);
       try {
-        window.localStorage.setItem("duel-muted", next ? "1" : "0");
+        window.localStorage.setItem("duel-music", next ? "0" : "1");
       } catch {
         // Stockage indisponible : le réglage vaut pour cette page seulement.
       }
@@ -634,8 +635,7 @@ export function DuelArena({ left, right }: Props) {
   const toggleVoices = useCallback(() => {
     setVoicesOn((was) => {
       const next = !was;
-      voicesOnRef.current = next;
-      speechEnabled.current = next && !mutedRef.current;
+      speechEnabled.current = next;
       if (!next) voicesRef.current?.cancel();
       try {
         window.localStorage.setItem("duel-voices", next ? "1" : "0");
@@ -646,7 +646,7 @@ export function DuelArena({ left, right }: Props) {
     });
   }, []);
 
-  // « M » coupe ou remet le son, à tout moment du duel.
+  // « M » coupe ou remet la musique, à tout moment du duel.
   useEffect(() => {
     if (!player) return;
     const onKey = (e: KeyboardEvent) => {
@@ -709,11 +709,11 @@ export function DuelArena({ left, right }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [canPlay, player, resolve, sound]);
 
-  const go = (l: number, r: number) => startNavigation(() => router.push(battleHref(l, r)));
+  const go = (l: number, r: number) => startNavigation(() => router.push(battleHref(l, r, language)));
 
   async function copyLink() {
     try {
-      await navigator.clipboard.writeText(`${window.location.origin}${battleHref(left.fighter.appId, right.fighter.appId)}`);
+      await navigator.clipboard.writeText(`${window.location.origin}${battleHref(left.fighter.appId, right.fighter.appId, language)}`);
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
     } catch {
@@ -783,6 +783,28 @@ export function DuelArena({ left, right }: Props) {
           </div>
         </div>
         <p className="mt-6 text-center text-sm text-[#7d919c]">The CPU takes the other one. Moves are picked by you, stats by Steam.</p>
+        {languages.length > 1 && (
+          <div className="mt-4 flex items-center justify-center gap-2 font-mono text-[10px] tracking-[0.1em] text-[#7d919c] uppercase">
+            <label htmlFor="duel-language">Reviews &amp; voices in</label>
+            <select
+              id="duel-language"
+              value={language}
+              disabled={isNavigating}
+              onChange={(e) =>
+                startNavigation(() =>
+                  router.push(battleHref(left.fighter.appId, right.fighter.appId, e.target.value), { scroll: false }),
+                )
+              }
+              className="rounded-full border border-[#24333f] bg-[#111a21] px-3 py-1.5 font-mono text-[10px] tracking-[0.1em] text-[#cfdae1] uppercase disabled:opacity-40"
+            >
+              {languages.map((l) => (
+                <option key={l.key} value={l.key}>
+                  {l.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
     );
   }
@@ -810,12 +832,12 @@ export function DuelArena({ left, right }: Props) {
           <button
             type="button"
             onClick={toggleMute}
-            aria-label={muted ? "Unmute sound" : "Mute sound"}
+            aria-label={muted ? "Turn music on" : "Turn music off"}
             aria-pressed={muted}
-            title={muted ? "Unmute (M)" : "Mute (M)"}
+            title={muted ? "Music on (M)" : "Music off (M)"}
             className="absolute top-2 left-2 z-30 rounded-full border border-[#24333f] bg-[#0a0f14]/80 px-2.5 py-1 font-mono text-[10px] tracking-[0.1em] text-[#9fb2bd] uppercase hover:border-white/30 hover:text-[#eef2f4]"
           >
-            {muted ? "🔇 sound off" : "🔊 sound on"}
+            {muted ? "🔇 music off" : "🎵 music on"}
           </button>
           {DuelVoices.supported() && (
             <button

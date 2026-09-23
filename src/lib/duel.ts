@@ -280,7 +280,8 @@ export function quoteText(text: string, max = QUOTE_MAX): string | null {
   const clean = cleanText(text);
   if (clean.length < QUOTE_MIN) return null;
   if (clean.length <= max) return clean;
-  const first = clean.match(/^.+?[.!?](?=\s|$)/)?.[0];
+  // Les ponctuations chinoises et japonaises ferment une phrase sans espace derrière.
+  const first = clean.match(/^.+?(?:[.!?](?=\s|$)|[。！？])/u)?.[0];
   return first && first.length >= QUOTE_MIN && first.length <= max ? first : null;
 }
 

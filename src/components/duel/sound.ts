@@ -52,6 +52,8 @@ export class DuelAudio {
   private step = 0;
   private danger = false;
   private muted = false;
+  private musicMuted = false;
+  private ducked = false;
 
   /** Crée (ou réveille) le contexte audio : à appeler dans un geste utilisateur. */
   unlock(): void {
@@ -65,7 +67,7 @@ export class DuelAudio {
       this.master.gain.value = this.muted ? 0 : 1;
       this.master.connect(ctx.destination);
       this.music = ctx.createGain();
-      this.music.gain.value = MUSIC_VOLUME;
+      this.music.gain.value = this.musicLevel();
       this.music.connect(this.master);
       this.sfx = ctx.createGain();
       this.sfx.gain.value = SFX_VOLUME;
@@ -83,6 +85,17 @@ export class DuelAudio {
     if (this.ctx && this.master) this.master.gain.setTargetAtTime(muted ? 0 : 1, this.ctx.currentTime, 0.04);
   }
 
+  /** Coupe la musique seule : les bruitages et les voix continuent. */
+  setMusicMuted(muted: boolean): void {
+    this.musicMuted = muted;
+    if (this.ctx && this.music) this.music.gain.setTargetAtTime(this.musicLevel(), this.ctx.currentTime, 0.04);
+  }
+
+  private musicLevel(ducked = this.ducked): number {
+    if (this.musicMuted) return 0;
+    return ducked ? MUSIC_VOLUME * 0.35 : MUSIC_VOLUME;
+  }
+
   /** Quand un camp passe sous 30 % de PV, la musique accélère et la mélodie monte d'une octave. */
   setDanger(danger: boolean): void {
     this.danger = danger;
@@ -90,8 +103,9 @@ export class DuelAudio {
 
   /** Baisse la musique pendant qu'une voix lit une review. */
   duck(on: boolean): void {
+    this.ducked = on;
     if (!this.ctx || !this.music || !this.scheduler) return;
-    this.music.gain.setTargetAtTime(on ? MUSIC_VOLUME * 0.35 : MUSIC_VOLUME, this.ctx.currentTime, 0.08);
+    this.music.gain.setTargetAtTime(this.musicLevel(), this.ctx.currentTime, 0.08);
   }
 
   startMusic(): void {
@@ -100,7 +114,8 @@ export class DuelAudio {
     this.step = 0;
     this.danger = false;
     this.nextStepAt = this.ctx.currentTime + 0.25;
-    this.music?.gain.setValueAtTime(MUSIC_VOLUME, this.ctx.currentTime);
+    this.ducked = false;
+    this.music?.gain.setValueAtTime(this.musicLevel(), this.ctx.currentTime);
     this.scheduler = setInterval(() => this.schedule(), 25);
   }
 

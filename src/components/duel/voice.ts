@@ -9,6 +9,52 @@
 
 export type VoiceRole = "player" | "cpu";
 
+/** Langue Steam → langue de synthèse (BCP 47). */
+const SPEECH_LANG: Record<string, string> = {
+  arabic: "ar-SA",
+  bulgarian: "bg-BG",
+  schinese: "zh-CN",
+  tchinese: "zh-TW",
+  czech: "cs-CZ",
+  danish: "da-DK",
+  dutch: "nl-NL",
+  english: "en-US",
+  finnish: "fi-FI",
+  french: "fr-FR",
+  german: "de-DE",
+  greek: "el-GR",
+  hungarian: "hu-HU",
+  italian: "it-IT",
+  japanese: "ja-JP",
+  koreana: "ko-KR",
+  norwegian: "nb-NO",
+  polish: "pl-PL",
+  portuguese: "pt-PT",
+  brazilian: "pt-BR",
+  romanian: "ro-RO",
+  russian: "ru-RU",
+  spanish: "es-ES",
+  latam: "es-MX",
+  swedish: "sv-SE",
+  thai: "th-TH",
+  turkish: "tr-TR",
+  ukrainian: "uk-UA",
+  vietnamese: "vi-VN",
+};
+
+const norm = (lang: string) => lang.replace("_", "-").toLowerCase();
+
+/**
+ * Les voix qui parlent `bcp47` : celles de la bonne variante d'abord
+ * (pt-BR plutôt que pt-PT), sinon toutes celles de la langue.
+ */
+function voicesFor(all: SpeechSynthesisVoice[], bcp47: string): SpeechSynthesisVoice[] {
+  const exact = all.filter((v) => norm(v.lang) === norm(bcp47));
+  if (exact.length) return exact;
+  const base = norm(bcp47).split("-")[0];
+  return all.filter((v) => norm(v.lang).split("-")[0] === base);
+}
+
 type Casting = { voice: SpeechSynthesisVoice | null; pitch: number; rate: number };
 
 // `female` contient `male` : on teste toujours les voix féminines d'abord.
@@ -40,18 +86,22 @@ export class DuelVoices {
   };
   /** Les voix que l'ordinateur peut prendre : toutes, sauf celle du joueur quand l'OS en propose d'autres. */
   private cpuPool: SpeechSynthesisVoice[] = [];
+  private lang = "en-US";
   private lastCpu: { voice: SpeechSynthesisVoice | null; style: number } = { voice: null, style: -1 };
 
   static supported(): boolean {
     return typeof window !== "undefined" && "speechSynthesis" in window && typeof SpeechSynthesisUtterance !== "undefined";
   }
 
-  /** Distribue les rôles pour un nouveau duel. */
-  recast(): void {
+  /**
+   * Distribue les rôles pour un nouveau duel, dans la langue des reviews.
+   * Sans voix installée pour cette langue, les deux rôles restent sans voix
+   * attitrée : le navigateur lit alors avec sa voix par défaut pour `lang`.
+   */
+  recast(steamLanguage: string): void {
     if (!DuelVoices.supported()) return;
-    const all = window.speechSynthesis.getVoices();
-    const english = all.filter((v) => v.lang.toLowerCase().startsWith("en"));
-    const pool = english.length ? english : all;
+    this.lang = SPEECH_LANG[steamLanguage] ?? "en-US";
+    const pool = voicesFor(window.speechSynthesis.getVoices(), this.lang);
 
     const byGender = (g: "female" | "male") => pool.filter((v) => genderOf(v) === g);
     const playerGender = Math.random() < 0.5 ? "female" : "male";
@@ -88,7 +138,7 @@ export class DuelVoices {
     const { voice, pitch, rate } = this.cast[role];
     const utterance = new SpeechSynthesisUtterance(text.replace(/…$/, ""));
     if (voice) utterance.voice = voice;
-    utterance.lang = voice?.lang ?? "en-US";
+    utterance.lang = voice?.lang ?? this.lang;
     utterance.pitch = pitch;
     utterance.rate = rate;
     return new Promise((resolve) => {
