@@ -1,6 +1,6 @@
 import type { Fighter, Side } from "@/lib/battle";
 
-// « Battle 3 » : un duel au tour par tour, façon RPG. Le joueur prend un camp
+// Le battle : un duel au tour par tour, façon RPG. Le joueur prend un camp
 // et choisit une attaque à chaque tour ; l'ordinateur joue l'autre. Les chiffres
 // de chaque jeu ne décident plus du résultat, ils fixent les stats — PV,
 // puissance, critique, esquive, fragilité aux remboursements — et c'est le

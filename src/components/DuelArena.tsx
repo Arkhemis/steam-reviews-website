@@ -3,7 +3,6 @@
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import type { BattleFighter } from "@/components/BattleArena";
 import { DuelAudio, type Sfx } from "@/components/duel/sound";
 import { DuelVoices, warmUpVoices } from "@/components/duel/voice";
 import { GameSearchCombobox } from "@/components/GameSearchCombobox";
@@ -25,10 +24,21 @@ import {
   type MoveId,
 } from "@/lib/duel";
 
-// L'arène de Battle 3 : le joueur choisit son jeu, l'ordinateur prend l'autre,
+// L'arène du battle : le joueur choisit son jeu, l'ordinateur prend l'autre,
 // et chacun joue un coup à son tour. Le moteur (`@/lib/duel`) tient l'état ;
 // ce composant n'en garde qu'un instantané pour le rendu, et enchaîne les
 // tours de l'ordinateur au rythme des animations.
+
+/** Ce que l'arène affiche d'un jeu : sa jaquette, son nom, sa note Steam. */
+export type BattleFighter = {
+  appId: number;
+  name: string;
+  coverUrl: string | null;
+  pct: number;
+  ratingLabel: string;
+  ratingColor: string;
+  totalReviews: number;
+};
 
 export type DuelQuote = { text: string; author: string; hours: number };
 
@@ -699,11 +709,11 @@ export function DuelArena({ left, right }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [canPlay, player, resolve, sound]);
 
-  const go = (l: number, r: number) => startNavigation(() => router.push(battleHref(l, r, "/battle-3")));
+  const go = (l: number, r: number) => startNavigation(() => router.push(battleHref(l, r)));
 
   async function copyLink() {
     try {
-      await navigator.clipboard.writeText(`${window.location.origin}${battleHref(left.fighter.appId, right.fighter.appId, "/battle-3")}`);
+      await navigator.clipboard.writeText(`${window.location.origin}${battleHref(left.fighter.appId, right.fighter.appId)}`);
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
     } catch {

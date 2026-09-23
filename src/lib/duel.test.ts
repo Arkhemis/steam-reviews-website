@@ -56,8 +56,6 @@ describe("stats de duel", () => {
       playtimeMedianMinutes: 240,
       pctRefunded: 0.01,
       pctSteamDeck: 0.005,
-      store: null,
-      firstReleaseDate: null,
     };
     expect(duelStats(game)).toMatchObject({ maxHp: 102, power: 31, approval: 0.95, initiative: 1_000_000 });
   });

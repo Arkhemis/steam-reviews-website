@@ -1,4 +1,4 @@
-// Les voix de Battle 3 : chaque review lancée est lue à voix haute par la
+// Les voix du battle : chaque review lancée est lue à voix haute par la
 // synthèse vocale du navigateur (Web Speech API). Rien à télécharger ni à
 // payer, mais la distribution dépend de l'OS : on prend ce qu'il propose.
 //

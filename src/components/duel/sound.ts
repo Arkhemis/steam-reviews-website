@@ -1,4 +1,4 @@
-// Le son de Battle 3, synthétisé en direct avec la Web Audio API : une boucle
+// Le son du battle, synthétisé en direct avec la Web Audio API : une boucle
 // chiptune et des bruitages, sans le moindre fichier. Tout est composé ici,
 // donc libre de droits par construction, et rien à héberger ni à précharger.
 //
