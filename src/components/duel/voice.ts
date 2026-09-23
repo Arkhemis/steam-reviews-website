@@ -10,7 +10,7 @@
 export type VoiceRole = "player" | "cpu";
 
 /** Langue Steam → langue de synthèse (BCP 47). */
-export const SPEECH_LANG: Record<string, string> = {
+const SPEECH_LANG: Record<string, string> = {
   arabic: "ar-SA",
   bulgarian: "bg-BG",
   schinese: "zh-CN",
@@ -48,7 +48,7 @@ const norm = (lang: string) => lang.replace("_", "-").toLowerCase();
  * Les voix qui parlent `bcp47` : celles de la bonne variante d'abord
  * (pt-BR plutôt que pt-PT), sinon toutes celles de la langue.
  */
-export function voicesFor(all: SpeechSynthesisVoice[], bcp47: string): SpeechSynthesisVoice[] {
+function voicesFor(all: SpeechSynthesisVoice[], bcp47: string): SpeechSynthesisVoice[] {
   const exact = all.filter((v) => norm(v.lang) === norm(bcp47));
   if (exact.length) return exact;
   const base = norm(bcp47).split("-")[0];
@@ -61,7 +61,7 @@ type Casting = { voice: SpeechSynthesisVoice | null; pitch: number; rate: number
 const FEMALE = /female|woman|samantha|victoria|karen|moira|tessa|fiona|zira|susan|hazel|serena|allison|ava|kate|veena|libby|sonia|aria|jenny|michelle|emma|amy|joanna|salli|kimberly/i;
 const MALE = /male|daniel|alex|fred|david|mark|george|guy|ryan|tom|oliver|aaron|arthur|rishi|james|christopher|eric|brian|justin|matthew/i;
 
-export function genderOf(voice: SpeechSynthesisVoice): "female" | "male" | null {
+function genderOf(voice: SpeechSynthesisVoice): "female" | "male" | null {
   if (FEMALE.test(voice.name)) return "female";
   if (MALE.test(voice.name)) return "male";
   return null;
@@ -69,33 +69,28 @@ export function genderOf(voice: SpeechSynthesisVoice): "female" | "male" | null 
 
 const pickOne = <T>(list: T[]): T | undefined => list[Math.floor(Math.random() * list.length)];
 
-/** Un timbre posé sur une voix : hauteur (0 à 2), débit et volume (0 à 1) de la synthèse. */
-export type VoiceStyle = { id: string; label: string; pitch: number; rate: number; volume?: number };
-
-/** Le timbre du joueur : sa voix normale, à peine pressée. */
-export const PLAYER_STYLE: VoiceStyle = { id: "player", label: "Player (normal)", pitch: 1, rate: 1.05 };
-
-/** Les timbres du méchant, triés à l'oreille sur /sounds. */
-export const CPU_STYLES: VoiceStyle[] = [
-  { id: "demon", label: "Demon", pitch: 0.1, rate: 0.8 },
-  { id: "low-rushed", label: "Low and rushed", pitch: 0.3, rate: 1.1 },
-  { id: "film-villain", label: "Film villain, very slow", pitch: 0.6, rate: 0.7 },
-  { id: "cartoon-villain", label: "Cartoon villain", pitch: 1.6, rate: 0.7 },
-  { id: "game-show-host", label: "Game show host", pitch: 1.2, rate: 1.25 },
-  { id: "slow-motion", label: "Slow motion", pitch: 0.5, rate: 0.5 },
-  { id: "sleepy-giant", label: "Sleepy giant", pitch: 0.2, rate: 0.55 },
-  { id: "hushed-threat", label: "Hushed threat", pitch: 0.3, rate: 0.75, volume: 0.4 },
+/** Les timbres du méchant : hauteur (0 à 2), débit et volume (0 à 1) de la synthèse. */
+const CPU_STYLES: { pitch: number; rate: number; volume?: number }[] = [
+  { pitch: 0.1, rate: 0.8 }, // démon
+  { pitch: 0.3, rate: 1.1 }, // grave et pressé
+  { pitch: 0.6, rate: 0.7 }, // méchant de film, très lent
+  { pitch: 1.6, rate: 0.7 }, // méchant de dessin animé
+  { pitch: 1.2, rate: 1.25 }, // animateur de jeu télé
+  { pitch: 0.5, rate: 0.5 }, // ralenti
+  { pitch: 0.2, rate: 0.55 }, // géant ensommeillé
+  { pitch: 0.3, rate: 0.75, volume: 0.4 }, // menace chuchotée
 ];
-
 export class DuelVoices {
   private cast: Record<VoiceRole, Casting> = {
-    player: { voice: null, pitch: PLAYER_STYLE.pitch, rate: PLAYER_STYLE.rate },
+    player: { voice: null, pitch: 1, rate: 1.05 },
     cpu: { voice: null, pitch: 1.9, rate: 1.15 },
   };
   /** Les voix que l'ordinateur peut prendre : toutes, sauf celle du joueur quand l'OS en propose d'autres. */
   private cpuPool: SpeechSynthesisVoice[] = [];
   private lang = "en-US";
   private lastCpu: { voice: SpeechSynthesisVoice | null; style: number } = { voice: null, style: -1 };
+  /** Change à chaque lecture : les morceaux d'une réplique coupée ne sont plus lus. */
+  private seq = 0;
 
   static supported(): boolean {
     return typeof window !== "undefined" && "speechSynthesis" in window && typeof SpeechSynthesisUtterance !== "undefined";
@@ -117,7 +112,7 @@ export class DuelVoices {
     const others = pool.filter((v) => v !== playerVoice);
     this.cpuPool = others.length ? others : pool;
     this.lastCpu = { voice: null, style: -1 };
-    this.cast = { ...this.cast, player: { voice: playerVoice, pitch: PLAYER_STYLE.pitch, rate: PLAYER_STYLE.rate } };
+    this.cast = { ...this.cast, player: { voice: playerVoice, pitch: 1, rate: 1.05 } };
   }
 
   /** Une voix et un timbre neufs pour la prochaine réplique du méchant : jamais deux fois le même timbre de suite. */
@@ -127,8 +122,7 @@ export class DuelVoices {
     const fresh = this.cpuPool.filter((v) => v !== this.lastCpu.voice);
     const voice = pickOne(fresh.length ? fresh : this.cpuPool) ?? null;
     this.lastCpu = { voice, style };
-    const { pitch, rate, volume } = CPU_STYLES[style];
-    this.cast.cpu = { voice, pitch, rate, volume };
+    this.cast.cpu = { voice, ...CPU_STYLES[style] };
   }
 
   /**
@@ -137,13 +131,33 @@ export class DuelVoices {
    * `end`, et le duel ne doit pas rester suspendu à une voix muette.
    */
   speak(text: string, role: VoiceRole): Promise<void> {
-    if (!DuelVoices.supported()) return Promise.resolve();
+    return this.speakParts([text], role, () => Promise.resolve());
+  }
+
+  /**
+   * Lit une réplique en morceaux, avec la même voix d'un bout à l'autre ;
+   * entre deux morceaux marqués `null`, `bleep` joue le bip de censure et
+   * rend la main à la fin de celui-ci. Une lecture lancée entre-temps (ou
+   * `cancel`) interrompt la suite.
+   */
+  async speakParts(parts: (string | null)[], role: VoiceRole, bleep: () => Promise<void>): Promise<void> {
+    if (!DuelVoices.supported()) return;
     const synth = window.speechSynthesis;
     synth.cancel();
+    const seq = ++this.seq;
     // Sans voix installée (Chrome sous Linux sans speech-dispatcher, navigateur
     // headless…), `speak` ne dit rien et n'émet rien : on n'attend pas.
-    if (!synth.getVoices().length) return Promise.resolve();
+    if (!synth.getVoices().length) return;
     if (role === "cpu") this.recastCpu();
+    for (const part of parts) {
+      if (seq !== this.seq) return;
+      if (part === null) await bleep();
+      else if (part.trim()) await this.utter(part, role);
+    }
+  }
+
+  private utter(text: string, role: VoiceRole): Promise<void> {
+    const synth = window.speechSynthesis;
     const { voice, pitch, rate, volume = 1 } = this.cast[role];
     const utterance = new SpeechSynthesisUtterance(text.replace(/…$/, ""));
     if (voice) utterance.voice = voice;
@@ -172,6 +186,7 @@ export class DuelVoices {
   }
 
   cancel(): void {
+    this.seq++;
     if (DuelVoices.supported()) window.speechSynthesis.cancel();
   }
 }

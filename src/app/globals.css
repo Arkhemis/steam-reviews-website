@@ -181,6 +181,37 @@ body {
   animation: duel-bubble 0.35s cubic-bezier(0.2, 0.8, 0.2, 1.2) both;
 }
 
+/* L'insulte qui remplace les « ♥♥♥♥ » de Steam : chaque lettre ondule avec
+   un temps de retard sur la précédente, et saute d'une couleur à l'autre sans
+   transition (steps) plutôt que de glisser le long de l'arc-en-ciel. */
+@keyframes censor-wave {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-0.28em); }
+}
+
+@keyframes censor-rainbow {
+  0% { color: #ff2d55; }
+  16% { color: #ff9500; }
+  33% { color: #ffd60a; }
+  50% { color: #30d158; }
+  66% { color: #0a84ff; }
+  83% { color: #bf5af2; }
+  100% { color: #ff2d55; }
+}
+
+.animate-censor-wave {
+  animation:
+    censor-wave 0.8s ease-in-out infinite,
+    censor-rainbow 0.9s steps(1, end) infinite;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-censor-wave {
+    animation: censor-rainbow 0.9s steps(1, end) infinite;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-battle-fight,
   .animate-battle-line,

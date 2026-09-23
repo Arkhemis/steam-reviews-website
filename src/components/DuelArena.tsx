@@ -3,10 +3,11 @@
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { DuelAudio, type Sfx } from "@/components/duel/sound";
+import { BLEEP_MS, DuelAudio, type Sfx } from "@/components/duel/sound";
 import { DuelVoices, warmUpVoices } from "@/components/duel/voice";
 import { GameSearchCombobox } from "@/components/GameSearchCombobox";
 import { battleHref, RIVALRIES, type Side } from "@/lib/battle";
+import { splitCensored, uncensor } from "@/lib/censored";
 import {
   aiMove,
   BOMB_MULTIPLIER,
@@ -179,12 +180,12 @@ function Fighter({
   pops: Pop[];
   coverRef: React.RefObject<HTMLSpanElement | null>;
   size: "near" | "far";
-  bubble?: { id: number; quote: LogQuote };
+  bubble?: { id: number; quote: LogQuote; language: string; censored: boolean };
 }) {
   return (
     <div className="relative flex flex-col items-center">
       {/* Le joueur, en bas à gauche, parle vers la droite ; l'ordinateur, en haut à droite, vers la gauche. */}
-      {bubble && <Bubble key={bubble.id} quote={bubble.quote} placement={size === "near" ? "right" : "left"} />}
+      {bubble && <Bubble key={bubble.id} quote={bubble.quote} language={bubble.language} censored={bubble.censored} placement={size === "near" ? "right" : "left"} />}
       <span
         ref={coverRef}
         className={`relative block aspect-[2/3] overflow-hidden rounded-[4px] bg-white/5 shadow-[0_18px_50px_rgba(0,0,0,0.6)] transition-[filter,transform] duration-500 ${
@@ -359,8 +360,40 @@ function QuoteFooter({ quote }: { quote: LogQuote }) {
   );
 }
 
+const graphemes = (text: string) => Array.from(new Intl.Segmenter().segment(text), (s) => s.segment);
+
+/**
+ * Le texte d'une review, ses « ♥♥♥♥ » ondulant en arc-en-ciel : rendus en
+ * insulte, ou laissés en cœurs quand le joueur a choisi la version censurée.
+ */
+function CensoredText({ text, language, censored }: { text: string; language: string; censored: boolean }) {
+  return splitCensored(text, language).map((segment, i) =>
+    segment.censored ? (
+      <span key={i} className="font-black not-italic">
+        {graphemes(censored ? segment.hearts : segment.text).map((char, j) => (
+          <span key={j} className="animate-censor-wave inline-block" style={{ animationDelay: `${j * -0.09}s` }}>
+            {char}
+          </span>
+        ))}
+      </span>
+    ) : (
+      segment.text
+    ),
+  );
+}
+
 /** La bulle : la review lancée, qui jaillit de la jaquette de l'attaquant. */
-function Bubble({ quote, placement }: { quote: LogQuote; placement: "right" | "left" }) {
+function Bubble({
+  quote,
+  placement,
+  language,
+  censored,
+}: {
+  quote: LogQuote;
+  placement: "right" | "left";
+  language: string;
+  censored: boolean;
+}) {
   const accent = quote.fan ? "#5cc26b" : "#d03b3b";
   return (
     <span
@@ -380,7 +413,9 @@ function Bubble({ quote, placement }: { quote: LogQuote; placement: "right" | "l
         }`}
         style={{ borderColor: accent }}
       />
-      <span className="line-clamp-4 font-semibold italic">“{quote.text}”</span>
+      <span className="line-clamp-4 font-semibold italic">
+        “<CensoredText text={quote.text} language={language} censored={censored} />”
+      </span>
       <span className="mt-1 block font-mono text-[9px] tracking-[0.06em] uppercase" style={{ color: accent }}>
         {quote.fan ? "👍" : "👎"} {quote.author ?? (quote.fan ? "the fans" : "the haters")}
         {quote.author && quote.hours !== undefined ? ` · ${hoursLabel(quote.hours)}` : ""}
@@ -473,6 +508,8 @@ export function DuelArena({ left, right, language, languages }: Props) {
   const voicesRef = useRef<DuelVoices | null>(null);
   // Les callbacks du duel lisent ces réglages sans dépendre de leur rendu.
   const speechEnabled = useRef(true);
+  const [censoredOn, setCensoredOn] = useState(false);
+  const censorship = useRef(false);
   const speechToken = useRef(0);
   /** Change à chaque duel : une suite de tour d'un duel abandonné ne joue plus. */
   const generation = useRef(0);
@@ -618,13 +655,28 @@ export function DuelArena({ left, right, language, languages }: Props) {
       // main dès la fin de l'animation, et son coup coupe la voix adverse.
       let speech: Promise<void> = Promise.resolve();
       const voices = voicesRef.current;
+      const role = event.actor === player ? "player" : "cpu";
       if (quote && voices && speechEnabled.current) {
         audio?.duck(true);
         // Une voix coupée par la suivante finit elle aussi : seule la dernière rend le volume.
         const token = ++speechToken.current;
-        speech = voices.speak(quote.text, event.actor === player ? "player" : "cpu").then(() => {
+        // Censurée, la voix s'interrompt sur un bip à la place de chaque insulte.
+        const said = censorship.current
+          ? voices.speakParts(
+              splitCensored(quote.text, language).map((s) => (s.censored ? null : s.text)),
+              role,
+              () => {
+                audio?.play("bleep");
+                return new Promise((done) => later(done, BLEEP_MS));
+              },
+            )
+          : voices.speak(uncensor(quote.text, language), role);
+        speech = said.then(() => {
           if (token === speechToken.current) audio?.duck(false);
         });
+      } else if (quote && censorship.current && splitCensored(quote.text, language).some((s) => s.censored)) {
+        // Sans voix, le bip seul marque la censure.
+        sound("bleep", 150);
       }
       const gen = generation.current;
       const settled = new Promise<void>((done) => later(done, TURN_MS));
@@ -661,7 +713,9 @@ export function DuelArena({ left, right, language, languages }: Props) {
   function startSound() {
     let musicOff = muted;
     let voices = voicesOn;
+    let censored = censoredOn;
     try {
+      censored = window.localStorage.getItem("duel-censored") === "1";
       musicOff = window.localStorage.getItem("duel-music") === "0";
       voices = window.localStorage.getItem("duel-voices") !== "0";
     } catch {
@@ -669,6 +723,8 @@ export function DuelArena({ left, right, language, languages }: Props) {
     }
     setVoicesOn(voices);
     speechEnabled.current = voices;
+    setCensoredOn(censored);
+    censorship.current = censored;
     const cast = (voicesRef.current ??= DuelVoices.supported() ? new DuelVoices() : null);
     cast?.cancel();
     cast?.recast(language);
@@ -701,6 +757,19 @@ export function DuelArena({ left, right, language, languages }: Props) {
       if (!next) voicesRef.current?.cancel();
       try {
         window.localStorage.setItem("duel-voices", next ? "1" : "0");
+      } catch {
+        // Stockage indisponible : le réglage vaut pour cette page seulement.
+      }
+      return next;
+    });
+  }, []);
+
+  const toggleCensored = useCallback(() => {
+    setCensoredOn((was) => {
+      const next = !was;
+      censorship.current = next;
+      try {
+        window.localStorage.setItem("duel-censored", next ? "1" : "0");
       } catch {
         // Stockage indisponible : le réglage vaut pour cette page seulement.
       }
@@ -897,7 +966,7 @@ export function DuelArena({ left, right, language, languages }: Props) {
   const won = snap.over && snap.winner === player;
 
   // À la fin, la bulle céderait la place au verdict : la review reste dans le journal.
-  const bubbleFor = (side: Side) => (bubble && bubble.side === side && !snap.over ? bubble : undefined);
+  const bubbleFor = (side: Side) => (bubble && bubble.side === side && !snap.over ? { ...bubble, language, censored: censoredOn } : undefined);
 
   return (
     <div>
@@ -925,6 +994,15 @@ export function DuelArena({ left, right, language, languages }: Props) {
                 {voicesOn ? "🗣 voices on" : "🤐 voices off"}
               </button>
             )}
+            <button
+              type="button"
+              onClick={toggleCensored}
+              aria-pressed={censoredOn}
+              aria-label={censoredOn ? "Show swear words" : "Bleep swear words"}
+              className={CHIP}
+            >
+              {censoredOn ? "♥ censored" : "🤬 uncensored"}
+            </button>
             <AudioCredits />
           </div>
           {/* Le sol en perspective : une grille qui fuit vers l'horizon. */}
@@ -1006,7 +1084,7 @@ export function DuelArena({ left, right, language, languages }: Props) {
                       className="mt-1.5 border-l-2 pl-2.5 text-[12px] leading-snug text-[#9fb2bd] italic"
                       style={{ borderColor: line.quote.fan ? "#5cc26b" : "#d03b3b" }}
                     >
-                      “{line.quote.text}”
+                      “<CensoredText text={line.quote.text} language={language} censored={censoredOn} />”
                       <QuoteFooter quote={line.quote} />
                     </blockquote>
                   )}

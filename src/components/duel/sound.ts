@@ -19,7 +19,8 @@ export type Sfx =
   | "heal"
   | "skip"
   | "victory"
-  | "defeat";
+  | "defeat"
+  | "bleep";
 
 const midi = (note: number) => 440 * 2 ** ((note - 69) / 12);
 
@@ -36,6 +37,9 @@ const MELODY: (number | null)[] = [
   69, null, 72, 74, 76, null, 74, 72, 69, null, 67, 69, null, null, 64, null,
   67, null, 69, 72, 74, null, 72, 74, 76, 79, 76, 74, 72, null, 71, null,
 ];
+
+/** La durée du bip de censure, en millisecondes. */
+export const BLEEP_MS = 450;
 
 const MUSIC_VOLUME = 0.32;
 const SFX_VOLUME = 0.8;
@@ -293,6 +297,22 @@ export class DuelAudio {
         for (const n of [72, 76, 79, 84]) this.tone(bus, "square", midi(n), t + 0.42, 0.9, 0.07);
         this.tone(bus, "triangle", midi(48), t + 0.42, 0.9, 0.3);
         break;
+      case "bleep": {
+        // Le bip de la télé : un 1 kHz pur et plat, qui tient toute sa durée.
+        if (!bus) break;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const end = t + BLEEP_MS / 1000;
+        osc.frequency.setValueAtTime(1000, t);
+        gain.gain.setValueAtTime(0.0001, t);
+        gain.gain.linearRampToValueAtTime(0.18, t + 0.01);
+        gain.gain.setValueAtTime(0.18, end - 0.01);
+        gain.gain.linearRampToValueAtTime(0.0001, end);
+        osc.connect(gain).connect(bus);
+        osc.start(t);
+        osc.stop(end + 0.02);
+        break;
+      }
       case "defeat":
         [67, 66, 65, 64].forEach((n, i) => this.tone(bus, "sawtooth", midi(n), t + i * 0.28, i === 3 ? 0.9 : 0.26, 0.08));
         this.tone(bus, "triangle", midi(40), t + 0.84, 0.9, 0.25);
