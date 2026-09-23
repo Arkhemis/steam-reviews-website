@@ -1,49 +1,49 @@
 import { Nav } from "@/components/Nav";
 import { Skeleton } from "@/components/Skeleton";
 
-// Le battle attend deux `getGameStats` avant de rendre quoi que ce soit. On
-// réserve les deux jaquettes et les six barres comparatives de `page.tsx` pour
-// que l'arrivée des données ne pousse pas la page vers le bas.
-const STATS = 6;
+// Le battle attend les deux fiches avant de rendre l'arène. On réserve le HUD,
+// les deux combattants, le bandeau du commentateur et les rounds de
+// `BattleArena`, pour que l'arrivée des données ne pousse pas la page.
+const ROUNDS = 6;
 
 export default function Loading() {
   return (
     <div className="min-h-screen bg-[#0c1116] text-[#eef2f4]">
-      <div className="mx-auto max-w-[1320px] px-5 py-8 sm:px-7">
-        <Nav />
+      <Nav variant="banded" />
 
-        <p className="mt-6 text-center text-sm text-[#9fb2bd]">
-          Head-to-head computed entirely from the data already collected — no vote, no account.
-        </p>
-
-        <div className="mt-6 flex items-center justify-center gap-8">
-          {[0, 1].map((i) => (
-            <div key={i} className="flex flex-col items-center gap-2">
-              <Skeleton className="h-24 w-24 rounded-2xl" />
-              <Skeleton className="h-6 w-36" />
-              <Skeleton className="h-8 w-20" />
-            </div>
-          ))}
-        </div>
-
-        <div className="mx-auto mt-6 max-w-2xl space-y-4">
-          {Array.from({ length: STATS }, (_, i) => (
-            <div key={i}>
-              <Skeleton className="mx-auto mb-1 h-3 w-40" />
-              <div className="flex items-center gap-3">
-                <Skeleton className="h-4 w-16" />
-                <Skeleton className="h-2.5 flex-1" />
-                <Skeleton className="h-4 w-16" />
+      <section className="border-b border-[#1a2530] bg-[linear-gradient(115deg,#2a1206_0%,#0c1116_50%,#071526_100%)]">
+        <div className="mx-auto max-w-[1320px] px-5 pt-6 pb-8 sm:px-8 sm:pt-7 sm:pb-10">
+          <div className="flex items-end gap-3 sm:gap-6">
+            <Skeleton className="h-[34px] flex-1" />
+            <Skeleton className="h-[34px] w-12" />
+            <Skeleton className="h-[34px] flex-1" />
+          </div>
+          <div className="mt-8 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 sm:mt-10 sm:gap-8">
+            {[0, 1].map((i) => (
+              <div key={i} className={`flex flex-col gap-3 ${i === 1 ? "order-3 items-end" : "items-start"}`}>
+                <Skeleton className="aspect-[2/3] w-[110px] rounded-[4px] sm:w-[170px]" />
+                <Skeleton className="h-8 w-40 sm:w-56" />
+                <Skeleton className="h-6 w-28" />
+                <Skeleton className="h-[30px] w-full max-w-[240px] rounded-full" />
               </div>
-            </div>
-          ))}
+            ))}
+            <span className="order-2 text-5xl font-black text-white/10 italic sm:text-8xl">VS</span>
+          </div>
+          <div className="mt-8 flex min-h-[112px] flex-col items-center justify-center gap-2">
+            <Skeleton className="h-2.5 w-40" />
+            <Skeleton className="h-6 w-80 max-w-full" />
+          </div>
         </div>
+      </section>
 
-        <Skeleton className="mx-auto mt-8 mb-3 h-3 w-56" />
-        <div className="mx-auto grid max-w-2xl grid-cols-1 gap-3 sm:grid-cols-2">
-          {[0, 1].map((i) => (
-            <Skeleton key={i} className="h-40 w-full rounded-xl" />
-          ))}
+      <div className="px-5 py-8 sm:px-8">
+        <div className="mx-auto max-w-[980px]">
+          <Skeleton className="mb-[18px] h-8 w-56" />
+          <div className="grid gap-2.5">
+            {Array.from({ length: ROUNDS }, (_, i) => (
+              <Skeleton key={i} className="h-[98px] w-full rounded-md" />
+            ))}
+          </div>
         </div>
       </div>
     </div>

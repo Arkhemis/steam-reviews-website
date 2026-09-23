@@ -1,0 +1,965 @@
+"use client";
+
+import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import type { BattleFighter } from "@/components/BattleArena";
+import { DuelAudio, type Sfx } from "@/components/duel/sound";
+import { DuelVoices, warmUpVoices } from "@/components/duel/voice";
+import { GameSearchCombobox } from "@/components/GameSearchCombobox";
+import { battleHref, RIVALRIES, type Side } from "@/lib/battle";
+import {
+  aiMove,
+  BOMB_MULTIPLIER,
+  bombAccuracy,
+  canUse,
+  createDuel,
+  opponent,
+  PATCH_HEAL,
+  REFUND_MULTIPLIER,
+  takeTurn,
+  SUCKS_ACCURACY,
+  type DuelEvent,
+  type DuelState,
+  type DuelStats,
+  type MoveId,
+} from "@/lib/duel";
+
+// L'arène de Battle 3 : le joueur choisit son jeu, l'ordinateur prend l'autre,
+// et chacun joue un coup à son tour. Le moteur (`@/lib/duel`) tient l'état ;
+// ce composant n'en garde qu'un instantané pour le rendu, et enchaîne les
+// tours de l'ordinateur au rythme des animations.
+
+export type DuelQuote = { text: string; author: string; hours: number };
+
+export type DuelCorner = {
+  fighter: BattleFighter;
+  stats: DuelStats;
+  /** Les chiffres de Steam derrière chaque stat, déjà formatés. */
+  sources: { reviews: string; hours: string; positive: string; refunded: string; deck: string };
+  /** Répliques tirées des reviews anglaises les plus votées : fans et haters. */
+  cheers: DuelQuote[];
+  jeers: DuelQuote[];
+};
+
+const SIDE_COLOR: Record<Side, string> = { left: "var(--color-brand-blue)", right: "var(--series-1)" };
+/** Le temps d'un tour à l'écran : l'élan, le choc, le chiffre qui s'envole. */
+const TURN_MS = 1900;
+
+const MOVE_KEYS: MoveId[] = ["sucks", "bomb", "refund", "patch"];
+
+const MOVE_NAME: Record<MoveId, string> = {
+  sucks: "Your Game Sucks",
+  bomb: "Review Bomb",
+  refund: "Refund Request",
+  patch: "Patch Day",
+};
+
+type Snapshot = Pick<DuelState, "hp" | "turn" | "stunned" | "bombCooldown" | "patches" | "over" | "winner" | "turns">;
+
+function snapshot(s: DuelState): Snapshot {
+  return {
+    hp: { ...s.hp },
+    turn: s.turn,
+    stunned: { ...s.stunned },
+    bombCooldown: { ...s.bombCooldown },
+    patches: { ...s.patches },
+    over: s.over,
+    winner: s.winner,
+    turns: s.turns,
+  };
+}
+
+type LogLine = { id: number; actor: Side | null; text: string; quote?: LogQuote };
+
+type Pop = { id: number; side: Side; text: string; tone: "damage" | "crit" | "heal" | "info" };
+
+function prefersReducedMotion(): boolean {
+  return typeof window !== "undefined" && (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false);
+}
+
+/** Une graine neuve par duel : hors du composant, le tirage n'a rien d'un rendu. */
+function freshSeed(): number {
+  return (Math.random() * 2 ** 32) >>> 0;
+}
+
+const pct = (x: number) => `${Math.round(x * 100)}%`;
+const hoursLabel = (h: number) => `${new Intl.NumberFormat("en-US").format(h)}h`;
+
+// --- Pièces d'interface ------------------------------------------------------
+
+function HpBar({ hp, max }: { hp: number; max: number }) {
+  const share = max > 0 ? hp / max : 0;
+  const color = share > 0.5 ? "#5cc26b" : share > 0.2 ? "#e0b341" : "#d03b3b";
+  return (
+    <div>
+      <div className="relative h-2.5 overflow-hidden rounded-[2px] bg-[#05080b]">
+        {/* La traîne blanche rattrape la barre avec retard : on voit le coup encaissé. */}
+        <div className="absolute inset-y-0 left-0 bg-white/60 transition-[width] delay-300 duration-700" style={{ width: `${share * 100}%` }} />
+        <div className="absolute inset-y-0 left-0 transition-[width,background-color] duration-300" style={{ width: `${share * 100}%`, backgroundColor: color }} />
+      </div>
+      <div className="mt-1 text-right font-mono text-[11px] text-[#9fb2bd]">
+        <span className="text-[#eef2f4]">{hp}</span>/{max} HP
+      </div>
+    </div>
+  );
+}
+
+function InfoBox({
+  side,
+  corner,
+  hp,
+  role,
+  stunned,
+  active,
+}: {
+  side: Side;
+  corner: DuelCorner;
+  hp: number;
+  role: "you" | "cpu";
+  stunned: boolean;
+  active: boolean;
+}) {
+  return (
+    <div
+      className={`w-full max-w-[340px] rounded-md border bg-[#0a0f14]/90 p-3 backdrop-blur transition-shadow ${
+        active ? "shadow-[0_0_0_1px_rgba(255,255,255,0.18),0_10px_40px_rgba(0,0,0,0.5)]" : ""
+      }`}
+      style={{ borderColor: "#1e2b36", borderTopColor: SIDE_COLOR[side], borderTopWidth: 3 }}
+    >
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="font-mono text-[10px] tracking-[0.14em] uppercase" style={{ color: SIDE_COLOR[side] }}>
+          {role === "you" ? "you" : "cpu"}
+          {active && <span className="ml-1.5 text-[#eef2f4]">· to move</span>}
+        </span>
+        {stunned && (
+          <span className="rounded-[3px] bg-[#d03b3b] px-1.5 py-0.5 font-mono text-[9px] font-bold tracking-[0.1em] text-[#0c1116] uppercase">
+            refund pending
+          </span>
+        )}
+      </div>
+      <div className="mt-0.5 line-clamp-1 text-[17px] leading-tight font-extrabold tracking-tight">{corner.fighter.name}</div>
+      <div className="mt-2">
+        <HpBar hp={hp} max={corner.stats.maxHp} />
+      </div>
+      <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-[10px] tracking-[0.06em] text-[#7d919c] uppercase">
+        <span title={`Crit chance, from ${corner.sources.reviews} reviews`}>crit {pct(corner.stats.crit)}</span>
+        <span title={`Dodge chance, from ${corner.sources.deck} Steam Deck share`}>dodge {pct(corner.stats.dodge)}</span>
+        <span title={`Chance a Refund Request stuns it, from ${corner.sources.refunded} refunded`}>
+          refund risk {pct(corner.stats.refundWeakness)}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function Fighter({
+  side,
+  corner,
+  state,
+  pops,
+  coverRef,
+  size,
+  bubble,
+}: {
+  side: Side;
+  corner: DuelCorner;
+  state: "fighting" | "winner" | "loser";
+  pops: Pop[];
+  coverRef: React.RefObject<HTMLSpanElement | null>;
+  size: "near" | "far";
+  bubble?: { id: number; quote: LogQuote };
+}) {
+  return (
+    <div className="relative flex flex-col items-center">
+      {/* Le joueur, en bas à gauche, parle vers la droite ; l'ordinateur, en haut à droite, vers la gauche. */}
+      {bubble && <Bubble key={bubble.id} quote={bubble.quote} placement={size === "near" ? "right" : "left"} />}
+      <span
+        ref={coverRef}
+        className={`relative block aspect-[2/3] overflow-hidden rounded-[4px] bg-white/5 shadow-[0_18px_50px_rgba(0,0,0,0.6)] transition-[filter,transform] duration-500 ${
+          size === "near" ? "w-[108px] sm:w-[170px]" : "w-[88px] sm:w-[136px]"
+        } ${state === "loser" ? "rotate-[-4deg] grayscale" : ""}`}
+        style={{ outline: `2px solid ${state === "winner" ? SIDE_COLOR[side] : "transparent"}`, outlineOffset: 3 }}
+      >
+        {corner.fighter.coverUrl && <Image src={corner.fighter.coverUrl} alt="" fill sizes="170px" priority className="object-cover" />}
+        {state === "winner" && <Image src="/chad.png" alt="" fill sizes="170px" className="animate-chad-blink object-cover" />}
+        {state === "loser" && (
+          <span className="animate-battle-ko absolute inset-0 flex items-center justify-center bg-[#0c1116]/55 font-mono text-2xl font-black tracking-[0.1em] text-[#d03b3b] sm:text-4xl">
+            K.O.
+          </span>
+        )}
+      </span>
+      {/* Le socle : une ellipse de lumière aux couleurs du camp. */}
+      <span
+        aria-hidden
+        className="-mt-3 h-6 w-[150%] rounded-[50%] opacity-70 blur-[2px]"
+        style={{ background: `radial-gradient(closest-side, color-mix(in srgb, ${SIDE_COLOR[side]} 55%, transparent), transparent)` }}
+      />
+      {pops.map((pop) => (
+        <span
+          key={pop.id}
+          className={`animate-duel-pop pointer-events-none absolute top-1/3 left-1/2 font-mono font-black whitespace-nowrap drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)] ${
+            pop.tone === "crit" ? "text-3xl text-[#ffd166] sm:text-4xl" : "text-2xl sm:text-3xl"
+          }`}
+          style={{ color: pop.tone === "heal" ? "#5cc26b" : pop.tone === "info" ? "#eef2f4" : pop.tone === "damage" ? "#ff5a4f" : undefined }}
+        >
+          {pop.text}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function MoveButton({
+  move,
+  index,
+  corner,
+  foe,
+  cooldown,
+  patches,
+  disabled,
+  onPlay,
+}: {
+  move: MoveId;
+  index: number;
+  corner: DuelCorner;
+  foe: DuelCorner;
+  cooldown: number;
+  patches: number;
+  disabled: boolean;
+  onPlay: (move: MoveId) => void;
+}) {
+  const { stats } = corner;
+  const detail: Record<MoveId, { main: string; hint: string }> = {
+    sucks: {
+      main: `${stats.power} dmg · ${pct(SUCKS_ACCURACY)} acc`,
+      hint: `power from ${corner.sources.positive} positive`,
+    },
+    bomb: {
+      main: `${Math.round(stats.power * BOMB_MULTIPLIER)} dmg · ${pct(bombAccuracy(stats))} acc`,
+      hint: cooldown > 0 ? `recharging · ${cooldown} turn${cooldown > 1 ? "s" : ""}` : "a miss blows up in your face",
+    },
+    refund: {
+      main: `${Math.round(stats.power * REFUND_MULTIPLIER)} dmg · ${pct(foe.stats.refundWeakness)} stun`,
+      hint: `stun from their ${foe.sources.refunded} refund rate`,
+    },
+    patch: {
+      main: `+${Math.round(stats.maxHp * PATCH_HEAL)} HP`,
+      hint: `${patches} patch${patches === 1 ? "" : "es"} left`,
+    },
+  };
+  return (
+    <button
+      type="button"
+      onClick={() => onPlay(move)}
+      disabled={disabled}
+      className="group relative rounded-md border border-[#24333f] bg-[#0c1116] px-3 py-2.5 text-left transition-colors enabled:hover:border-brand-blue enabled:hover:bg-[#111a21] disabled:opacity-40"
+    >
+      <span className="absolute top-2 right-2.5 hidden font-mono text-[10px] text-[#5f7481] sm:inline">{index + 1}</span>
+      <span className="block text-[15px] leading-tight font-extrabold tracking-tight group-enabled:group-hover:text-brand-blue">
+        {MOVE_NAME[move]}
+      </span>
+      <span className="mt-1 block font-mono text-[11px] text-[#cfdae1]">{detail[move].main}</span>
+      <span className="mt-0.5 block font-mono text-[10px] text-[#7d919c]">{detail[move].hint}</span>
+    </button>
+  );
+}
+
+// --- Récit -------------------------------------------------------------------
+
+/**
+ * La review qu'un coup brandit. Patch Day lance une review positive du jeu
+ * qui joue ; les trois attaques, une négative du jeu visé. Sans review en
+ * vedette, une réplique toute faite.
+ */
+type LogQuote = { text: string; fan: boolean; of: string; author?: string; hours?: number };
+
+const CANNED: Record<MoveId, string> = {
+  sucks: "Uninstalled. Best decision of my life.",
+  patch: "Bug fixes and performance improvements.",
+  bomb: "Mostly Negative. Do not buy.",
+  refund: "Played 1.9 hours. Refunded.",
+};
+
+/** Seul le soin vient des fans : toute attaque cite un hater de l'adversaire. */
+const isFanMove = (move: MoveId) => move === "patch";
+
+function quoteFor(move: MoveId, actor: Side, corners: Record<Side, DuelCorner>, count: number): LogQuote {
+  const fan = isFanMove(move);
+  const owner = corners[fan ? actor : opponent(actor)];
+  const pool = fan ? owner.cheers : owner.jeers;
+  const quote = pool.length ? pool[count % pool.length] : undefined;
+  return quote
+    ? { text: quote.text, fan, of: owner.fighter.name, author: quote.author, hours: quote.hours }
+    : { text: CANNED[move], fan, of: owner.fighter.name };
+}
+
+/** La réplique d'un tour, en prose. */
+function narrate(event: DuelEvent, corners: Record<Side, DuelCorner>): string {
+  const me = corners[event.actor];
+  const a = me.fighter.name;
+  const b = corners[opponent(event.actor)].fighter.name;
+
+  switch (event.outcome) {
+    case "skip":
+      return `${a} is still processing refunds and loses the turn.`;
+    case "heal":
+      return `${a} ships a patch: +${event.heal} HP.`;
+    case "backfire":
+      return `The Review Bomb blows up in ${a}'s face: ${event.selfDamage} damage to itself.`;
+    case "miss":
+      return `${a}'s ${MOVE_NAME[event.move!]} whiffs. Nobody found that helpful.`;
+    case "dodge":
+      return `${b} sidesteps the ${MOVE_NAME[event.move!]}: it was playing on a Steam Deck.`;
+    default: {
+      const crit = event.outcome === "crit" ? `Critical! ${me.sources.reviews} reviewers roar. ` : "";
+      if (event.move === "bomb") return `${crit}${a} drops a Review Bomb on ${b}: ${event.damage} damage.`;
+      if (event.move === "refund") {
+        const tail = event.stunned ? `${b} is stuck processing it and loses its next turn.` : `${b}'s players keep their copies.`;
+        return `${crit}${a} files a Refund Request: ${event.damage} damage. ${tail}`;
+      }
+      return `${crit}${a} tells ${b} its game sucks: ${event.damage} damage.`;
+    }
+  }
+}
+
+function QuoteFooter({ quote }: { quote: LogQuote }) {
+  return (
+    <span className="mt-1 block font-mono text-[9px] tracking-[0.06em] text-[#5f7481] not-italic uppercase">
+      {quote.author
+        ? `${quote.fan ? "a fan" : "a hater"} of ${quote.of}, ${hoursLabel(quote.hours ?? 0)} played · ${quote.author}`
+        : `${quote.fan ? "the fans" : "the haters"} of ${quote.of}`}
+    </span>
+  );
+}
+
+/** La bulle : la review lancée, qui jaillit de la jaquette de l'attaquant. */
+function Bubble({ quote, placement }: { quote: LogQuote; placement: "right" | "left" }) {
+  const accent = quote.fan ? "#5cc26b" : "#d03b3b";
+  return (
+    <span
+      className={`animate-duel-bubble pointer-events-none absolute z-20 block rounded-[10px] border-2 bg-[#eef2f4] px-3 py-2 text-left text-[12px] leading-snug text-[#0c1116] shadow-[0_12px_40px_rgba(0,0,0,0.6)] max-sm:text-[11px] sm:w-[280px] sm:text-[13px] ${
+        // L'ordinateur parle depuis le bas de sa jaquette : plus haut, la bulle couvrirait sa barre de vie.
+        placement === "right"
+          ? "top-2 left-[calc(100%+14px)] w-[min(260px,52vw)] origin-top-left"
+          : "-bottom-10 right-[calc(100%+12px)] w-[min(260px,calc(100vw-256px))] origin-bottom-right"
+      }`}
+      style={{ borderColor: accent }}
+    >
+      {/* La pointe de la bulle, tournée vers la jaquette. */}
+      <span
+        aria-hidden
+        className={`absolute h-3 w-3 rotate-45 border-2 bg-[#eef2f4] ${
+          placement === "right" ? "top-4 -left-[8px] border-t-0 border-r-0" : "bottom-12 -right-[8px] border-b-0 border-l-0"
+        }`}
+        style={{ borderColor: accent }}
+      />
+      <span className="line-clamp-4 font-semibold italic">“{quote.text}”</span>
+      <span className="mt-1 block font-mono text-[9px] tracking-[0.06em] uppercase" style={{ color: accent }}>
+        {quote.fan ? "👍" : "👎"} {quote.author ?? (quote.fan ? "the fans" : "the haters")}
+        {quote.author && quote.hours !== undefined ? ` · ${hoursLabel(quote.hours)}` : ""}
+      </span>
+    </span>
+  );
+}
+
+// --- Arène -------------------------------------------------------------------
+
+type Props = { left: DuelCorner; right: DuelCorner };
+
+export function DuelArena({ left, right }: Props) {
+  const router = useRouter();
+  const [isNavigating, startNavigation] = useTransition();
+  const corners: Record<Side, DuelCorner> = { left, right };
+
+  const duelRef = useRef<DuelState | null>(null);
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const nextId = useRef(1);
+  /** Reviews déjà lancées par réserve (fans/haters de chaque camp) : on les fait tourner. */
+  const quoteCount = useRef<Record<string, number>>({});
+  const logRef = useRef<HTMLDivElement>(null);
+  const coverRefs = { left: useRef<HTMLSpanElement>(null), right: useRef<HTMLSpanElement>(null) };
+
+  const [player, setPlayer] = useState<Side | null>(null);
+  const [snap, setSnap] = useState<Snapshot | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [log, setLog] = useState<LogLine[]>([]);
+  const [pops, setPops] = useState<Pop[]>([]);
+  const [bubble, setBubble] = useState<{ id: number; side: Side; quote: LogQuote } | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [muted, setMuted] = useState(false);
+  const audioRef = useRef<DuelAudio | null>(null);
+  const [voicesOn, setVoicesOn] = useState(true);
+  const voicesRef = useRef<DuelVoices | null>(null);
+  // Les callbacks du duel lisent ces réglages sans dépendre de leur rendu.
+  const speechEnabled = useRef(true);
+  const speechToken = useRef(0);
+  const voicesOnRef = useRef(true);
+  const mutedRef = useRef(false);
+  /** Change à chaque duel : une suite de tour d'un duel abandonné ne joue plus. */
+  const generation = useRef(0);
+
+  const later = useCallback((fn: () => void, ms: number) => {
+    timers.current.push(setTimeout(fn, ms));
+  }, []);
+
+  useEffect(
+    () => () => {
+      timers.current.forEach(clearTimeout);
+      generation.current++;
+      audioRef.current?.dispose();
+      voicesRef.current?.cancel();
+    },
+    [],
+  );
+
+  // Chrome charge la liste des voix en différé : on la demande dès l'arrivée.
+  useEffect(() => warmUpVoices(() => {}), []);
+
+  const sound = useCallback((sfx: Sfx, delayMs = 0) => audioRef.current?.play(sfx, delayMs), []);
+
+  const pop = useCallback(
+    (side: Side, text: string, tone: Pop["tone"]) => {
+      const id = nextId.current++;
+      setPops((list) => [...list, { id, side, text, tone }]);
+      later(() => setPops((list) => list.filter((p) => p.id !== id)), 1200);
+    },
+    [later],
+  );
+
+  const animate = useCallback(
+    (event: DuelEvent) => {
+      const reduced = prefersReducedMotion();
+      const actorEl = coverRefs[event.actor].current;
+      const target = opponent(event.actor);
+      const targetEl = coverRefs[target].current;
+      // L'attaquant prend son élan vers l'adversaire : en diagonale, comme la scène.
+      const toward = event.actor === player ? { x: 28, y: -18 } : { x: -28, y: 18 };
+      if (!reduced && event.move && event.move !== "patch") {
+        actorEl?.animate?.(
+          [
+            { transform: "translate(0,0)" },
+            { transform: `translate(${toward.x}px, ${toward.y}px) scale(1.06)` },
+            { transform: "translate(0,0)" },
+          ],
+          { duration: 420, easing: "ease-in-out" },
+        );
+      }
+      const shake = (el: HTMLSpanElement | null, strong: boolean) => {
+        if (reduced || !el) return;
+        const d = strong ? 14 : 8;
+        el.animate?.(
+          [
+            { transform: "translateX(0)", filter: "brightness(1)" },
+            { transform: `translateX(${-d}px) rotate(-2deg)`, filter: "brightness(2.4) saturate(0.3)" },
+            { transform: `translateX(${d * 0.7}px) rotate(1deg)`, filter: "brightness(1.3)" },
+            { transform: "translateX(0)", filter: "brightness(1)" },
+          ],
+          { duration: strong ? 520 : 380, delay: 200, easing: "ease-out" },
+        );
+      };
+
+      switch (event.outcome) {
+        case "hit":
+        case "stun":
+        case "crit":
+          shake(targetEl, event.outcome === "crit" || event.move === "bomb");
+          later(() => pop(target, `-${event.damage}`, event.outcome === "crit" ? "crit" : "damage"), 220);
+          sound(event.move === "bomb" ? "bomb" : event.move === "refund" ? "refund" : "hit", 200);
+          if (event.outcome === "crit") sound("crit", 220);
+          if (event.stunned) {
+            later(() => pop(target, "REFUND?", "info"), 650);
+            sound("stun", 650);
+          }
+          break;
+        case "backfire":
+          shake(actorEl, true);
+          sound("backfire", 200);
+          later(() => pop(event.actor, `-${event.selfDamage}`, "damage"), 220);
+          break;
+        case "dodge":
+          if (!reduced) {
+            targetEl?.animate?.(
+              [{ transform: "translateX(0)" }, { transform: "translateX(26px) rotate(4deg)" }, { transform: "translateX(0)" }],
+              { duration: 420, delay: 150, easing: "ease-out" },
+            );
+          }
+          later(() => pop(target, "DODGED", "info"), 200);
+          sound("dodge", 150);
+          break;
+        case "miss":
+          later(() => pop(target, "MISS", "info"), 200);
+          sound("miss", 120);
+          break;
+        case "heal":
+          later(() => pop(event.actor, `+${event.heal}`, "heal"), 100);
+          sound("heal", 60);
+          break;
+        case "skip":
+          later(() => pop(event.actor, "…", "info"), 100);
+          sound("skip", 80);
+          break;
+      }
+    },
+    // Les refs des jaquettes sont stables ; seul le camp du joueur oriente l'élan.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [player, pop, later, sound],
+  );
+
+  // Joue un tour — celui du joueur ou de l'ordinateur — puis enchaîne. Le tour
+  // suivant passe par une ref : un callback ne peut pas s'appeler lui-même.
+  const resolveRef = useRef<(move: MoveId) => void>(() => {});
+  const resolve = useCallback(
+    (move: MoveId) => {
+      const duel = duelRef.current;
+      if (!duel || duel.over || !player) return;
+      const event = takeTurn(duel, move);
+      let quote: LogQuote | undefined;
+      if (event.move) {
+        const fan = isFanMove(event.move);
+        const key = `${fan ? "cheer" : "jeer"}-${fan ? event.actor : opponent(event.actor)}`;
+        const count = quoteCount.current[key] ?? 0;
+        quoteCount.current[key] = count + 1;
+        quote = quoteFor(event.move, event.actor, corners, count);
+      }
+      const id = nextId.current++;
+      setSnap(snapshot(duel));
+      setLog((lines) => [...lines, { id, actor: event.actor, text: narrate(event, corners), quote }]);
+      setBubble(quote ? { id, side: event.actor, quote } : null);
+      animate(event);
+      const audio = audioRef.current;
+      if (duel.over) {
+        audio?.stopMusic(0.6);
+        sound(duel.winner === player ? "victory" : "defeat", 750);
+      } else {
+        audio?.setDanger(duel.hp.left / duel.stats.left.maxHp < 0.3 || duel.hp.right / duel.stats.right.maxHp < 0.3);
+      }
+      setBusy(true);
+
+      // La review est lue à voix haute. L'ordinateur laisse finir la réplique
+      // du joueur (4 s au plus) avant de répondre ; le joueur, lui, reprend la
+      // main dès la fin de l'animation, et son coup coupe la voix adverse.
+      let speech: Promise<void> = Promise.resolve();
+      const voices = voicesRef.current;
+      if (quote && voices && speechEnabled.current) {
+        audio?.duck(true);
+        // Une voix coupée par la suivante finit elle aussi : seule la dernière rend le volume.
+        const token = ++speechToken.current;
+        speech = voices.speak(quote.text, event.actor === player ? "player" : "cpu").then(() => {
+          if (token === speechToken.current) audio?.duck(false);
+        });
+      }
+      const gen = generation.current;
+      const settled = new Promise<void>((done) => later(done, TURN_MS));
+      const cpuNext = !duel.over && (duel.turn !== player || duel.stunned[duel.turn]);
+      const listened = cpuNext
+        ? Promise.race([speech, new Promise<void>((done) => later(done, TURN_MS + 4000))])
+        : Promise.resolve();
+      void Promise.all([listened, settled]).then(() => {
+        if (gen !== generation.current) return;
+        if (duel.over) {
+          setBusy(false);
+          return;
+        }
+        // Au tour de l'ordinateur, ou d'un joueur bloqué par un remboursement :
+        // le moteur ignore le coup et fait sauter le tour.
+        if (duel.turn !== player || duel.stunned[duel.turn]) {
+          resolveRef.current(duel.turn === player ? "sucks" : aiMove(duel));
+        } else {
+          setBusy(false);
+        }
+      });
+    },
+    // `corners` change à chaque rendu mais ne dépend que des props.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [player, animate, later, sound, left, right],
+  );
+
+  useEffect(() => {
+    resolveRef.current = resolve;
+  }, [resolve]);
+
+  // Le son démarre au clic sur « Play as… » (ou Rematch) : les navigateurs
+  // exigent un geste avant de jouer quoi que ce soit.
+  function startSound() {
+    let off = muted;
+    let voices = voicesOn;
+    try {
+      off = window.localStorage.getItem("duel-muted") === "1";
+      voices = window.localStorage.getItem("duel-voices") !== "0";
+    } catch {
+      // Stockage indisponible : on garde l'état courant.
+    }
+    setVoicesOn(voices);
+    voicesOnRef.current = voices;
+    mutedRef.current = off;
+    speechEnabled.current = voices && !off;
+    const cast = (voicesRef.current ??= DuelVoices.supported() ? new DuelVoices() : null);
+    cast?.cancel();
+    cast?.recast();
+    const audio = (audioRef.current ??= new DuelAudio());
+    audio.setMuted(off);
+    setMuted(off);
+    audio.unlock();
+    audio.startMusic();
+    audio.play("fight", 100);
+  }
+
+  const toggleMute = useCallback(() => {
+    setMuted((was) => {
+      const next = !was;
+      audioRef.current?.setMuted(next);
+      mutedRef.current = next;
+      speechEnabled.current = !next && voicesOnRef.current;
+      if (next) voicesRef.current?.cancel();
+      try {
+        window.localStorage.setItem("duel-muted", next ? "1" : "0");
+      } catch {
+        // Stockage indisponible : le réglage vaut pour cette page seulement.
+      }
+      return next;
+    });
+  }, []);
+
+  const toggleVoices = useCallback(() => {
+    setVoicesOn((was) => {
+      const next = !was;
+      voicesOnRef.current = next;
+      speechEnabled.current = next && !mutedRef.current;
+      if (!next) voicesRef.current?.cancel();
+      try {
+        window.localStorage.setItem("duel-voices", next ? "1" : "0");
+      } catch {
+        // Stockage indisponible : le réglage vaut pour cette page seulement.
+      }
+      return next;
+    });
+  }, []);
+
+  // « M » coupe ou remet le son, à tout moment du duel.
+  useEffect(() => {
+    if (!player) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLElement && e.target.closest("input, textarea")) return;
+      if (e.key === "m" || e.key === "M") toggleMute();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [player, toggleMute]);
+
+  function start(side: Side) {
+    generation.current++;
+    startSound();
+    timers.current.forEach(clearTimeout);
+    timers.current = [];
+    const duel = createDuel(left.stats, right.stats, freshSeed());
+    duelRef.current = duel;
+    quoteCount.current = {};
+    setPlayer(side);
+    setSnap(snapshot(duel));
+    setPops([]);
+    setBubble(null);
+    const first = corners[duel.turn];
+    setLog([
+      {
+        id: nextId.current++,
+        actor: null,
+        text: `FIGHT! ${first.fighter.name} moves first: ${first.sources.reviews} reviews make it the crowd favourite.`,
+      },
+    ]);
+  }
+
+  // Le premier tour de l'ordinateur part tout seul, une fois l'arène montée.
+  useEffect(() => {
+    const duel = duelRef.current;
+    if (!player || !duel || duel.turns > 0 || duel.turn === player) return;
+    const t = setTimeout(() => resolve(aiMove(duel)), 1100);
+    return () => clearTimeout(t);
+  }, [player, resolve]);
+
+  // Le journal défile tout seul jusqu'à la dernière réplique.
+  useEffect(() => {
+    const el = logRef.current;
+    el?.scrollTo?.({ top: el.scrollHeight, behavior: prefersReducedMotion() ? "auto" : "smooth" });
+  }, [log.length]);
+
+  // Raccourcis clavier : 1 à 4 pour les coups.
+  const canPlay = !!(player && snap && !snap.over && !busy && snap.turn === player);
+  useEffect(() => {
+    if (!canPlay || !player) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLElement && e.target.closest("input, textarea")) return;
+      const move = MOVE_KEYS[Number(e.key) - 1];
+      if (move && duelRef.current && canUse(duelRef.current, player, move)) {
+        sound("click");
+        resolve(move);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [canPlay, player, resolve, sound]);
+
+  const go = (l: number, r: number) => startNavigation(() => router.push(battleHref(l, r, "/battle-3")));
+
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}${battleHref(left.fighter.appId, right.fighter.appId, "/battle-3")}`);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      // Presse-papiers refusé : l'adresse de la page suffit.
+    }
+  }
+
+  function randomRivalry() {
+    const others = RIVALRIES.filter((r) => !(r.left.appId === left.fighter.appId && r.right.appId === right.fighter.appId));
+    const r = others[Math.floor(Math.random() * others.length)];
+    go(r.left.appId, r.right.appId);
+  }
+
+  const btn =
+    "rounded-full border border-[#24333f] bg-[#0c1116]/60 px-4 py-1.5 text-sm font-semibold text-[#cfdae1] hover:border-white/30 disabled:opacity-40";
+
+  // --- Choix du camp ---
+  if (!player || !snap) {
+    return (
+      <div className="rounded-md border border-[#1e2b36] bg-[radial-gradient(ellipse_at_top,#1b2733_0%,#0a0f14_70%)] p-5 sm:p-8">
+        <p className="text-center font-mono text-[11px] tracking-[0.16em] text-[#7d919c] uppercase">choose your fighter</p>
+        <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-[1fr_auto_1fr] md:items-center">
+          {(["left", "right"] as const).map((side, i) => {
+            const c = corners[side];
+            return (
+              <div key={side} className={`flex flex-col items-center gap-3 text-center ${i === 1 ? "md:order-3" : ""}`}>
+                <button
+                  type="button"
+                  onClick={() => start(side)}
+                  className="group flex flex-col items-center gap-3"
+                  aria-label={`Play as ${c.fighter.name}`}
+                >
+                  <span className="relative block aspect-[2/3] w-[120px] overflow-hidden rounded-[4px] bg-white/5 shadow-[0_18px_50px_rgba(0,0,0,0.6)] outline-2 outline-offset-4 outline-transparent transition-[outline-color,transform] group-hover:-translate-y-1 group-hover:outline-[var(--c)] sm:w-[160px]" style={{ ["--c" as string]: SIDE_COLOR[side] }}>
+                    {c.fighter.coverUrl && <Image src={c.fighter.coverUrl} alt="" fill sizes="160px" priority className="object-cover" />}
+                  </span>
+                  <span className="line-clamp-2 max-w-[260px] text-xl leading-tight font-extrabold tracking-tight group-hover:text-brand-blue">
+                    {c.fighter.name}
+                  </span>
+                  <span className="grid grid-cols-2 gap-x-4 gap-y-0.5 font-mono text-[11px] text-[#9fb2bd]">
+                    <span className="text-right">{c.stats.maxHp} HP</span>
+                    <span className="text-left text-[#5f7481]">{c.sources.hours} median</span>
+                    <span className="text-right">{c.stats.power} power</span>
+                    <span className="text-left text-[#5f7481]">{c.sources.positive} positive</span>
+                    <span className="text-right">{pct(c.stats.crit)} crit</span>
+                    <span className="text-left text-[#5f7481]">{c.sources.reviews} reviews</span>
+                  </span>
+                  <span
+                    className="rounded-full px-5 py-2 text-sm font-bold text-[#0c1116] transition-transform group-hover:scale-105"
+                    style={{ backgroundColor: SIDE_COLOR[side] }}
+                  >
+                    Play as {c.fighter.name.length > 22 ? "this one" : c.fighter.name}
+                  </span>
+                </button>
+                <GameSearchCombobox
+                  placeholder="Change game…"
+                  ariaLabel={side === "left" ? "Change the first game" : "Change the second game"}
+                  busy={isNavigating}
+                  onSelect={(hit) => (side === "left" ? go(hit.appId, right.fighter.appId) : go(left.fighter.appId, hit.appId))}
+                  containerClassName="w-full max-w-[240px]"
+                  inputClassName="w-full rounded-full border border-[#24333f] bg-[#111a21] px-3 py-1 text-xs text-[#eef2f4] placeholder:text-[#7d919c] focus:border-white/25 focus:outline-none"
+                />
+              </div>
+            );
+          })}
+          <div className="text-center text-5xl font-black text-brand-red italic md:order-2">
+            <span className="inline-block px-[0.14em] leading-none">VS</span>
+          </div>
+        </div>
+        <p className="mt-6 text-center text-sm text-[#7d919c]">The CPU takes the other one. Moves are picked by you, stats by Steam.</p>
+      </div>
+    );
+  }
+
+  // --- Duel ---
+  const cpu = opponent(player);
+  const fighterState = (side: Side) => (!snap.over || !snap.winner ? "fighting" : snap.winner === side ? "winner" : "loser");
+  const you = corners[player];
+  // Les mêmes règles que `canUse`, lues sur l'instantané plutôt que sur l'état du moteur.
+  const available = (move: MoveId) =>
+    move === "bomb"
+      ? snap.bombCooldown[player] === 0
+      : move === "patch"
+        ? snap.patches[player] > 0 && snap.hp[player] < you.stats.maxHp
+        : true;
+  const won = snap.over && snap.winner === player;
+
+  // À la fin, la bulle céderait la place au verdict : la review reste dans le journal.
+  const bubbleFor = (side: Side) => (bubble && bubble.side === side && !snap.over ? bubble : undefined);
+
+  return (
+    <div>
+      <div className="grid overflow-hidden rounded-md border border-[#1e2b36] bg-[linear-gradient(180deg,#152029_0%,#0c1116_55%,#0f1a14_100%)] lg:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="relative">
+          <button
+            type="button"
+            onClick={toggleMute}
+            aria-label={muted ? "Unmute sound" : "Mute sound"}
+            aria-pressed={muted}
+            title={muted ? "Unmute (M)" : "Mute (M)"}
+            className="absolute top-2 left-2 z-30 rounded-full border border-[#24333f] bg-[#0a0f14]/80 px-2.5 py-1 font-mono text-[10px] tracking-[0.1em] text-[#9fb2bd] uppercase hover:border-white/30 hover:text-[#eef2f4]"
+          >
+            {muted ? "🔇 sound off" : "🔊 sound on"}
+          </button>
+          {DuelVoices.supported() && (
+            <button
+              type="button"
+              onClick={toggleVoices}
+              aria-pressed={!voicesOn}
+              aria-label={voicesOn ? "Stop reading reviews aloud" : "Read reviews aloud"}
+              className="absolute top-2 left-[122px] z-30 rounded-full border border-[#24333f] bg-[#0a0f14]/80 px-2.5 py-1 font-mono text-[10px] tracking-[0.1em] text-[#9fb2bd] uppercase hover:border-white/30 hover:text-[#eef2f4]"
+            >
+              {voicesOn ? "🗣 voices on" : "🤐 voices off"}
+            </button>
+          )}
+          {/* Le sol en perspective : une grille qui fuit vers l'horizon. */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 opacity-30 [mask-image:linear-gradient(to_top,black,transparent)]"
+            style={{
+              backgroundImage:
+                "linear-gradient(#24333f 1px, transparent 1px), linear-gradient(90deg, #24333f 1px, transparent 1px)",
+              backgroundSize: "44px 28px",
+              transform: "perspective(400px) rotateX(55deg)",
+              transformOrigin: "bottom",
+            }}
+          />
+          <div className="relative mx-auto grid max-w-[900px] grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 px-4 pt-5 pb-3 sm:gap-x-10 sm:px-8 sm:pt-8">
+            {/* L'ordinateur, au fond à droite. */}
+            <div className="flex justify-start">
+              <InfoBox side={cpu} corner={corners[cpu]} hp={snap.hp[cpu]} role="cpu" stunned={snap.stunned[cpu]} active={!snap.over && snap.turn === cpu} />
+            </div>
+            <div className="pr-2 sm:pr-8">
+              <Fighter
+                side={cpu}
+                corner={corners[cpu]}
+                state={fighterState(cpu)}
+                pops={pops.filter((p) => p.side === cpu)}
+                coverRef={coverRefs[cpu]}
+                size="far"
+                bubble={bubbleFor(cpu)}
+              />
+            </div>
+            {/* Le joueur, au premier plan à gauche. */}
+            <div className="col-start-1 row-start-2 pl-2 sm:pl-8">
+              <Fighter
+                side={player}
+                corner={you}
+                state={fighterState(player)}
+                pops={pops.filter((p) => p.side === player)}
+                coverRef={coverRefs[player]}
+                size="near"
+                bubble={bubbleFor(player)}
+              />
+            </div>
+            <div className="col-start-2 row-start-2 flex w-[min(340px,48vw)] justify-end sm:w-[300px]">
+              <InfoBox side={player} corner={you} hp={snap.hp[player]} role="you" stunned={snap.stunned[player]} active={!snap.over && snap.turn === player} />
+            </div>
+          </div>
+
+          {snap.over && (
+            <div className="pointer-events-none absolute inset-x-0 top-1/2 z-30 -translate-y-1/2 text-center">
+              <span
+                className={`animate-battle-fight inline-block px-[0.14em] text-5xl font-black tracking-tight italic drop-shadow-[0_4px_30px_rgba(0,0,0,0.9)] sm:text-7xl ${
+                  won ? "text-[#ffd166]" : snap.winner ? "text-[#d03b3b]" : "text-[#eef2f4]"
+                }`}
+              >
+                {snap.winner ? (won ? "VICTORY" : "DEFEAT") : "DRAW"}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Le journal du combat, dans l'arène : chaque tour et la review qu'il a lancée. */}
+        <div className="relative border-t border-[#1e2b36] bg-[#0a0f14]/80 lg:border-t-0 lg:border-l">
+          <div ref={logRef} className="max-h-[240px] overflow-y-auto overscroll-contain px-4 pb-4 lg:absolute lg:inset-0 lg:max-h-none" aria-live="polite">
+            <div className="sticky top-0 z-10 -mx-4 mb-1 bg-[#0a0f14] px-4 pt-3 pb-2 font-mono text-[10px] tracking-[0.14em] text-[#7d919c] uppercase">
+              battle log · {Math.max(0, log.length - 1)} moves
+            </div>
+            {log.map((line, i) => {
+              const latest = i === log.length - 1;
+              return (
+                <div key={line.id} className={`border-t border-[#1a2530] py-2.5 first-of-type:border-t-0 ${latest ? "animate-battle-line" : ""}`}>
+                  <p className={`text-[13px] leading-snug ${latest ? "font-semibold text-[#eef2f4]" : "text-[#9fb2bd]"}`}>
+                    {line.actor && (
+                      <span className="mr-1.5 inline-block h-2 w-2 rounded-full align-middle" style={{ backgroundColor: SIDE_COLOR[line.actor] }} />
+                    )}
+                    {line.text}
+                  </p>
+                  {line.quote && (
+                    <blockquote
+                      className="mt-1.5 border-l-2 pl-2.5 text-[12px] leading-snug text-[#9fb2bd] italic"
+                      style={{ borderColor: line.quote.fan ? "#5cc26b" : "#d03b3b" }}
+                    >
+                      “{line.quote.text}”
+                      <QuoteFooter quote={line.quote} />
+                    </blockquote>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4">
+        {snap.over ? (
+          <div className="flex flex-col items-center justify-center gap-3 rounded-md border border-[#1e2b36] bg-[#0a0f14] p-5 text-center">
+            <p className="text-2xl font-extrabold tracking-tight">
+              {won
+                ? `${you.fighter.name} wins in ${Math.ceil(snap.turns / 2)} turns.`
+                : snap.winner
+                  ? `${corners[cpu].fighter.name} takes it. The CPU sends its regards.`
+                  : "Time's up. Nobody wins."}
+            </p>
+            <div className="flex flex-wrap justify-center gap-2">
+              <button type="button" onClick={() => start(player)} className="rounded-full bg-brand-blue px-5 py-1.5 text-sm font-bold text-[#0c1116]">
+                Rematch
+              </button>
+              <button type="button" onClick={() => start(cpu)} className={btn}>
+                Switch sides
+              </button>
+              <button type="button" onClick={randomRivalry} disabled={isNavigating} className={btn}>
+                🎲 Random rivalry
+              </button>
+              <button type="button" onClick={copyLink} className={btn}>
+                {copied ? "Copied!" : "Copy link"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div>
+            <div className="mb-2 flex items-baseline justify-between font-mono text-[10px] tracking-[0.12em] text-[#7d919c] uppercase">
+              <span>{canPlay ? "your move" : snap.turn === cpu ? "cpu is thinking…" : "…"}</span>
+              <span className="hidden sm:inline">keys 1–4</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+              {MOVE_KEYS.map((move, i) => (
+                <MoveButton
+                  key={move}
+                  move={move}
+                  index={i}
+                  corner={you}
+                  foe={corners[cpu]}
+                  cooldown={snap.bombCooldown[player]}
+                  patches={snap.patches[player]}
+                  disabled={!canPlay || !available(move)}
+                  onPlay={(m) => {
+                    sound("click");
+                    resolve(m);
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
