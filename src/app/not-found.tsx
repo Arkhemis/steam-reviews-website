@@ -19,13 +19,13 @@ const REVIEWS: FakeReview[] = [
   {
     verdict: "down",
     hours: "0.0",
-    text: "Clicked a link, got nothing. The loading screen was the best part. Would not 404 again.",
+    text: "Clicked a link, got nothing. Also the game below is dogshit, was it vibecoded omg?? The loading screen was the best part.",
     helpful: 404,
     funny: 128,
   },
   {
     verdict: "up",
-    hours: "0.1",
+    hours: "0.3",
     text: "Finally a page with zero microtransactions, zero bugs and zero content. Masterpiece of minimalism.",
     helpful: 97,
     funny: 311,
@@ -33,7 +33,7 @@ const REVIEWS: FakeReview[] = [
   {
     verdict: "down",
     hours: "1,337",
-    text: "Been waiting here since 2019 for the content update. Devs said Valve Time. It has been Valve Time.",
+    text: "Been waiting here since 2019 for the update. Even TF2 got more content in the meantime.",
     helpful: 212,
     funny: 64,
   },
@@ -88,8 +88,8 @@ export default function NotFound() {
               <span className="font-mono text-xs text-[#7d919c]">(0% of 404 reviews are positive)</span>
             </div>
             <p className="mt-5 max-w-[46ch] border-l-[3px] border-brand-blue pl-4 text-[#a9b6bd]">
-              This page was delisted, never released, or is stuck in Early Access forever. The link you followed
-              leads nowhere — but the {""}
+              This page was delisted, never released, or is stuck in Early Access forever, like so many games before it. The link you followed
+              leads nowhere; but the {""}
               <Link href="/games" className="font-bold text-[#eef2f4] underline decoration-brand-blue underline-offset-4">
                 rest of the catalogue
               </Link>{" "}
