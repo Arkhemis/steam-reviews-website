@@ -177,6 +177,13 @@ export function ReviewBombGame() {
   useEffect(() => {
     const g = game.current;
     const onKey = (event: KeyboardEvent, down: boolean) => {
+      // Laisse la saisie et la navigation au curseur intactes dans les champs de la page.
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.isContentEditable || target.closest("input, textarea, select, [contenteditable]"))
+      )
+        return;
       const key = event.key.toLowerCase();
       if (key === "arrowleft" || key === "a" || key === "q") g.keys.left = down;
       else if (key === "arrowright" || key === "d") g.keys.right = down;
@@ -270,7 +277,8 @@ export function ReviewBombGame() {
       }
 
       g.spawnIn -= dt;
-      if (g.spawnIn <= 0) {
+      // Pas de pluie décorative à l'arrêt quand l'utilisateur limite les animations.
+      if (g.spawnIn <= 0 && (g.running || !reduceMotion)) {
         spawn(g.running ? progress : 0.1);
         const base = g.running ? 0.75 - progress * 0.5 : 0.9;
         g.spawnIn = base * (0.6 + Math.random() * 0.8);
