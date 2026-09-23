@@ -37,16 +37,26 @@ export function sitemapIndexXml(paths: string[]): string {
   return `<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${sitemaps}\n</sitemapindex>\n`;
 }
 
-/** Les fichiers que l'index annonce : les pages fixes, puis un fichier par tranche de jeux. */
+/**
+ * Les fichiers que l'index annonce : les pages fixes, puis un fichier par
+ * tranche de jeux. Sans jeu, aucune tranche : la route d'une tranche vide
+ * répond 404, que la Search Console signalerait.
+ */
 export function sitemapIndexPaths(totalGames: number): string[] {
-  const chunks = Math.max(1, Math.ceil(totalGames / SITEMAP_CHUNK_SIZE));
+  const chunks = Math.ceil(totalGames / SITEMAP_CHUNK_SIZE);
   return ["/sitemaps/pages.xml", ...Array.from({ length: chunks }, (_, i) => `/sitemaps/games/${i}.xml`)];
 }
 
-/** `"3.xml"` → `3` ; tout autre segment → `null`, que la route traduit en 404. */
+/**
+ * `"3.xml"` → `3` ; tout autre segment → `null`, que la route traduit en 404.
+ * Un numéro dont l'OFFSET ne tient pas dans un entier sûr ferait échouer la
+ * requête : il est refusé au même titre.
+ */
 export function parseChunk(segment: string): number | null {
   const match = /^(\d+)\.xml$/.exec(segment);
-  return match ? Number(match[1]) : null;
+  if (!match) return null;
+  const chunk = Number(match[1]);
+  return Number.isSafeInteger(chunk) && Number.isSafeInteger(chunk * SITEMAP_CHUNK_SIZE) ? chunk : null;
 }
 
 // Une fiche à un seul avis n'a presque rien à montrer à un moteur de

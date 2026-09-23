@@ -22,8 +22,8 @@ describe("sitemapIndexPaths", () => {
     ]);
   });
 
-  it("garde une tranche de jeux même quand le catalogue est vide", () => {
-    expect(sitemapIndexPaths(0)).toEqual(["/sitemaps/pages.xml", "/sitemaps/games/0.xml"]);
+  it("n'annonce aucune tranche de jeux quand le catalogue est vide", () => {
+    expect(sitemapIndexPaths(0)).toEqual(["/sitemaps/pages.xml"]);
   });
 });
 
@@ -33,6 +33,11 @@ describe("parseChunk", () => {
     expect(parseChunk("3")).toBeNull();
     expect(parseChunk("-1.xml")).toBeNull();
     expect(parseChunk("abc.xml")).toBeNull();
+  });
+
+  it("refuse un numéro dont l'OFFSET dépasserait un entier sûr", () => {
+    expect(parseChunk("99999999999999999999.xml")).toBeNull();
+    expect(parseChunk(`${Math.floor(Number.MAX_SAFE_INTEGER / SITEMAP_CHUNK_SIZE) + 1}.xml`)).toBeNull();
   });
 });
 
