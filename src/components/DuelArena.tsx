@@ -420,7 +420,7 @@ function Bubble({
   const accent = quote.fan ? "#5cc26b" : "#d03b3b";
   return (
     <span
-      className={`animate-duel-bubble pointer-events-none absolute z-20 block rounded-[10px] border-2 bg-[#eef2f4] px-3 py-2 text-left text-[12px] leading-snug text-[#0c1116] shadow-[0_12px_40px_rgba(0,0,0,0.6)] max-sm:text-[11px] sm:w-[280px] sm:text-[13px] ${
+      className={`animate-duel-bubble pointer-events-none absolute z-20 block rounded-[10px] border-2 bg-[#eef2f4] px-3 py-2 text-left text-[12px] leading-snug text-[#0c1116] shadow-[0_12px_40px_rgba(0,0,0,0.6)] max-sm:text-[11px] sm:w-[300px] sm:text-[13px] ${
         // L'ordinateur parle depuis le bas de sa jaquette : plus haut, la bulle couvrirait sa barre de vie.
         placement === "right"
           ? "top-2 left-[calc(100%+14px)] w-[min(260px,52vw)] origin-top-left"
@@ -436,7 +436,8 @@ function Bubble({
         }`}
         style={{ borderColor: accent }}
       />
-      <span className="line-clamp-4 font-semibold italic">
+      {/* Assez de place pour une réplique entière (120 caractères, `QUOTE_MAX`). */}
+      <span className="line-clamp-5 font-semibold italic">
         “<CensoredText text={quote.text} language={language} censored={censored} />”
       </span>
       <span className="mt-1 block font-mono text-[9px] tracking-[0.06em] uppercase" style={{ color: accent }}>
@@ -493,7 +494,10 @@ function AudioCredits() {
           </div>
           <div>
             <dt className="font-semibold text-[#eef2f4]">Voices</dt>
-            <dd>Your device&rsquo;s own text-to-speech voices, through the Web Speech API.</dd>
+            <dd>
+              Google Translate&rsquo;s text-to-speech, re-pitched and run through effects in your browser. Your
+              device&rsquo;s own voices step in if it doesn&rsquo;t answer.
+            </dd>
           </div>
           <div>
             <dt className="font-semibold text-[#eef2f4]">Quotes</dt>
@@ -679,7 +683,7 @@ export function DuelArena({ left, right, language, languages, langParam }: Props
       setBusy(true);
 
       // La review est lue à voix haute. L'ordinateur laisse finir la réplique
-      // du joueur (4 s au plus) avant de répondre ; le joueur, lui, reprend la
+      // du joueur (6 s au plus) avant de répondre ; le joueur, lui, reprend la
       // main dès la fin de l'animation, et son coup coupe la voix adverse.
       let speech: Promise<void> = Promise.resolve();
       const voices = voicesRef.current;
@@ -710,7 +714,7 @@ export function DuelArena({ left, right, language, languages, langParam }: Props
       const settled = new Promise<void>((done) => later(done, TURN_MS));
       const cpuNext = !duel.over && (duel.turn !== player || duel.stunned[duel.turn]);
       const listened = cpuNext
-        ? Promise.race([speech, new Promise<void>((done) => later(done, TURN_MS + 4000))])
+        ? Promise.race([speech, new Promise<void>((done) => later(done, TURN_MS + 6000))])
         : Promise.resolve();
       void Promise.all([listened, settled]).then(() => {
         if (gen !== generation.current) return;
@@ -755,6 +759,7 @@ export function DuelArena({ left, right, language, languages, langParam }: Props
     censorship.current = censored;
     const cast = (voicesRef.current ??= DuelVoices.supported() ? new DuelVoices() : null);
     cast?.cancel();
+    cast?.unlock();
     cast?.recast(language);
     const audio = (audioRef.current ??= new DuelAudio());
     audio.setMusicMuted(musicOff);

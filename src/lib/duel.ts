@@ -257,7 +257,7 @@ export function aiMove(state: DuelState): MoveId {
 // --- Répliques ---------------------------------------------------------------
 
 /** Au-delà, une review ne tient plus dans une bulle ni dans une réplique parlée. */
-export const QUOTE_MAX = 90;
+export const QUOTE_MAX = 120;
 const QUOTE_MIN = 20;
 
 /** Une copie mélangée (Fisher-Yates) : chaque duel lance ses répliques dans un ordre neuf. */
