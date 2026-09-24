@@ -570,6 +570,13 @@ function AudioCredits() {
   );
 }
 
+/**
+ * Le combat à lancer dès l'arrivée sur le duel suivant (« Next random rival ») :
+ * la navigation côté client garde le module, et donc cette valeur, sans
+ * toucher à l'URL partageable.
+ */
+let pendingFight: { leftAppId: number; rightAppId: number; side: Side } | null = null;
+
 export function DuelArena({ left, right, language, languages, langParam }: Props) {
   const router = useRouter();
   const [isNavigating, startNavigation] = useTransition();
@@ -928,6 +935,19 @@ export function DuelArena({ left, right, language, languages, langParam }: Props
     setLog([]);
   }
 
+  // Arrivée par « Next random rival » : le combat reprend aussitôt, du même
+  // camp. Le clic sur la page précédente vaut geste pour le son (même document).
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const fight = pendingFight;
+      if (!fight || fight.leftAppId !== left.fighter.appId || fight.rightAppId !== right.fighter.appId) return;
+      pendingFight = null;
+      start(fight.side);
+    });
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Le premier tour de l'ordinateur part tout seul, une fois l'arène montée.
   useEffect(() => {
     const duel = duelRef.current;
@@ -989,7 +1009,8 @@ export function DuelArena({ left, right, language, languages, langParam }: Props
 
   // Relance un seul camp : même tirage serveur que « Random rivalry », dont on
   // garde un jeu différent de celui d'en face ; hors ligne, le panel par défaut.
-  function randomSide(side: Side) {
+  // `fightAs` enchaîne directement sur le combat, joué de ce camp.
+  function randomSide(side: Side, fightAs?: Side) {
     const kept = side === "left" ? right.fighter.appId : left.fighter.appId;
     const current = corners[side].fighter.appId;
     startNavigation(async () => {
@@ -1003,7 +1024,9 @@ export function DuelArena({ left, right, language, languages, langParam }: Props
         const pool = DEFAULT_OPPONENTS.filter((id) => id !== kept && id !== current);
         appId = pool[Math.floor(Math.random() * pool.length)];
       }
-      router.push(side === "left" ? battleHref(appId, kept, langParam) : battleHref(kept, appId, langParam));
+      const [l, r] = side === "left" ? [appId, kept] : [kept, appId];
+      pendingFight = fightAs ? { leftAppId: l, rightAppId: r, side: fightAs } : null;
+      router.push(battleHref(l, r, langParam));
     });
   }
 
@@ -1274,8 +1297,8 @@ export function DuelArena({ left, right, language, languages, langParam }: Props
               <button type="button" onClick={() => start(cpu)} className={btn}>
                 Switch sides
               </button>
-              {/* Garde ton jeu et relance seulement l'adversaire. */}
-              <button type="button" onClick={() => randomSide(cpu)} disabled={isNavigating} className={btn}>
+              {/* Garde ton jeu, relance seulement l'adversaire et enchaîne sur le combat. */}
+              <button type="button" onClick={() => randomSide(cpu, player)} disabled={isNavigating} className={btn}>
                 {isNavigating ? "Rolling…" : "🎲 Next random rival"}
               </button>
               <button type="button" onClick={randomRivalry} disabled={isNavigating} className={btn}>
