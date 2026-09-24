@@ -257,7 +257,7 @@ export function aiMove(state: DuelState): MoveId {
 // --- Répliques ---------------------------------------------------------------
 
 /** Au-delà, une review ne tient plus dans une bulle ni dans une réplique parlée. */
-export const QUOTE_MAX = 90;
+export const QUOTE_MAX = 120;
 const QUOTE_MIN = 20;
 
 /** Une copie mélangée (Fisher-Yates) : chaque duel lance ses répliques dans un ordre neuf. */
@@ -295,13 +295,17 @@ export function quoteText(text: string, max = QUOTE_MAX): string | null {
   return first && first.length >= QUOTE_MIN && first.length <= max ? first : null;
 }
 
+/** La part des répliques réservée aux reviews censurées par Steam (« ♥♥♥♥ ») : le battle les rend, c'est le sel du duel. */
+export const HEART_SHARE = 0.25;
+
 /**
  * Les répliques d'un camp : les reviews du bon bord qui tiennent en une
  * bulle, les plus drôles d'abord (votes « Funny »), puis les reviews entières
- * avant les premières phrases, puis les plus votées.
+ * avant les premières phrases, puis les plus votées. Un quart des places va
+ * d'abord aux reviews à cœurs, quand il y en a.
  */
 export function pickQuotes<T extends QuoteSource>(reviews: T[], up: boolean, limit = 8): (T & { text: string })[] {
-  return reviews
+  const ranked = reviews
     .filter((r) => r.votedUp === up)
     .flatMap((review) => {
       const text = quoteText(review.reviewText);
@@ -311,6 +315,9 @@ export function pickQuotes<T extends QuoteSource>(reviews: T[], up: boolean, lim
       (a, b) =>
         b.quote.votesFunny - a.quote.votesFunny || Number(b.whole) - Number(a.whole) || b.quote.votesUp - a.quote.votesUp,
     )
-    .slice(0, limit)
     .map(({ quote }) => quote);
+  const hearts = new Set(ranked.filter((quote) => quote.text.includes("♥")).slice(0, Math.round(limit * HEART_SHARE)));
+  const others = ranked.filter((quote) => !hearts.has(quote)).slice(0, limit - hearts.size);
+  const picked = new Set([...hearts, ...others]);
+  return ranked.filter((quote) => picked.has(quote));
 }

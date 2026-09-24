@@ -181,6 +181,21 @@ describe("répliques", () => {
     expect(picked.map((q) => q.votesFunny)).toEqual([40, 3, 0]);
     expect(picked.every((q) => q.text.length <= QUOTE_MAX)).toBe(true);
   });
+
+  it("réserve un quart des places aux reviews à cœurs, même moins drôles", () => {
+    const funny = Array.from({ length: 10 }, (_, i) => review(`A very funny negative review number ${i}`, 50 + i));
+    const hearts = Array.from({ length: 3 }, (_, i) => review(`This game is ♥♥♥♥ and I hate it, part ${i}`, 0));
+    const picked = pickQuotes([...funny, ...hearts], false);
+    expect(picked).toHaveLength(8);
+    expect(picked.filter((q) => q.text.includes("♥"))).toHaveLength(2);
+  });
+
+  it("complète avec les plus drôles quand les cœurs manquent", () => {
+    const funny = Array.from({ length: 10 }, (_, i) => review(`A very funny negative review number ${i}`, 50 + i));
+    const picked = pickQuotes([...funny, review("Only one ♥♥♥♥ review in this pool", 0)], false);
+    expect(picked).toHaveLength(8);
+    expect(picked.filter((q) => q.text.includes("♥"))).toHaveLength(1);
+  });
 });
 
 describe("mélange des répliques", () => {

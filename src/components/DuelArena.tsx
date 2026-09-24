@@ -2,12 +2,12 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { BLEEP_MS, DuelAudio, type Sfx } from "@/components/duel/sound";
-import { DuelVoices, warmUpVoices } from "@/components/duel/voice";
+import { DuelVoices, quoteParts, warmUpVoices } from "@/components/duel/voice";
 import { GameSearchCombobox } from "@/components/GameSearchCombobox";
 import { battleHref, DEFAULT_OPPONENTS, RIVALRIES, type Side } from "@/lib/battle";
-import { splitCensored, uncensor } from "@/lib/censored";
+import { splitCensored } from "@/lib/censored";
 import {
   aiMove,
   BOMB_MULTIPLIER,
@@ -82,7 +82,7 @@ function snapshot(s: DuelState): Snapshot {
   };
 }
 
-type LogLine = { id: number; actor: Side | null; icon: string; text: string; quote?: LogQuote };
+type LogLine = { id: number; actor: Side | null; icon: string; text: ReactNode; quote?: LogQuote };
 
 type Pop = { id: number; side: Side; text: string; tone: "damage" | "crit" | "heal" | "info" };
 
@@ -322,7 +322,6 @@ function quoteFor(move: MoveId, actor: Side, corners: Record<Side, DuelCorner>, 
     : { text: CANNED[move], fan, of: owner.fighter.name };
 }
 
-/** La réplique d'un tour, en prose. */
 /** L'icône d'une ligne du journal : ce que le tour a produit, d'un coup d'œil. */
 function eventIcon(event: DuelEvent): string {
   switch (event.outcome) {
@@ -345,30 +344,92 @@ function eventIcon(event: DuelEvent): string {
   }
 }
 
-function narrate(event: DuelEvent, corners: Record<Side, DuelCorner>): string {
+/** Les couleurs du journal, les mêmes que les chiffres qui jaillissent des jaquettes. */
+const LOG_TONE = { damage: "#ff5a4f", heal: "#5cc26b", crit: "#ffd166", stun: "#66c0f4" } as const;
+
+/** Un fait saillant du journal : dégâts, soin, critique… */
+function Key({ color, children }: { color: string; children: ReactNode }) {
+  return (
+    <span className="font-bold" style={{ color }}>
+      {children}
+    </span>
+  );
+}
+
+/** La réplique d'un tour, en prose, ses chiffres et ses noms en couleur. */
+function narrate(event: DuelEvent, corners: Record<Side, DuelCorner>): ReactNode {
   const me = corners[event.actor];
-  const a = me.fighter.name;
-  const b = corners[opponent(event.actor)].fighter.name;
+  const foe = opponent(event.actor);
+  const a = <Key color={SIDE_COLOR[event.actor]}>{me.fighter.name}</Key>;
+  const b = <Key color={SIDE_COLOR[foe]}>{corners[foe].fighter.name}</Key>;
+  const damage = (n?: number) => <Key color={LOG_TONE.damage}>{n} damage</Key>;
 
   switch (event.outcome) {
     case "skip":
-      return `${a} is still processing refunds and loses the turn.`;
+      return (
+        <>
+          {a} is still processing refunds and <Key color={LOG_TONE.stun}>loses the turn</Key>.
+        </>
+      );
     case "heal":
-      return `${a} ships a patch: +${event.heal} HP.`;
+      return (
+        <>
+          {a} ships a patch: <Key color={LOG_TONE.heal}>+{event.heal} HP</Key>.
+        </>
+      );
     case "backfire":
-      return `The Review Bomb blows up in ${a}'s face: ${event.selfDamage} damage to itself.`;
+      return (
+        <>
+          The Review Bomb blows up in {a}&apos;s face: {damage(event.selfDamage)} to itself.
+        </>
+      );
     case "miss":
-      return `${a}'s ${MOVE_NAME[event.move!]} whiffs. Nobody found that helpful.`;
+      return (
+        <>
+          {a}&apos;s {MOVE_NAME[event.move!]} whiffs. Nobody found that helpful.
+        </>
+      );
     case "dodge":
-      return `${b} sidesteps the ${MOVE_NAME[event.move!]}: it was playing on a Steam Deck.`;
+      return (
+        <>
+          {b} sidesteps the {MOVE_NAME[event.move!]}: it was playing on a Steam Deck.
+        </>
+      );
     default: {
-      const crit = event.outcome === "crit" ? `Critical! ${me.sources.reviews} reviewers roar. ` : "";
-      if (event.move === "bomb") return `${crit}${a} drops a Review Bomb on ${b}: ${event.damage} damage.`;
-      if (event.move === "refund") {
-        const tail = event.stunned ? `${b} is stuck processing it and loses its next turn.` : `${b}'s players keep their copies.`;
-        return `${crit}${a} files a Refund Request: ${event.damage} damage. ${tail}`;
+      const crit = event.outcome === "crit" && (
+        <>
+          <Key color={LOG_TONE.crit}>Critical!</Key> {me.sources.reviews} reviewers roar.{" "}
+        </>
+      );
+      if (event.move === "bomb") {
+        return (
+          <>
+            {crit}
+            {a} drops a Review Bomb on {b}: {damage(event.damage)}.
+          </>
+        );
       }
-      return `${crit}${a} tells ${b} its game sucks: ${event.damage} damage.`;
+      if (event.move === "refund") {
+        const tail = event.stunned ? (
+          <>
+            {b} is stuck processing it and <Key color={LOG_TONE.stun}>loses its next turn</Key>.
+          </>
+        ) : (
+          <>{b}&apos;s players keep their copies.</>
+        );
+        return (
+          <>
+            {crit}
+            {a} files a Refund Request: {damage(event.damage)}. {tail}
+          </>
+        );
+      }
+      return (
+        <>
+          {crit}
+          {a} tells {b} its game sucks: {damage(event.damage)}.
+        </>
+      );
     }
   }
 }
@@ -420,7 +481,7 @@ function Bubble({
   const accent = quote.fan ? "#5cc26b" : "#d03b3b";
   return (
     <span
-      className={`animate-duel-bubble pointer-events-none absolute z-20 block rounded-[10px] border-2 bg-[#eef2f4] px-3 py-2 text-left text-[12px] leading-snug text-[#0c1116] shadow-[0_12px_40px_rgba(0,0,0,0.6)] max-sm:text-[11px] sm:w-[280px] sm:text-[13px] ${
+      className={`animate-duel-bubble pointer-events-none absolute z-20 block rounded-[10px] border-2 bg-[#eef2f4] px-3 py-2 text-left text-[12px] leading-snug text-[#0c1116] shadow-[0_12px_40px_rgba(0,0,0,0.6)] max-sm:text-[11px] sm:w-[300px] sm:text-[13px] ${
         // L'ordinateur parle depuis le bas de sa jaquette : plus haut, la bulle couvrirait sa barre de vie.
         placement === "right"
           ? "top-2 left-[calc(100%+14px)] w-[min(260px,52vw)] origin-top-left"
@@ -436,7 +497,8 @@ function Bubble({
         }`}
         style={{ borderColor: accent }}
       />
-      <span className="line-clamp-4 font-semibold italic">
+      {/* Assez de place pour une réplique entière (120 caractères, `QUOTE_MAX`). */}
+      <span className="line-clamp-5 font-semibold italic">
         “<CensoredText text={quote.text} language={language} censored={censored} />”
       </span>
       <span className="mt-1 block font-mono text-[9px] tracking-[0.06em] uppercase" style={{ color: accent }}>
@@ -493,7 +555,10 @@ function AudioCredits() {
           </div>
           <div>
             <dt className="font-semibold text-[#eef2f4]">Voices</dt>
-            <dd>Your device&rsquo;s own text-to-speech voices, through the Web Speech API.</dd>
+            <dd>
+              Your device&rsquo;s own text-to-speech voices, through the Web Speech API. When it has none for the
+              language, Google Translate&rsquo;s speech steps in, re-pitched and run through effects in your browser.
+            </dd>
           </div>
           <div>
             <dt className="font-semibold text-[#eef2f4]">Quotes</dt>
@@ -679,7 +744,7 @@ export function DuelArena({ left, right, language, languages, langParam }: Props
       setBusy(true);
 
       // La review est lue à voix haute. L'ordinateur laisse finir la réplique
-      // du joueur (4 s au plus) avant de répondre ; le joueur, lui, reprend la
+      // du joueur (6 s au plus) avant de répondre ; le joueur, lui, reprend la
       // main dès la fin de l'animation, et son coup coupe la voix adverse.
       let speech: Promise<void> = Promise.resolve();
       const voices = voicesRef.current;
@@ -688,17 +753,16 @@ export function DuelArena({ left, right, language, languages, langParam }: Props
         audio?.duck(true);
         // Une voix coupée par la suivante finit elle aussi : seule la dernière rend le volume.
         const token = ++speechToken.current;
-        // Censurée, la voix s'interrompt sur un bip à la place de chaque insulte.
-        const said = censorship.current
-          ? voices.speakParts(
-              splitCensored(quote.text, language).map((s) => (s.censored ? null : s.text)),
-              role,
-              () => {
-                audio?.play("bleep");
-                return new Promise((done) => later(done, BLEEP_MS));
-              },
-            )
-          : voices.speak(uncensor(quote.text, language), role);
+        // Les gros mots passent au ralenti ; censurée, la voix s'interrompt sur
+        // un bip à la place de chaque série de cœurs.
+        const said = voices.speakParts(
+          quoteParts(quote.text, language, censorship.current),
+          role,
+          () => {
+            audio?.play("bleep");
+            return new Promise((done) => later(done, BLEEP_MS));
+          },
+        );
         speech = said.then(() => {
           if (token === speechToken.current) audio?.duck(false);
         });
@@ -710,7 +774,7 @@ export function DuelArena({ left, right, language, languages, langParam }: Props
       const settled = new Promise<void>((done) => later(done, TURN_MS));
       const cpuNext = !duel.over && (duel.turn !== player || duel.stunned[duel.turn]);
       const listened = cpuNext
-        ? Promise.race([speech, new Promise<void>((done) => later(done, TURN_MS + 4000))])
+        ? Promise.race([speech, new Promise<void>((done) => later(done, TURN_MS + 6000))])
         : Promise.resolve();
       void Promise.all([listened, settled]).then(() => {
         if (gen !== generation.current) return;
@@ -755,6 +819,7 @@ export function DuelArena({ left, right, language, languages, langParam }: Props
     censorship.current = censored;
     const cast = (voicesRef.current ??= DuelVoices.supported() ? new DuelVoices() : null);
     cast?.cancel();
+    cast?.unlock();
     cast?.recast(language);
     const audio = (audioRef.current ??= new DuelAudio());
     audio.setMusicMuted(musicOff);
