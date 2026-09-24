@@ -9,15 +9,16 @@ import {
 } from "@/components/duel/voicePresets";
 import { GOOGLE_TTS_MAX } from "@/lib/tts";
 
-// Les voix du battle : chaque review lancée est lue à voix haute. La voix est
-// celle de Google Traduction, la même partout, retravaillée dans le navigateur
-// (hauteur, effet, vitesse selon la longueur : voir `voiceFx.ts`). Le joueur
-// garde une voix normale ; l'ordinateur change de timbre à chaque réplique.
+// Les voix du battle : chaque review lancée est lue à voix haute, d'abord par
+// la synthèse vocale du navigateur (Web Speech API). Sa distribution dépend de
+// l'OS : on prend ce qu'il propose, et le genre des voix est deviné d'après
+// leur nom — l'API ne l'expose pas. Le joueur garde une voix normale ;
+// l'ordinateur change de voix et de hauteur à chaque réplique, et la vitesse
+// suit la longueur de la réplique.
 //
-// Si Google ne répond pas (ou que la lecture est refusée), la synthèse vocale
-// du navigateur (Web Speech API) prend le relais : sa distribution dépend de
-// l'OS, on prend ce qu'il propose, et le genre des voix est deviné d'après
-// leur nom — l'API ne l'expose pas.
+// Sans voix pour la langue du duel, ou si la synthèse échoue, Google Traduction
+// prend le relais, retravaillé dans le navigateur : hauteur et effet du preset
+// (robot, caverne…), que Web Speech ne sait pas faire (voir `voiceFx.ts`).
 
 export type VoiceRole = "player" | "cpu";
 
@@ -67,8 +68,6 @@ function voicesFor(all: SpeechSynthesisVoice[], bcp47: string): SpeechSynthesisV
   return all.filter((v) => norm(v.lang).split("-")[0] === base);
 }
 
-type Casting = { voice: SpeechSynthesisVoice | null; pitch: number; rate: number; volume?: number };
-
 // `female` contient `male` : on teste toujours les voix féminines d'abord.
 const FEMALE = /female|woman|samantha|victoria|karen|moira|tessa|fiona|zira|susan|hazel|serena|allison|ava|kate|veena|libby|sonia|aria|jenny|michelle|emma|amy|joanna|salli|kimberly/i;
 const MALE = /male|daniel|alex|fred|david|mark|george|guy|ryan|tom|oliver|aaron|arthur|rishi|james|christopher|eric|brian|justin|matthew/i;
@@ -81,30 +80,24 @@ function genderOf(voice: SpeechSynthesisVoice): "female" | "male" | null {
 
 const pickOne = <T>(list: T[]): T | undefined => list[Math.floor(Math.random() * list.length)];
 
-/** Les timbres du méchant : hauteur (0 à 2), débit et volume (0 à 1) de la synthèse. */
-const CPU_STYLES: { pitch: number; rate: number; volume?: number }[] = [
-  { pitch: 0.1, rate: 0.8 }, // démon
-  { pitch: 0.3, rate: 1.1 }, // grave et pressé
-  { pitch: 0.6, rate: 0.7 }, // méchant de film, très lent
-  { pitch: 1.6, rate: 0.7 }, // méchant de dessin animé
-  { pitch: 1.2, rate: 1.25 }, // animateur de jeu télé
-  { pitch: 0.5, rate: 0.5 }, // ralenti
-  { pitch: 0.2, rate: 0.55 }, // géant ensommeillé
-  { pitch: 0.3, rate: 0.75, volume: 0.4 }, // menace chuchotée
-  { pitch: 1.6, rate: 1.1 }, // gamin pleurnichard
-  { pitch: 1.5, rate: 0.95 }, // elfe suffisant
-];
+/** Hauteur d'un preset (facteur de lecture, 1 = normale) → hauteur Web Speech (0 à 2, 1 = normale). */
+export function speechPitch(factor: number): number {
+  return Math.min(2, Math.max(0, 1 + Math.log2(factor) * 1.25));
+}
 
-/** La voix de secours : la synthèse vocale du navigateur. */
+/** Débit d'une voix de synthèse à vitesse 1, pour estimer la durée d'une réplique. */
+const CHARS_PER_SECOND = 14;
+
+type Style = { voice: SpeechSynthesisVoice | null; pitch: number; rate: number; volume: number };
+
+/** La voix par défaut : la synthèse vocale du navigateur. */
 class BrowserVoices {
-  private cast: Record<VoiceRole, Casting> = {
-    player: { voice: null, pitch: 1, rate: 1.05 },
-    cpu: { voice: null, pitch: 1.9, rate: 1.15 },
-  };
+  private playerVoice: SpeechSynthesisVoice | null = null;
   /** Les voix que l'ordinateur peut prendre : toutes, sauf celle du joueur quand l'OS en propose d'autres. */
   private cpuPool: SpeechSynthesisVoice[] = [];
+  private lastCpuVoice: SpeechSynthesisVoice | null = null;
+  private steamLanguage = "english";
   private lang = "en-US";
-  private lastCpu: { voice: SpeechSynthesisVoice | null; style: number } = { voice: null, style: -1 };
   /** Change à chaque lecture : les morceaux d'une réplique coupée ne sont plus lus. */
   private seq = 0;
 
@@ -113,68 +106,76 @@ class BrowserVoices {
   }
 
   /**
-   * Distribue les rôles pour un nouveau duel, dans la langue des reviews.
-   * Sans voix installée pour cette langue, les deux rôles restent sans voix
-   * attitrée : le navigateur lit alors avec sa voix par défaut pour `lang`.
+   * Une voix installée parle-t-elle la langue du duel ? Sans voix du tout
+   * (Chrome sous Linux sans speech-dispatcher, navigateur headless…) ou sans
+   * voix pour cette langue, Google lit à la place.
    */
-  recast(steamLanguage: string): void {
-    if (!BrowserVoices.supported()) return;
-    this.lang = SPEECH_LANG[steamLanguage] ?? "en-US";
-    const pool = voicesFor(window.speechSynthesis.getVoices(), this.lang);
+  canSpeak(): boolean {
+    return BrowserVoices.supported() && voicesFor(window.speechSynthesis.getVoices(), this.lang).length > 0;
+  }
 
+  /** Distribue les voix pour un nouveau duel, dans la langue des reviews. */
+  recast(steamLanguage: string): void {
+    this.steamLanguage = steamLanguage;
+    this.lang = SPEECH_LANG[steamLanguage] ?? "en-US";
+    if (!BrowserVoices.supported()) return;
+    const pool = voicesFor(window.speechSynthesis.getVoices(), this.lang);
     const byGender = (g: "female" | "male") => pool.filter((v) => genderOf(v) === g);
     const playerGender = Math.random() < 0.5 ? "female" : "male";
-    const playerVoice = pickOne(byGender(playerGender)) ?? pickOne(pool) ?? null;
-    const others = pool.filter((v) => v !== playerVoice);
+    this.playerVoice = pickOne(byGender(playerGender)) ?? pickOne(pool) ?? null;
+    const others = pool.filter((v) => v !== this.playerVoice);
     this.cpuPool = others.length ? others : pool;
-    this.lastCpu = { voice: null, style: -1 };
-    this.cast = { ...this.cast, player: { voice: playerVoice, pitch: 1, rate: 1.05 } };
+    this.lastCpuVoice = null;
   }
 
-  /** Une voix et un timbre neufs pour la prochaine réplique du méchant : jamais deux fois le même timbre de suite. */
-  private recastCpu(): void {
-    let style = Math.floor(Math.random() * CPU_STYLES.length);
-    if (style === this.lastCpu.style) style = (style + 1) % CPU_STYLES.length;
-    const fresh = this.cpuPool.filter((v) => v !== this.lastCpu.voice);
-    const voice = pickOne(fresh.length ? fresh : this.cpuPool) ?? null;
-    this.lastCpu = { voice, style };
-    this.cast.cpu = { voice, ...CPU_STYLES[style] };
-  }
-
-  /**
-   * Lit une réplique et rend une promesse tenue à la fin de la lecture — ou
-   * au plus tard après une durée estimée : certains moteurs n'émettent jamais
-   * `end`, et le duel ne doit pas rester suspendu à une voix muette.
-   */
-  speak(text: string, role: VoiceRole): Promise<void> {
-    return this.speakParts([text], role, () => Promise.resolve());
+  /** L'ordinateur change de voix à chaque réplique, quand l'OS en propose plusieurs. */
+  private nextCpuVoice(): SpeechSynthesisVoice | null {
+    const fresh = this.cpuPool.filter((v) => v !== this.lastCpuVoice);
+    this.lastCpuVoice = pickOne(fresh.length ? fresh : this.cpuPool) ?? null;
+    return this.lastCpuVoice;
   }
 
   /**
    * Lit une réplique en morceaux, avec la même voix d'un bout à l'autre ;
-   * entre deux morceaux marqués `null`, `bleep` joue le bip de censure et
-   * rend la main à la fin de celui-ci. Une lecture lancée entre-temps (ou
-   * `cancel`) interrompt la suite.
+   * entre deux morceaux marqués `null`, `bleep` joue le bip de censure. Rend
+   * `null` si la réplique a été lue (ou coupée par une autre), sinon l'indice
+   * du morceau que la synthèse n'a pas pu lire : la suite revient à Google.
    */
-  async speakParts(parts: (string | null)[], role: VoiceRole, bleep: () => Promise<void>): Promise<void> {
-    if (!BrowserVoices.supported()) return;
+  async speakParts(
+    parts: (string | null)[],
+    role: VoiceRole,
+    preset: VoicePreset,
+    bleep: () => Promise<void>,
+  ): Promise<number | null> {
+    if (!this.canSpeak()) return 0;
+    // Chrome remplit sa liste de voix en différé : elle a pu arriver après `recast`.
+    if (!this.cpuPool.length) this.recast(this.steamLanguage);
     const synth = window.speechSynthesis;
     synth.cancel();
     const seq = ++this.seq;
-    // Sans voix installée (Chrome sous Linux sans speech-dispatcher, navigateur
-    // headless…), `speak` ne dit rien et n'émet rien : on n'attend pas.
-    if (!synth.getVoices().length) return;
-    if (role === "cpu") this.recastCpu();
-    for (const part of parts) {
-      if (seq !== this.seq) return;
+    const chars = parts.reduce((sum, part) => sum + (part?.length ?? 0), 0);
+    const style: Style = {
+      voice: role === "player" ? this.playerVoice : this.nextCpuVoice(),
+      pitch: speechPitch(preset.pitch),
+      rate: autoSpeed(chars / CHARS_PER_SECOND, MAX_NORMAL_S, MAX_SPEED, BASE_SPEED),
+      volume: preset.volume ?? 1,
+    };
+    for (let i = 0; i < parts.length; i++) {
+      if (seq !== this.seq) return null;
+      const part = parts[i];
       if (part === null) await bleep();
-      else if (part.trim()) await this.utter(part, role);
+      else if (part.trim() && !(await this.utter(part, style))) return seq === this.seq ? i : null;
     }
+    return null;
   }
 
-  private utter(text: string, role: VoiceRole): Promise<void> {
+  /**
+   * Lit un morceau ; la promesse rend `false` s'il n'a pas pu être lu. Elle
+   * tombe au plus tard après une durée estimée : certains moteurs n'émettent
+   * jamais `end`, et le duel ne doit pas rester suspendu à une voix muette.
+   */
+  private utter(text: string, { voice, pitch, rate, volume }: Style): Promise<boolean> {
     const synth = window.speechSynthesis;
-    const { voice, pitch, rate, volume = 1 } = this.cast[role];
     const utterance = new SpeechSynthesisUtterance(text.replace(/…$/, ""));
     if (voice) utterance.voice = voice;
     utterance.lang = voice?.lang ?? this.lang;
@@ -183,20 +184,22 @@ class BrowserVoices {
     utterance.volume = volume;
     return new Promise((resolve) => {
       const cap = Math.min(12_000, 1200 + (text.length * 75) / rate);
-      const timer = setTimeout(resolve, cap);
+      const timer = setTimeout(() => done(true), cap);
       // Une lecture qui n'a pas commencé au bout d'1,5 s ne commencera pas.
       const watchdog = setTimeout(() => {
         synth.cancel();
-        done();
+        done(false);
       }, 1500);
-      const done = () => {
+      const done = (ok: boolean) => {
         clearTimeout(timer);
         clearTimeout(watchdog);
-        resolve();
+        utterance.onstart = utterance.onend = utterance.onerror = null;
+        resolve(ok);
       };
       utterance.onstart = () => clearTimeout(watchdog);
-      utterance.onend = done;
-      utterance.onerror = done;
+      utterance.onend = () => done(true);
+      // Une lecture coupée (`cancel`, réplique suivante) n'est pas un échec.
+      utterance.onerror = (event) => done(event.error === "interrupted" || event.error === "canceled");
       synth.speak(utterance);
     });
   }
@@ -211,7 +214,7 @@ class BrowserVoices {
 // l'élément audio à parler hors geste que s'il a déjà joué une fois.
 const SILENCE = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
 
-/** Au-delà, on renonce à Google pour cette réplique et la voix du navigateur la lit. */
+/** Au-delà, Google ne lira pas cette réplique. */
 const GOOGLE_TIMEOUT_MS = 6000;
 
 /** Coupe un texte trop long pour Google, entre deux mots. */
@@ -308,17 +311,26 @@ export class DuelVoices {
     this.cancel();
     const seq = this.seq;
     const preset = this.presetFor(role);
-    const pieces = parts.flatMap((part) => (part === null ? [null] : chunkText(part)));
+    const failedAt = await this.browser.speakParts(parts, role, preset, bleep);
+    if (failedAt !== null && seq === this.seq) await this.speakGoogle(parts.slice(failedAt), preset, bleep, seq);
+  }
 
+  /** La même réplique par Google, retravaillée avec la hauteur et l'effet du preset. */
+  private async speakGoogle(
+    parts: (string | null)[],
+    preset: VoicePreset,
+    bleep: () => Promise<void>,
+    seq: number,
+  ): Promise<void> {
+    if (typeof OfflineAudioContext === "undefined" || !this.el) return;
+    const pieces = parts.flatMap((part) => (part === null ? [null] : chunkText(part)));
     let voices: (RenderedVoice | null)[];
     try {
-      if (typeof OfflineAudioContext === "undefined" || !this.el) throw new Error("no audio");
       voices = await withTimeout(
         Promise.all(pieces.map((piece) => (piece === null ? null : this.render(piece, preset)))),
         GOOGLE_TIMEOUT_MS,
       );
     } catch {
-      if (seq === this.seq) await this.browser.speakParts(parts, role, bleep);
       return;
     }
     const urls = voices.flatMap((voice) => (voice ? [voice.url] : []));
@@ -331,18 +343,10 @@ export class DuelVoices {
     // Une seule vitesse pour toute la réplique, d'après sa longueur totale.
     const total = voices.reduce((sum, voice) => sum + (voice?.duration ?? 0), 0);
     const speed = autoSpeed(total, MAX_NORMAL_S, MAX_SPEED, BASE_SPEED);
-    for (let i = 0; i < voices.length; i++) {
+    for (const voice of voices) {
       if (seq !== this.seq) return;
-      const voice = voices[i];
-      if (!voice) {
-        await bleep();
-        continue;
-      }
-      if (!(await this.play(voice, speed, preset.volume ?? 1))) {
-        // Lecture refusée : la voix du navigateur reprend là où on en était.
-        if (seq === this.seq) await this.browser.speakParts(pieces.slice(i), role, bleep);
-        return;
-      }
+      if (!voice) await bleep();
+      else if (!(await this.play(voice, speed, preset.volume ?? 1))) return;
     }
   }
 

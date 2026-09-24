@@ -495,8 +495,8 @@ function AudioCredits() {
           <div>
             <dt className="font-semibold text-[#eef2f4]">Voices</dt>
             <dd>
-              Google Translate&rsquo;s text-to-speech, re-pitched and run through effects in your browser. Your
-              device&rsquo;s own voices step in if it doesn&rsquo;t answer.
+              Your device&rsquo;s own text-to-speech voices, through the Web Speech API. When it has none for the
+              language, Google Translate&rsquo;s speech steps in, re-pitched and run through effects in your browser.
             </dd>
           </div>
           <div>

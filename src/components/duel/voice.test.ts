@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chunkText } from "@/components/duel/voice";
+import { chunkText, speechPitch } from "@/components/duel/voice";
 import { autoSpeed } from "@/components/duel/voiceFx";
 
 describe("chunkText", () => {
@@ -34,5 +34,21 @@ describe("autoSpeed", () => {
 
   it("plafonne l'accélération", () => {
     expect(autoSpeed(20, 4, 1.8)).toBe(1.8);
+  });
+});
+
+describe("speechPitch", () => {
+  it("garde la hauteur normale", () => {
+    expect(speechPitch(1)).toBe(1);
+  });
+
+  it("reste dans les bornes de Web Speech", () => {
+    expect(speechPitch(0.4)).toBe(0);
+    expect(speechPitch(2)).toBe(2);
+  });
+
+  it("monte et descend autour de la normale", () => {
+    expect(speechPitch(0.8)).toBeLessThan(1);
+    expect(speechPitch(1.2)).toBeGreaterThan(1);
   });
 });
