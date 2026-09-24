@@ -3,8 +3,8 @@ import type { LanguageKey } from "@/lib/map";
 // Steam masque les gros mots des reviews sous des « ♥♥♥♥ », un cœur par
 // lettre. Le battle, lui, les rend : chaque série de cœurs devient un gros mot
 // de la langue des reviews, de la même longueur autant que possible — ♥♥♥♥♥♥♥
-// redevient souvent « fucking ». La voix, elle, ralentit sur chaque gros mot,
-// rendu ou écrit en clair.
+// redevient souvent « fucking ». Ceux que Steam a laissés passer sont traités
+// pareil : arc-en-ciel, ralenti de la voix, et cœurs et bip une fois censurés.
 
 export const SWEARS: Record<LanguageKey, string[]> = {
   arabic: ["زفت", "خرا", "تبا", "لعنة", "حمار", "كلب"],
@@ -78,19 +78,36 @@ export function insultFor(language: string, hearts = "♥♥♥♥"): string {
   return best;
 }
 
-/** Un passage du texte ; pour une série de cœurs, `hearts` garde la série d'origine. */
+/**
+ * Un passage du texte. Un gros mot est `censored` : série de cœurs de Steam
+ * rendue en gros mot, ou gros mot écrit en clair ; `hearts` est ce qu'affiche
+ * la version censurée (la série d'origine, ou un cœur par lettre).
+ */
 export type CensoredSegment = { text: string; censored: false } | { text: string; censored: true; hearts: string };
 
-/** Découpe un texte entre passages normaux et séries de cœurs remplacées par un gros mot. */
+/**
+ * Découpe un texte entre passages normaux et gros mots : les séries de cœurs
+ * de Steam, remplacées par un gros mot, et ceux que Steam a laissés passer,
+ * traités de la même façon (arc-en-ciel, cœurs et bip une fois censurés).
+ */
 export function splitCensored(text: string, language: string): CensoredSegment[] {
   const segments: CensoredSegment[] = [];
+  const plain = (chunk: string) => {
+    let last = 0;
+    for (const match of chunk.matchAll(swearPattern(language))) {
+      if (match.index > last) segments.push({ text: chunk.slice(last, match.index), censored: false });
+      segments.push({ text: match[0], censored: true, hearts: "♥".repeat(graphemeCount(match[0])) });
+      last = match.index + match[0].length;
+    }
+    if (last < chunk.length) segments.push({ text: chunk.slice(last), censored: false });
+  };
   let last = 0;
   for (const match of text.matchAll(HEARTS)) {
-    if (match.index > last) segments.push({ text: text.slice(last, match.index), censored: false });
+    if (match.index > last) plain(text.slice(last, match.index));
     segments.push({ text: insultFor(language, match[0]), censored: true, hearts: match[0] });
     last = match.index + match[0].length;
   }
-  if (last < text.length) segments.push({ text: text.slice(last), censored: false });
+  if (last < text.length) plain(text.slice(last));
   return segments;
 }
 
@@ -108,40 +125,31 @@ const swearPatterns = new Map<string, RegExp>();
 function swearPattern(language: string): RegExp {
   let pattern = swearPatterns.get(language);
   if (!pattern) {
-    const words = [...new Set([...(SWEARS[language as LanguageKey] ?? []), ...SWEARS.english])]
-      .sort((a, b) => b.length - a.length)
-      .map(escape)
-      .join("|");
+    const alternation = (list: string[]) =>
+      [...new Set(list)]
+        .sort((a, b) => b.length - a.length)
+        .map(escape)
+        .join("|");
+    const native = SWEARS[language as LanguageKey] ?? [];
     // Hors langues sans espaces, un gros mot doit être un mot entier : « class » n'a rien à cacher.
-    pattern = NO_WORD_BREAKS.has(language)
-      ? new RegExp(`(?:${words})`, "giu")
-      : new RegExp(`(?<![\\p{L}\\p{M}])(?:${words})(?![\\p{L}\\p{M}])`, "giu");
+    // Dans celles-ci, les gros mots de la langue se cherchent partout, mais un
+    // juron anglais reste un mot latin entier : « classic » n'y cache rien non plus.
+    if (NO_WORD_BREAKS.has(language)) {
+      const english = alternation(SWEARS.english.filter((word) => !native.includes(word)));
+      pattern = new RegExp(`(?:${alternation(native)})|(?<!\\p{Script=Latin})(?:${english})(?!\\p{Script=Latin})`, "giu");
+    } else {
+      const words = alternation([...native, ...SWEARS.english]);
+      pattern = new RegExp(`(?<![\\p{L}\\p{M}])(?:${words})(?![\\p{L}\\p{M}])`, "giu");
+    }
     swearPatterns.set(language, pattern);
   }
   return pattern;
 }
 
-/**
- * Un passage de réplique tel que la voix le lit. `swear` : un gros mot, lu au
- * ralenti ; `hearts` : il remplace une série de cœurs (un bip s'il est censuré).
- */
-export type SpokenSegment = { text: string; swear: boolean; hearts?: string };
+/** Un passage de réplique tel que la voix le lit. `swear` : un gros mot, lu au ralenti (un bip s'il est censuré). */
+export type SpokenSegment = { text: string; swear: boolean };
 
-/** Découpe une réplique entre texte courant et gros mots, cœurs remplacés compris. */
+/** Découpe une réplique entre texte courant et gros mots, pour la voix. */
 export function splitSwears(text: string, language: string): SpokenSegment[] {
-  const segments: SpokenSegment[] = [];
-  for (const part of splitCensored(text, language)) {
-    if (part.censored) {
-      segments.push({ text: part.text, swear: true, hearts: part.hearts });
-      continue;
-    }
-    let last = 0;
-    for (const match of part.text.matchAll(swearPattern(language))) {
-      if (match.index > last) segments.push({ text: part.text.slice(last, match.index), swear: false });
-      segments.push({ text: match[0], swear: true });
-      last = match.index + match[0].length;
-    }
-    if (last < part.text.length) segments.push({ text: part.text.slice(last), swear: false });
-  }
-  return segments;
+  return splitCensored(text, language).map((segment) => ({ text: segment.text, swear: segment.censored }));
 }
