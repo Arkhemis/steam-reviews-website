@@ -119,6 +119,39 @@ export function uncensor(text: string, language: string): string {
 }
 
 const escape = (word: string) => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** Les lettres latines et leurs variantes accentuées : une review en capitales perd souvent ses accents. */
+const LATIN_VARIANTS: Record<string, string> = {
+  a: "aàáâãäå",
+  c: "cç",
+  e: "eéèêë",
+  i: "iíìîï",
+  n: "nñ",
+  o: "oóòôõö",
+  u: "uúùûü",
+  y: "yýÿ",
+};
+
+/** Une lettre accentuée ramenée à sa base : é → e, ç → c. */
+const latinBase = (char: string) => char.normalize("NFD").replace(/\p{M}/gu, "");
+
+/**
+ * Le motif d'un gros mot : accents indifférents pour les lettres latines
+ * (« ENCULES » pour « enculé ») et pluriel en -s ou -es pour un mot latin de
+ * plus de trois lettres (« connards », « shits »). Les autres écritures se
+ * cherchent telles quelles.
+ */
+function wordPattern(word: string): string {
+  const latin = /^[\p{Script=Latin}\s'-]+$/u.test(word);
+  const body = [...word]
+    .map((char) => {
+      const base = latinBase(char).toLowerCase();
+      return /\p{Script=Latin}/u.test(char) && LATIN_VARIANTS[base] ? `[${LATIN_VARIANTS[base]}]` : escape(char);
+    })
+    .join("");
+  // Pas de pluriel pour les mots de trois lettres : « fan » (suédois) ne doit pas attraper « fans ».
+  return latin && [...word].length > 3 ? `${body}(?:e?s)?` : body;
+}
 const swearPatterns = new Map<string, RegExp>();
 
 /** Les gros mots écrits en clair : ceux de la langue, plus les jurons anglais qu'on croise partout. */
@@ -128,7 +161,7 @@ function swearPattern(language: string): RegExp {
     const alternation = (list: string[]) =>
       [...new Set(list)]
         .sort((a, b) => b.length - a.length)
-        .map(escape)
+        .map(wordPattern)
         .join("|");
     const native = SWEARS[language as LanguageKey] ?? [];
     // Hors langues sans espaces, un gros mot doit être un mot entier : « class » n'a rien à cacher.

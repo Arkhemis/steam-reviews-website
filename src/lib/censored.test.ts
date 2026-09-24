@@ -25,6 +25,25 @@ describe("splitCensored", () => {
     ]);
   });
 
+  it("reconnaît un gros mot sans ses accents, en capitales et au pluriel", () => {
+    expect(splitCensored("ALLEZ TOUS CREVER BANDES D'ENCULES", "french")).toEqual([
+      { text: "ALLEZ TOUS CREVER BANDES D'", censored: false },
+      { text: "ENCULES", censored: true, hearts: "♥♥♥♥♥♥♥" },
+    ]);
+    expect(splitCensored("two shits and a Fucking", "english").filter((s) => s.censored).map((s) => s.text)).toEqual([
+      "shits",
+      "Fucking",
+    ]);
+  });
+
+  it("ne met pas au pluriel un gros mot de trois lettres", () => {
+    expect(splitCensored("alla fans älskar det", "swedish").some((s) => s.censored)).toBe(false);
+  });
+
+  it("cherche tels quels les gros mots des autres écritures", () => {
+    expect(splitCensored("это говно", "russian").filter((s) => s.censored).map((s) => s.text)).toEqual(["говно"]);
+  });
+
   it("laisse un texte sans cœurs intact", () => {
     expect(splitCensored("Great game", "english")).toEqual([{ text: "Great game", censored: false }]);
   });
