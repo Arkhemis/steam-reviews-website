@@ -1,4 +1,5 @@
 import type { Fighter, Side } from "@/lib/battle";
+import { hasSwear } from "@/lib/censored";
 
 // Le battle : un duel au tour par tour, façon RPG. Le joueur prend un camp
 // et choisit une attaque à chaque tour ; l'ordinateur joue l'autre. Les chiffres
@@ -295,16 +296,24 @@ export function quoteText(text: string, max = QUOTE_MAX): string | null {
   return first && first.length >= QUOTE_MIN && first.length <= max ? first : null;
 }
 
-/** La part des répliques réservée aux reviews censurées par Steam (« ♥♥♥♥ ») : le battle les rend, c'est le sel du duel. */
-export const HEART_SHARE = 0.25;
+/**
+ * La part des répliques réservée aux reviews grossières : censurées par Steam
+ * (« ♥♥♥♥ ») ou gros mots en clair. Le battle les rend, c'est le sel du duel.
+ */
+export const SWEAR_SHARE = 0.35;
 
 /**
  * Les répliques d'un camp : les reviews du bon bord qui tiennent en une
  * bulle, les plus drôles d'abord (votes « Funny »), puis les reviews entières
- * avant les premières phrases, puis les plus votées. Un quart des places va
- * d'abord aux reviews à cœurs, quand il y en a.
+ * avant les premières phrases, puis les plus votées. Un peu plus d'un tiers
+ * des places va d'abord aux reviews grossières, quand il y en a.
  */
-export function pickQuotes<T extends QuoteSource>(reviews: T[], up: boolean, limit = 8): (T & { text: string })[] {
+export function pickQuotes<T extends QuoteSource>(
+  reviews: T[],
+  up: boolean,
+  language = "english",
+  limit = 8,
+): (T & { text: string })[] {
   const ranked = reviews
     .filter((r) => r.votedUp === up)
     .flatMap((review) => {
@@ -316,8 +325,10 @@ export function pickQuotes<T extends QuoteSource>(reviews: T[], up: boolean, lim
         b.quote.votesFunny - a.quote.votesFunny || Number(b.whole) - Number(a.whole) || b.quote.votesUp - a.quote.votesUp,
     )
     .map(({ quote }) => quote);
-  const hearts = new Set(ranked.filter((quote) => quote.text.includes("♥")).slice(0, Math.round(limit * HEART_SHARE)));
-  const others = ranked.filter((quote) => !hearts.has(quote)).slice(0, limit - hearts.size);
-  const picked = new Set([...hearts, ...others]);
+  const crude = new Set(
+    ranked.filter((quote) => hasSwear(quote.text, language)).slice(0, Math.round(limit * SWEAR_SHARE)),
+  );
+  const others = ranked.filter((quote) => !crude.has(quote)).slice(0, limit - crude.size);
+  const picked = new Set([...crude, ...others]);
   return ranked.filter((quote) => picked.has(quote));
 }

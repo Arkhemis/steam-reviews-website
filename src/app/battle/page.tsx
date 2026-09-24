@@ -48,15 +48,15 @@ export async function generateMetadata({ searchParams }: Battle3PageProps): Prom
   };
 }
 
-function quotesOf(reviews: GameTopReview[], up: boolean): DuelQuote[] {
-  return pickQuotes(reviews, up).map((r) => ({
+function quotesOf(reviews: GameTopReview[], up: boolean, language: LanguageKey): DuelQuote[] {
+  return pickQuotes(reviews, up, language).map((r) => ({
     text: r.text,
     author: r.authorPersonaname,
     hours: Math.round(r.authorPlaytimeAtReviewMinutes / 60),
   }));
 }
 
-function cornerFor(game: GameProfile, reviews: GameTopReview[]): DuelCorner {
+function cornerFor(game: GameProfile, reviews: GameTopReview[], language: LanguageKey): DuelCorner {
   const rating = getSteamRating(game.pctPositive, game.totalReviews);
   return {
     fighter: {
@@ -76,8 +76,8 @@ function cornerFor(game: GameProfile, reviews: GameTopReview[]): DuelCorner {
       refunded: `${(game.pctRefunded * 100).toFixed(1)}%`,
       deck: `${(game.pctSteamDeck * 100).toFixed(1)}%`,
     },
-    cheers: quotesOf(reviews, true),
-    jeers: quotesOf(reviews, false),
+    cheers: quotesOf(reviews, true, language),
+    jeers: quotesOf(reviews, false, language),
   };
 }
 
@@ -183,8 +183,8 @@ export default async function Battle3Page({ searchParams }: Battle3PageProps) {
               garde la même page, et sans elle l'arène resterait sur le duel terminé. */}
           <DuelArena
             key={`${leftAppId}-${rightAppId}-${language}`}
-            left={cornerFor(left, leftReviews)}
-            right={cornerFor(right, rightReviews)}
+            left={cornerFor(left, leftReviews, language)}
+            right={cornerFor(right, rightReviews, language)}
             language={language}
             languages={languages}
             langParam={explicit ? language : undefined}

@@ -111,6 +111,11 @@ export function splitCensored(text: string, language: string): CensoredSegment[]
   return segments;
 }
 
+/** Vrai si le texte contient un gros mot : série de cœurs de Steam ou gros mot écrit en clair. */
+export function hasSwear(text: string, language: string): boolean {
+  return splitCensored(text, language).some((segment) => segment.censored);
+}
+
 /** Le texte avec ses cœurs remplacés. */
 export function uncensor(text: string, language: string): string {
   return splitCensored(text, language)

@@ -182,12 +182,19 @@ describe("répliques", () => {
     expect(picked.every((q) => q.text.length <= QUOTE_MAX)).toBe(true);
   });
 
-  it("réserve un quart des places aux reviews à cœurs, même moins drôles", () => {
+  it("réserve 35 % des places aux reviews grossières, même moins drôles", () => {
     const funny = Array.from({ length: 10 }, (_, i) => review(`A very funny negative review number ${i}`, 50 + i));
-    const hearts = Array.from({ length: 3 }, (_, i) => review(`This game is ♥♥♥♥ and I hate it, part ${i}`, 0));
-    const picked = pickQuotes([...funny, ...hearts], false);
+    const hearts = Array.from({ length: 2 }, (_, i) => review(`This game is ♥♥♥♥ and I hate it, part ${i}`, 0));
+    const swears = Array.from({ length: 2 }, (_, i) => review(`Rockstar ain't cooking shit, take ${i}`, 0));
+    const picked = pickQuotes([...funny, ...hearts, ...swears], false);
     expect(picked).toHaveLength(8);
-    expect(picked.filter((q) => q.text.includes("♥"))).toHaveLength(2);
+    expect(picked.filter((q) => q.votesFunny === 0)).toHaveLength(3);
+  });
+
+  it("repère les gros mots en clair dans la langue des reviews", () => {
+    const funny = Array.from({ length: 10 }, (_, i) => review(`Une critique négative très drôle numéro ${i}`, 50 + i));
+    const picked = pickQuotes([...funny, review("Jeu de merde, rien à sauver du tout", 0)], false, "french");
+    expect(picked.some((q) => q.text.includes("merde"))).toBe(true);
   });
 
   it("complète avec les plus drôles quand les cœurs manquent", () => {
