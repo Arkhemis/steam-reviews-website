@@ -73,14 +73,12 @@ export async function renderVoice(decoded: AudioBuffer, fx: VoiceFx): Promise<Re
   source.buffer = decoded;
   source.playbackRate.value = fx.pitch;
 
-  // Un compresseur en bout de chaîne égalise les effets qui creusent (robot)
-  // ou gonflent (mégaphone) le volume.
+  // Un compresseur en bout de chaîne resserre la dynamique ; `normalize`
+  // égalise ensuite le volume d'une réplique à l'autre.
   const out = ctx.createDynamicsCompressor();
   out.threshold.value = -18;
   out.ratio.value = 4;
-  const makeup = ctx.createGain();
-  makeup.gain.value = 1.4;
-  out.connect(makeup).connect(ctx.destination);
+  out.connect(ctx.destination);
 
   const amount = Math.max(0, Math.min(1, fx.amount));
   const param = fx.param || EFFECTS[fx.effect].param?.default || 0;
@@ -88,7 +86,7 @@ export async function renderVoice(decoded: AudioBuffer, fx: VoiceFx): Promise<Re
 
   source.start();
   const rendered = await ctx.startRendering();
-  const samples = trimSilence(rendered.getChannelData(0));
+  const samples = normalize(trimSilence(rendered.getChannelData(0)));
   return {
     url: URL.createObjectURL(toWav(samples, rate)),
     duration: decoded.duration,
@@ -205,6 +203,37 @@ function impulse(ctx: BaseAudioContext, seconds: number): AudioBuffer {
   const data = buffer.getChannelData(0);
   for (let i = 0; i < length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / length) ** 3;
   return buffer;
+}
+
+/** Le niveau moyen visé pour chaque réplique (RMS, environ -17 dBFS). */
+const TARGET_RMS = 0.14;
+/** Au-dessus, les crêtes sont arrondies plutôt qu'écrêtées. */
+const KNEE = 0.85;
+
+/**
+ * Ramène une réplique au même volume que les autres, quels que soient la voix
+ * et l'effet (le robot creuse le son, la caverne le gonfle). Le niveau se
+ * mesure sur la parole seule, silences exclus ; les crêtes qui dépasseraient
+ * passent par un limiteur doux.
+ */
+export function normalize(samples: Float32Array): Float32Array {
+  let sum = 0;
+  let voiced = 0;
+  for (const s of samples) {
+    if (Math.abs(s) > 0.01) {
+      sum += s * s;
+      voiced++;
+    }
+  }
+  if (!voiced) return samples;
+  const gain = Math.min(10, TARGET_RMS / Math.sqrt(sum / voiced));
+  const out = new Float32Array(samples.length);
+  for (let i = 0; i < samples.length; i++) {
+    const s = samples[i] * gain;
+    const level = Math.abs(s);
+    out[i] = level <= KNEE ? s : Math.sign(s) * (KNEE + (1 - KNEE) * Math.tanh((level - KNEE) / (1 - KNEE)));
+  }
+  return out;
 }
 
 /** Coupe le silence final : la traîne d'une réverbération s'éteint bien avant sa fin. */

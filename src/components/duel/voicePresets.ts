@@ -23,7 +23,7 @@ export const CPU_PRESETS: VoicePreset[] = [
   { label: "Game-show host", pitch: 1.15, effect: "megaphone", amount: 0.3, param: 0 },
   { label: "Slow-mo", pitch: 0.7, effect: "wobble", amount: 0.3, param: 2 },
   { label: "Sleepy giant", pitch: 0.6, effect: "cave", amount: 0.3, param: 1.5 },
-  { label: "Whispered threat", pitch: 0.65, effect: "cave", amount: 0.25, param: 1.2, volume: 0.4 },
+  { label: "Whispered threat", pitch: 0.65, effect: "cave", amount: 0.25, param: 1.2 },
   { label: "Whiny kid", pitch: 1.4, effect: "wobble", amount: 0.3, param: 9 },
   { label: "Smug elf", pitch: 1.35, effect: "metal", amount: 0.3, param: 6 },
   { label: "Helium", pitch: 1.8, effect: "none", amount: 0, param: 0 },
