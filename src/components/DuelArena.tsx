@@ -1274,6 +1274,10 @@ export function DuelArena({ left, right, language, languages, langParam }: Props
               <button type="button" onClick={() => start(cpu)} className={btn}>
                 Switch sides
               </button>
+              {/* Garde ton jeu et relance seulement l'adversaire. */}
+              <button type="button" onClick={() => randomSide(cpu)} disabled={isNavigating} className={btn}>
+                {isNavigating ? "Rolling…" : "🎲 Next random rival"}
+              </button>
               <button type="button" onClick={randomRivalry} disabled={isNavigating} className={btn}>
                 🎲 Random rivalry
               </button>
