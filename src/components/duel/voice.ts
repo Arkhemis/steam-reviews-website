@@ -96,8 +96,8 @@ export type SpeechPart = { text: string; swear?: boolean };
 // Le ralenti comique des gros mots : une bande qu'on freine, plus lente et
 // plus grave. Web Speech ne sait que baisser le débit et la hauteur ; la voix
 // de Google, elle, est vraiment rejouée plus lentement, hauteur comprise.
-const SWEAR_TAPE = 0.75;
-const SWEAR_RATE = 0.65;
+const SWEAR_TAPE = 0.68;
+const SWEAR_RATE = 0.55;
 
 /** La voix par défaut : la synthèse vocale du navigateur. */
 class BrowserVoices {
@@ -171,23 +171,44 @@ class BrowserVoices {
       volume: preset.volume ?? 1,
     };
     const swearStyle: Style = { ...style, pitch: speechPitch(preset.pitch * SWEAR_TAPE), rate: style.rate * SWEAR_RATE };
-    for (let i = 0; i < parts.length; i++) {
+    for (let start = 0; start < parts.length; ) {
       if (seq !== this.seq) return null;
-      const part = parts[i];
-      if (part === null) await bleep();
-      else if (part.text.trim() && !(await this.utter(part.text, part.swear ? swearStyle : style))) {
-        return seq === this.seq ? i : null;
+      if (parts[start] === null) {
+        await bleep();
+        start++;
+        continue;
       }
+      // Les morceaux qui se suivent sans bip partent d'un coup dans la file du
+      // moteur : il les enchaîne sans le blanc qu'on entendrait en attendant
+      // la fin de l'un pour lancer l'autre (avant un gros mot, par exemple).
+      let end = start;
+      while (end < parts.length && parts[end] !== null) end++;
+      const run = parts.slice(start, end) as SpeechPart[];
+      const queued = run.map((part) =>
+        part.text.trim() ? this.enqueue(part.text, part.swear ? swearStyle : style) : null,
+      );
+      for (let i = 0; i < queued.length; i++) {
+        const item = queued[i];
+        if (!item) continue;
+        if (!(await item.finished())) {
+          synth.cancel();
+          return seq === this.seq ? start + i : null;
+        }
+        if (seq !== this.seq) return null;
+      }
+      start = end;
     }
     return null;
   }
 
   /**
-   * Lit un morceau ; la promesse rend `false` s'il n'a pas pu être lu. Elle
-   * tombe au plus tard après une durée estimée : certains moteurs n'émettent
-   * jamais `end`, et le duel ne doit pas rester suspendu à une voix muette.
+   * Met un morceau dans la file du moteur. `finished` rend `false` s'il n'a
+   * pas pu être lu ; elle tombe au plus tard après une durée estimée : certains
+   * moteurs n'émettent jamais `end`, et le duel ne doit pas rester suspendu à
+   * une voix muette. À appeler dans l'ordre : chaque attente démarre quand la
+   * précédente est finie.
    */
-  private utter(text: string, { voice, pitch, rate, volume }: Style): Promise<boolean> {
+  private enqueue(text: string, { voice, pitch, rate, volume }: Style): { finished: () => Promise<boolean> } {
     const synth = window.speechSynthesis;
     const utterance = new SpeechSynthesisUtterance(text.replace(/…$/, ""));
     if (voice) utterance.voice = voice;
@@ -195,26 +216,28 @@ class BrowserVoices {
     utterance.pitch = pitch;
     utterance.rate = rate;
     utterance.volume = volume;
-    return new Promise((resolve) => {
-      const cap = Math.min(12_000, 1200 + (text.length * 75) / rate);
-      const timer = setTimeout(() => done(true), cap);
-      // Une lecture qui n'a pas commencé au bout d'1,5 s ne commencera pas.
-      const watchdog = setTimeout(() => {
-        synth.cancel();
-        done(false);
-      }, 1500);
-      const done = (ok: boolean) => {
-        clearTimeout(timer);
-        clearTimeout(watchdog);
-        utterance.onstart = utterance.onend = utterance.onerror = null;
-        resolve(ok);
-      };
-      utterance.onstart = () => clearTimeout(watchdog);
-      utterance.onend = () => done(true);
-      // Une lecture coupée (`cancel`, réplique suivante) n'est pas un échec.
-      utterance.onerror = (event) => done(event.error === "interrupted" || event.error === "canceled");
-      synth.speak(utterance);
-    });
+    let started = false;
+    let settle: (ok: boolean) => void = () => {};
+    const ended = new Promise<boolean>((resolve) => (settle = resolve));
+    utterance.onstart = () => (started = true);
+    utterance.onend = () => settle(true);
+    // Une lecture coupée (`cancel`, réplique suivante) n'est pas un échec.
+    utterance.onerror = (event) => settle(event.error === "interrupted" || event.error === "canceled");
+    synth.speak(utterance);
+    return {
+      finished: () =>
+        new Promise((resolve) => {
+          const done = (ok: boolean) => {
+            clearTimeout(cap);
+            clearTimeout(watchdog);
+            resolve(ok);
+          };
+          const cap = setTimeout(() => done(true), Math.min(12_000, 1200 + (text.length * 75) / rate));
+          // Un morceau qui n'a pas commencé 1,5 s après son tour ne commencera pas.
+          const watchdog = setTimeout(() => !started && done(false), 1500);
+          void ended.then(done);
+        }),
+    };
   }
 
   cancel(): void {

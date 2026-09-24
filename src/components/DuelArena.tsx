@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { BLEEP_MS, DuelAudio, type Sfx } from "@/components/duel/sound";
 import { DuelVoices, warmUpVoices } from "@/components/duel/voice";
 import { GameSearchCombobox } from "@/components/GameSearchCombobox";
@@ -82,7 +82,7 @@ function snapshot(s: DuelState): Snapshot {
   };
 }
 
-type LogLine = { id: number; actor: Side | null; icon: string; text: string; quote?: LogQuote };
+type LogLine = { id: number; actor: Side | null; icon: string; text: ReactNode; quote?: LogQuote };
 
 type Pop = { id: number; side: Side; text: string; tone: "damage" | "crit" | "heal" | "info" };
 
@@ -322,7 +322,6 @@ function quoteFor(move: MoveId, actor: Side, corners: Record<Side, DuelCorner>, 
     : { text: CANNED[move], fan, of: owner.fighter.name };
 }
 
-/** La réplique d'un tour, en prose. */
 /** L'icône d'une ligne du journal : ce que le tour a produit, d'un coup d'œil. */
 function eventIcon(event: DuelEvent): string {
   switch (event.outcome) {
@@ -345,30 +344,92 @@ function eventIcon(event: DuelEvent): string {
   }
 }
 
-function narrate(event: DuelEvent, corners: Record<Side, DuelCorner>): string {
+/** Les couleurs du journal, les mêmes que les chiffres qui jaillissent des jaquettes. */
+const LOG_TONE = { damage: "#ff5a4f", heal: "#5cc26b", crit: "#ffd166", stun: "#66c0f4" } as const;
+
+/** Un fait saillant du journal : dégâts, soin, critique… */
+function Key({ color, children }: { color: string; children: ReactNode }) {
+  return (
+    <span className="font-bold" style={{ color }}>
+      {children}
+    </span>
+  );
+}
+
+/** La réplique d'un tour, en prose, ses chiffres et ses noms en couleur. */
+function narrate(event: DuelEvent, corners: Record<Side, DuelCorner>): ReactNode {
   const me = corners[event.actor];
-  const a = me.fighter.name;
-  const b = corners[opponent(event.actor)].fighter.name;
+  const foe = opponent(event.actor);
+  const a = <Key color={SIDE_COLOR[event.actor]}>{me.fighter.name}</Key>;
+  const b = <Key color={SIDE_COLOR[foe]}>{corners[foe].fighter.name}</Key>;
+  const damage = (n?: number) => <Key color={LOG_TONE.damage}>{n} damage</Key>;
 
   switch (event.outcome) {
     case "skip":
-      return `${a} is still processing refunds and loses the turn.`;
+      return (
+        <>
+          {a} is still processing refunds and <Key color={LOG_TONE.stun}>loses the turn</Key>.
+        </>
+      );
     case "heal":
-      return `${a} ships a patch: +${event.heal} HP.`;
+      return (
+        <>
+          {a} ships a patch: <Key color={LOG_TONE.heal}>+{event.heal} HP</Key>.
+        </>
+      );
     case "backfire":
-      return `The Review Bomb blows up in ${a}'s face: ${event.selfDamage} damage to itself.`;
+      return (
+        <>
+          The Review Bomb blows up in {a}&apos;s face: {damage(event.selfDamage)} to itself.
+        </>
+      );
     case "miss":
-      return `${a}'s ${MOVE_NAME[event.move!]} whiffs. Nobody found that helpful.`;
+      return (
+        <>
+          {a}&apos;s {MOVE_NAME[event.move!]} whiffs. Nobody found that helpful.
+        </>
+      );
     case "dodge":
-      return `${b} sidesteps the ${MOVE_NAME[event.move!]}: it was playing on a Steam Deck.`;
+      return (
+        <>
+          {b} sidesteps the {MOVE_NAME[event.move!]}: it was playing on a Steam Deck.
+        </>
+      );
     default: {
-      const crit = event.outcome === "crit" ? `Critical! ${me.sources.reviews} reviewers roar. ` : "";
-      if (event.move === "bomb") return `${crit}${a} drops a Review Bomb on ${b}: ${event.damage} damage.`;
-      if (event.move === "refund") {
-        const tail = event.stunned ? `${b} is stuck processing it and loses its next turn.` : `${b}'s players keep their copies.`;
-        return `${crit}${a} files a Refund Request: ${event.damage} damage. ${tail}`;
+      const crit = event.outcome === "crit" && (
+        <>
+          <Key color={LOG_TONE.crit}>Critical!</Key> {me.sources.reviews} reviewers roar.{" "}
+        </>
+      );
+      if (event.move === "bomb") {
+        return (
+          <>
+            {crit}
+            {a} drops a Review Bomb on {b}: {damage(event.damage)}.
+          </>
+        );
       }
-      return `${crit}${a} tells ${b} its game sucks: ${event.damage} damage.`;
+      if (event.move === "refund") {
+        const tail = event.stunned ? (
+          <>
+            {b} is stuck processing it and <Key color={LOG_TONE.stun}>loses its next turn</Key>.
+          </>
+        ) : (
+          <>{b}&apos;s players keep their copies.</>
+        );
+        return (
+          <>
+            {crit}
+            {a} files a Refund Request: {damage(event.damage)}. {tail}
+          </>
+        );
+      }
+      return (
+        <>
+          {crit}
+          {a} tells {b} its game sucks: {damage(event.damage)}.
+        </>
+      );
     }
   }
 }

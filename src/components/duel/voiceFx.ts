@@ -86,7 +86,7 @@ export async function renderVoice(decoded: AudioBuffer, fx: VoiceFx): Promise<Re
 
   source.start();
   const rendered = await ctx.startRendering();
-  const samples = normalize(trimSilence(rendered.getChannelData(0)));
+  const samples = normalize(trimSilence(rendered.getChannelData(0), rate));
   return {
     url: URL.createObjectURL(toWav(samples, rate)),
     duration: decoded.duration,
@@ -236,11 +236,19 @@ export function normalize(samples: Float32Array): Float32Array {
   return out;
 }
 
-/** Coupe le silence final : la traîne d'une réverbération s'éteint bien avant sa fin. */
-function trimSilence(samples: Float32Array): Float32Array {
+/**
+ * Coupe les silences de bord : celui que Google met en tête et en fin de MP3
+ * (entre deux morceaux d'une réplique, on entendrait un blanc) et la traîne
+ * d'une réverbération, éteinte bien avant sa fin. Un soupçon de marge évite
+ * de mordre dans la première consonne.
+ */
+export function trimSilence(samples: Float32Array, sampleRate = 24_000): Float32Array {
+  const margin = Math.round(sampleRate * 0.015);
+  let start = 0;
+  while (start < samples.length && Math.abs(samples[start]) < 0.01) start++;
   let end = samples.length;
-  while (end > 0 && Math.abs(samples[end - 1]) < 0.002) end--;
-  return samples.subarray(0, end);
+  while (end > start && Math.abs(samples[end - 1]) < 0.002) end--;
+  return samples.subarray(Math.max(0, start - margin), end);
 }
 
 /** Encode des échantillons mono en WAV PCM 16 bits. */

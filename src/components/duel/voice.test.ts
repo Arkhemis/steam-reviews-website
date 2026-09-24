@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { chunkText, speechPitch } from "@/components/duel/voice";
-import { autoSpeed, normalize } from "@/components/duel/voiceFx";
+import { autoSpeed, normalize, trimSilence } from "@/components/duel/voiceFx";
 
 describe("chunkText", () => {
   it("laisse entier un texte qui tient", () => {
@@ -70,5 +70,17 @@ describe("normalize", () => {
 
   it("laisse un silence intact", () => {
     expect([...normalize(new Float32Array(10))]).toEqual(new Array(10).fill(0));
+  });
+});
+
+describe("trimSilence", () => {
+  it("coupe le silence de tête et de fin, en gardant une petite marge devant", () => {
+    const rate = 1000;
+    const samples = new Float32Array(300);
+    samples.fill(0.5, 100, 200);
+    const out = trimSilence(samples, rate);
+    expect(out.length).toBe(100 + 15);
+    expect(out[15]).toBe(0.5);
+    expect(out[out.length - 1]).toBe(0.5);
   });
 });
