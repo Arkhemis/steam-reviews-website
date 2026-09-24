@@ -96,8 +96,8 @@ export type SpeechPart = { text: string; swear?: boolean };
 // Le ralenti comique des gros mots : une bande qu'on freine, plus lente et
 // plus grave. Web Speech ne sait que baisser le débit et la hauteur ; la voix
 // de Google, elle, est vraiment rejouée plus lentement, hauteur comprise.
-const SWEAR_TAPE = 0.6;
-const SWEAR_RATE = 0.45;
+const SWEAR_TAPE = 0.75;
+const SWEAR_RATE = 0.65;
 
 /** La voix par défaut : la synthèse vocale du navigateur. */
 class BrowserVoices {
