@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { battleHref, languageFromAcceptLanguage, resolveLanguage, resolveMatchup } from "@/lib/battle";
+import { battleHref, DEFAULT_OPPONENTS, languageFromAcceptLanguage, resolveLanguage, resolveMatchup } from "@/lib/battle";
 
 describe("resolveMatchup", () => {
   it("n'oppose jamais un jeu à lui-même", () => {
@@ -7,8 +7,18 @@ describe("resolveMatchup", () => {
     expect(resolveMatchup("570", "570")).toEqual({ leftAppId: 570, rightAppId: 1086940 });
   });
 
-  it("retombe sur la paire par défaut sans paramètres", () => {
-    expect(resolveMatchup()).toEqual({ leftAppId: 1086940, rightAppId: 1716740 });
+  it("tire l'adversaire dans le panel par défaut, sans jamais le jeu de gauche", () => {
+    const pool = DEFAULT_OPPONENTS.filter((id) => id !== 1086940);
+    expect(resolveMatchup(undefined, undefined, () => 0)).toEqual({ leftAppId: 1086940, rightAppId: pool[0] });
+    expect(resolveMatchup(undefined, undefined, () => 0.999).rightAppId).toBe(pool.at(-1));
+    for (let i = 0; i < 50; i++) {
+      const { rightAppId } = resolveMatchup("1086940");
+      expect(pool).toContain(rightAppId);
+    }
+  });
+
+  it("garde l'adversaire demandé par l'URL", () => {
+    expect(resolveMatchup("570", "730")).toEqual({ leftAppId: 570, rightAppId: 730 });
   });
 });
 

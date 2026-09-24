@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { BLEEP_MS, DuelAudio, type Sfx } from "@/components/duel/sound";
 import { DuelVoices, warmUpVoices } from "@/components/duel/voice";
 import { GameSearchCombobox } from "@/components/GameSearchCombobox";
-import { battleHref, RIVALRIES, type Side } from "@/lib/battle";
+import { battleHref, DEFAULT_OPPONENTS, RIVALRIES, type Side } from "@/lib/battle";
 import { splitCensored, uncensor } from "@/lib/censored";
 import {
   aiMove,
@@ -82,7 +82,7 @@ function snapshot(s: DuelState): Snapshot {
   };
 }
 
-type LogLine = { id: number; actor: Side | null; text: string; quote?: LogQuote };
+type LogLine = { id: number; actor: Side | null; icon: string; text: string; quote?: LogQuote };
 
 type Pop = { id: number; side: Side; text: string; tone: "damage" | "crit" | "heal" | "info" };
 
@@ -195,6 +195,7 @@ function Fighter({
       >
         {corner.fighter.coverUrl && <Image src={corner.fighter.coverUrl} alt="" fill sizes="170px" priority className="object-cover" />}
         {state === "winner" && <Image src="/chad.png" alt="" fill sizes="170px" className="animate-chad-blink object-cover" />}
+        {state === "loser" && <Image src="/virgin.png" alt="" fill sizes="170px" className="animate-chad-blink object-cover" />}
         {state === "loser" && (
           <span className="animate-battle-ko absolute inset-0 flex items-center justify-center bg-[#0c1116]/55 font-mono text-2xl font-black tracking-[0.1em] text-[#d03b3b] sm:text-4xl">
             K.O.
@@ -322,6 +323,28 @@ function quoteFor(move: MoveId, actor: Side, corners: Record<Side, DuelCorner>, 
 }
 
 /** La réplique d'un tour, en prose. */
+/** L'icône d'une ligne du journal : ce que le tour a produit, d'un coup d'œil. */
+function eventIcon(event: DuelEvent): string {
+  switch (event.outcome) {
+    case "skip":
+      return "⏳";
+    case "heal":
+      return "🩹";
+    case "backfire":
+      return "🤦";
+    case "miss":
+      return "💨";
+    case "dodge":
+      return "🎮";
+    case "stun":
+      return "🧊";
+    case "crit":
+      return "⚡";
+    default:
+      return event.move === "bomb" ? "💣" : event.move === "refund" ? "💸" : "👎";
+  }
+}
+
 function narrate(event: DuelEvent, corners: Record<Side, DuelCorner>): string {
   const me = corners[event.actor];
   const a = me.fighter.name;
@@ -500,6 +523,9 @@ export function DuelArena({ left, right, language, languages, langParam }: Props
   const [player, setPlayer] = useState<Side | null>(null);
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [busy, setBusy] = useState(false);
+  // Une manche par clic sur « Play as… » ou Rematch : le premier tour de
+  // l'ordinateur en dépend, `player` ne changeant pas d'une revanche à l'autre.
+  const [round, setRound] = useState(0);
   const [log, setLog] = useState<LogLine[]>([]);
   const [pops, setPops] = useState<Pop[]>([]);
   const [bubble, setBubble] = useState<{ id: number; side: Side; quote: LogQuote } | null>(null);
@@ -640,7 +666,7 @@ export function DuelArena({ left, right, language, languages, langParam }: Props
       }
       const id = nextId.current++;
       setSnap(snapshot(duel));
-      setLog((lines) => [...lines, { id, actor: event.actor, text: narrate(event, corners), quote }]);
+      setLog((lines) => [...lines, { id, actor: event.actor, icon: eventIcon(event), text: narrate(event, corners), quote }]);
       setBubble(quote ? { id, side: event.actor, quote } : null);
       animate(event);
       const audio = audioRef.current;
@@ -800,7 +826,11 @@ export function DuelArena({ left, right, language, languages, langParam }: Props
     quoteCount.current = {};
     quotePools.current = shuffledPools(corners);
     setPlayer(side);
+    setRound((r) => r + 1);
     setSnap(snapshot(duel));
+    // Un Rematch lancé pendant l'animation du dernier coup : sa fin, périmée,
+    // ne rendrait jamais la main.
+    setBusy(false);
     setPops([]);
     setBubble(null);
     const first = corners[duel.turn];
@@ -808,6 +838,7 @@ export function DuelArena({ left, right, language, languages, langParam }: Props
       {
         id: nextId.current++,
         actor: null,
+        icon: "🔔",
         text: `FIGHT! ${first.fighter.name} moves first: ${first.sources.reviews} reviews make it the crowd favourite.`,
       },
     ]);
@@ -838,7 +869,7 @@ export function DuelArena({ left, right, language, languages, langParam }: Props
     if (!player || !duel || duel.turns > 0 || duel.turn === player) return;
     const t = setTimeout(() => resolve(aiMove(duel)), 1100);
     return () => clearTimeout(t);
-  }, [player, resolve]);
+  }, [player, round, resolve]);
 
   // Le journal défile tout seul jusqu'à la dernière réplique.
   useEffect(() => {
@@ -891,6 +922,26 @@ export function DuelArena({ left, right, language, languages, langParam }: Props
     });
   }
 
+  // Relance un seul camp : même tirage serveur que « Random rivalry », dont on
+  // garde un jeu différent de celui d'en face ; hors ligne, le panel par défaut.
+  function randomSide(side: Side) {
+    const kept = side === "left" ? right.fighter.appId : left.fighter.appId;
+    const current = corners[side].fighter.appId;
+    startNavigation(async () => {
+      let appId: number;
+      try {
+        const response = await fetch("/api/battle/random", { cache: "no-store" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const { leftAppId, rightAppId } = (await response.json()) as { leftAppId: number; rightAppId: number };
+        appId = leftAppId !== kept ? leftAppId : rightAppId;
+      } catch {
+        const pool = DEFAULT_OPPONENTS.filter((id) => id !== kept && id !== current);
+        appId = pool[Math.floor(Math.random() * pool.length)];
+      }
+      router.push(side === "left" ? battleHref(appId, kept, langParam) : battleHref(kept, appId, langParam));
+    });
+  }
+
   const btn =
     "rounded-full border border-[#24333f] bg-[#0c1116]/60 px-4 py-1.5 text-sm font-semibold text-[#cfdae1] hover:border-white/30 disabled:opacity-40";
 
@@ -931,14 +982,26 @@ export function DuelArena({ left, right, language, languages, langParam }: Props
                     Play as {c.fighter.name.length > 22 ? "this one" : c.fighter.name}
                   </span>
                 </button>
-                <GameSearchCombobox
-                  placeholder="Change game…"
-                  ariaLabel={side === "left" ? "Change the first game" : "Change the second game"}
-                  busy={isNavigating}
-                  onSelect={(hit) => (side === "left" ? go(hit.appId, right.fighter.appId) : go(left.fighter.appId, hit.appId))}
-                  containerClassName="w-full max-w-[240px]"
-                  inputClassName="w-full rounded-full border border-[#24333f] bg-[#111a21] px-3 py-1 text-xs text-[#eef2f4] placeholder:text-[#7d919c] focus:border-white/25 focus:outline-none"
-                />
+                <div className="flex w-full max-w-[280px] items-center gap-2">
+                  <GameSearchCombobox
+                    placeholder="Change game…"
+                    ariaLabel={side === "left" ? "Change the first game" : "Change the second game"}
+                    busy={isNavigating}
+                    onSelect={(hit) => (side === "left" ? go(hit.appId, right.fighter.appId) : go(left.fighter.appId, hit.appId))}
+                    containerClassName="min-w-0 flex-1"
+                    inputClassName="w-full rounded-full border border-[#24333f] bg-[#111a21] px-3 py-1 text-xs text-[#eef2f4] placeholder:text-[#7d919c] focus:border-white/25 focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => randomSide(side)}
+                    disabled={isNavigating}
+                    aria-label={side === "left" ? "Random first game" : "Random second game"}
+                    title="Random game"
+                    className="shrink-0 rounded-full border border-[#24333f] bg-[#111a21] px-2.5 py-1 text-xs hover:border-white/30 disabled:opacity-40"
+                  >
+                    🎲
+                  </button>
+                </div>
               </div>
             );
           })}
@@ -1103,9 +1166,14 @@ export function DuelArena({ left, right, language, languages, langParam }: Props
               return (
                 <div key={line.id} className={`border-t border-[#1a2530] py-2.5 first-of-type:border-t-0 ${latest ? "animate-battle-line" : ""}`}>
                   <p className={`text-[13px] leading-snug ${latest ? "font-semibold text-[#eef2f4]" : "text-[#9fb2bd]"}`}>
-                    {line.actor && (
-                      <span className="mr-1.5 inline-block h-2 w-2 rounded-full align-middle" style={{ backgroundColor: SIDE_COLOR[line.actor] }} />
-                    )}
+                    {/* L'icône dit ce qui s'est passé, son anneau qui l'a fait. */}
+                    <span
+                      aria-hidden
+                      className="mr-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#111a21] align-middle text-[11px] leading-none"
+                      style={{ boxShadow: `inset 0 0 0 1.5px ${line.actor ? SIDE_COLOR[line.actor] : "#24333f"}` }}
+                    >
+                      {line.icon}
+                    </span>
                     {line.text}
                   </p>
                   {line.quote && (

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DuelArena, type DuelCorner } from "@/components/DuelArena";
@@ -75,6 +75,31 @@ describe("DuelArena", () => {
 
     expect(screen.getByText("choose your fighter")).toBeInTheDocument();
   });
+
+  it("relance le duel au Rematch, l'ordinateur rejouant son premier tour", async () => {
+    // `userEvent` attend des timers réels : sous timers simulés, `fireEvent`.
+    vi.useFakeTimers();
+    try {
+      renderArena();
+      // À initiative égale, la gauche ouvre : en jouant la droite, l'ordinateur commence.
+      fireEvent.click(screen.getByRole("button", { name: "Play as Counter-Strike 2" }));
+      const sucks = () => screen.getByRole("button", { name: /Your Game Sucks/ });
+
+      // Joue jusqu'au bout, coup après coup.
+      for (let i = 0; i < 400 && !screen.queryByRole("button", { name: "Rematch" }); i++) {
+        await act(() => vi.advanceTimersByTimeAsync(500));
+        const button = screen.queryByRole("button", { name: /Your Game Sucks/ });
+        if (button && !button.hasAttribute("disabled")) fireEvent.click(button);
+      }
+      fireEvent.click(screen.getByRole("button", { name: "Rematch" }));
+
+      // L'ordinateur rouvre la manche, puis le joueur reprend la main.
+      await act(() => vi.advanceTimersByTimeAsync(10_000));
+      expect(sucks()).toBeEnabled();
+    } finally {
+      vi.useRealTimers();
+    }
+  }, 20_000);
 
   it("tire une rivalité au hasard dès l'écran de choix, sans figer la langue du navigateur", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ leftAppId: 10, rightAppId: 20 }))));

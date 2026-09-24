@@ -23,12 +23,15 @@ type Battle3PageProps = {
 };
 
 const loadGame = cache(getGameStats);
+// Sans `?vs=`, l'adversaire est tiré au hasard : le cache garde le même tirage
+// pour `generateMetadata` et la page d'une même requête.
+const loadMatchup = cache((game?: string, vs?: string) => resolveMatchup(game, vs));
 
 const enCompact = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
 
 export async function generateMetadata({ searchParams }: Battle3PageProps): Promise<Metadata> {
   const params = await searchParams;
-  const { leftAppId, rightAppId } = resolveMatchup(params.game, params.vs);
+  const { leftAppId, rightAppId } = loadMatchup(params.game, params.vs);
   const [left, right] = await Promise.all([loadGame(leftAppId), loadGame(rightAppId)]);
   if (!left || !right) return { title: "Steam game duel", robots: { index: false } };
 
@@ -109,7 +112,7 @@ const RULES: { stat: string; becomes: string; why: string }[] = [
 
 export default async function Battle3Page({ searchParams }: Battle3PageProps) {
   const params = await searchParams;
-  const { leftAppId, rightAppId } = resolveMatchup(params.game, params.vs);
+  const { leftAppId, rightAppId } = loadMatchup(params.game, params.vs);
   const [left, right] = await Promise.all([loadGame(leftAppId), loadGame(rightAppId)]);
 
   if (!left || !right) {

@@ -7,6 +7,24 @@ import { LANGUAGE_LABELS, type LanguageKey } from "@/lib/map";
 export const DEFAULT_LEFT_APP_ID = 1086940; // Baldur's Gate III
 export const DEFAULT_RIGHT_APP_ID = 1716740; // Starfield
 
+// Sans `?vs=`, l'adversaire est tiré dans ce panel : surtout des jeux adulés,
+// avec deux naufrages célèbres pour pimenter le tirage.
+export const DEFAULT_OPPONENTS: readonly number[] = [
+  220, // Half-Life 2
+  620, // Portal 2
+  730, // Counter-Strike 2
+  2443720, // Concord
+  1372880, // The Day Before
+  1086940, // Baldur's Gate III
+  632470, // Disco Elysium
+  413150, // Stardew Valley
+  1145360, // Hades
+  367520, // Hollow Knight
+  753640, // Outer Wilds
+  292030, // The Witcher 3: Wild Hunt
+  105600, // Terraria
+];
+
 export type Side = "left" | "right";
 
 /** La langue des reviews lancées (et lues à voix haute) : une clé de langue Steam. */
@@ -23,10 +41,18 @@ export type Fighter = Pick<
   "appId" | "name" | "pctPositive" | "totalReviews" | "playtimeMedianMinutes" | "pctRefunded" | "pctSteamDeck"
 >;
 
-/** L'ordre des deux jeux tel que l'URL le demande, sans jamais opposer un jeu à lui-même. */
-export function resolveMatchup(game?: string, vs?: string): { leftAppId: number; rightAppId: number } {
+/**
+ * L'ordre des deux jeux tel que l'URL le demande, sans jamais opposer un jeu à
+ * lui-même. Sans `vs`, l'adversaire est tiré dans `DEFAULT_OPPONENTS`.
+ */
+export function resolveMatchup(
+  game?: string,
+  vs?: string,
+  random: () => number = Math.random,
+): { leftAppId: number; rightAppId: number } {
   const leftAppId = Number(game) || DEFAULT_LEFT_APP_ID;
-  let rightAppId = Number(vs) || DEFAULT_RIGHT_APP_ID;
+  const pool = DEFAULT_OPPONENTS.filter((id) => id !== leftAppId);
+  let rightAppId = Number(vs) || pool[Math.floor(random() * pool.length)];
   if (rightAppId === leftAppId) {
     rightAppId = leftAppId === DEFAULT_LEFT_APP_ID ? DEFAULT_RIGHT_APP_ID : DEFAULT_LEFT_APP_ID;
   }
