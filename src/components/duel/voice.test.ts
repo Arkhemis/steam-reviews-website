@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chunkText, speechPitch } from "@/components/duel/voice";
+import { chunkText, quoteParts, speechPitch } from "@/components/duel/voice";
 import { autoSpeed, normalize, trimSilence } from "@/components/duel/voiceFx";
 
 describe("chunkText", () => {
@@ -74,13 +74,33 @@ describe("normalize", () => {
 });
 
 describe("trimSilence", () => {
-  it("coupe le silence de tête et de fin, en gardant une petite marge devant", () => {
+  it("coupe le souffle de tête et de fin, en gardant la parole et une petite marge", () => {
     const rate = 1000;
-    const samples = new Float32Array(300);
-    samples.fill(0.5, 100, 200);
+    // 100 ms de souffle faible, 100 ms de parole, 100 ms de traîne faible.
+    const samples = Float32Array.from({ length: 300 }, (_, i) => (i >= 100 && i < 200 ? 0.5 : 0.005));
     const out = trimSilence(samples, rate);
-    expect(out.length).toBe(100 + 15);
-    expect(out[15]).toBe(0.5);
-    expect(out[out.length - 1]).toBe(0.5);
+    expect(out.filter((s) => s === 0.5).length).toBe(100);
+    expect(out.length).toBeLessThanOrEqual(100 + 10 + 20);
+  });
+
+  it("garde une consonne douce en tête de mot", () => {
+    const rate = 1000;
+    // Un « f » à -24 dB sous la voix, précédé de souffle à -42 dB.
+    const samples = Float32Array.from({ length: 300 }, (_, i) => (i < 50 ? 0.00390625 : i < 100 ? 0.03125 : 0.5));
+    expect(trimSilence(samples, rate).filter((s) => s === 0.03125).length).toBe(50);
+  });
+});
+
+describe("quoteParts", () => {
+  it("ralentit les gros mots quand la réplique n'est pas censurée", () => {
+    expect(quoteParts("this shit rocks", "english", false)).toEqual([
+      { text: "this ", swear: false },
+      { text: "shit", swear: true },
+      { text: " rocks", swear: false },
+    ]);
+  });
+
+  it("bipe tous les gros mots quand elle l'est, cœurs comme mots en clair", () => {
+    expect(quoteParts("fucking ♥♥♥♥ game", "english", true)).toEqual([null, { text: " ", swear: false }, null, { text: " game", swear: false }]);
   });
 });

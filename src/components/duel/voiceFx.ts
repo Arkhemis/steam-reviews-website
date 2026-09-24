@@ -43,7 +43,7 @@ const TAIL_S: Partial<Record<VoiceEffect, number>> = { cave: 5, metal: 0.2 };
 export type RenderedVoice = {
   /** URL d'objet du WAV traité, à libérer avec `URL.revokeObjectURL`. */
   url: string;
-  /** Durée de la réplique brute, à vitesse normale, en secondes. */
+  /** Durée de la parole brute (silences de bord coupés), à vitesse normale, en secondes. */
   duration: number;
   /** Durée du fichier rendu (hauteur et traîne d'effet comprises), en secondes. */
   renderedDuration: number;
@@ -67,10 +67,15 @@ export function decodeVoice(data: ArrayBuffer): Promise<AudioBuffer> {
 /** Rend la voix `decoded` avec sa hauteur et son effet. */
 export async function renderVoice(decoded: AudioBuffer, fx: VoiceFx): Promise<RenderedVoice> {
   const rate = decoded.sampleRate;
-  const length = Math.ceil(decoded.length / fx.pitch + (TAIL_S[fx.effect] ?? 0) * rate);
+  // Le souffle de tête et de fin part avant tout traitement : il fausserait
+  // la durée (donc la vitesse) et s'entendrait comme un blanc entre deux morceaux.
+  const speech = trimSilence(decoded.getChannelData(0), rate);
+  const length = Math.ceil(speech.length / fx.pitch + (TAIL_S[fx.effect] ?? 0) * rate);
   const ctx = new OfflineAudioContext(1, length, rate);
+  const input = ctx.createBuffer(1, speech.length, rate);
+  input.getChannelData(0).set(speech);
   const source = ctx.createBufferSource();
-  source.buffer = decoded;
+  source.buffer = input;
   source.playbackRate.value = fx.pitch;
 
   // Un compresseur en bout de chaîne resserre la dynamique ; `normalize`
@@ -89,7 +94,7 @@ export async function renderVoice(decoded: AudioBuffer, fx: VoiceFx): Promise<Re
   const samples = normalize(trimSilence(rendered.getChannelData(0), rate));
   return {
     url: URL.createObjectURL(toWav(samples, rate)),
-    duration: decoded.duration,
+    duration: speech.length / rate,
     renderedDuration: samples.length / rate,
     // Le rendu dure déjà 1/pitch de l'original : on corrige pour tomber sur `speed`.
     rateFor: (speed) => speed / fx.pitch,
@@ -236,19 +241,34 @@ export function normalize(samples: Float32Array): Float32Array {
   return out;
 }
 
+/** Sous ce niveau (relatif à la fenêtre la plus forte), c'est du souffle ou de la traîne, pas de la parole. */
+const SILENCE_DB = -32;
+
 /**
- * Coupe les silences de bord : celui que Google met en tête et en fin de MP3
- * (entre deux morceaux d'une réplique, on entendrait un blanc) et la traîne
- * d'une réverbération, éteinte bien avant sa fin. Un soupçon de marge évite
- * de mordre dans la première consonne.
+ * Coupe les silences de bord : le souffle que Google met autour de chaque
+ * MP3 (environ 0,2 s de part et d'autre) et la traîne d'une réverbération. Le
+ * niveau se mesure par fenêtres de 10 ms, relativement à la plus forte : le
+ * souffle de Google dépasse un seuil fixe, mais reste 30 dB sous la voix,
+ * alors qu'un « f » initial n'en est qu'à 25. Un soupçon de marge évite de
+ * mordre dans la première consonne ou d'écourter la dernière.
  */
-export function trimSilence(samples: Float32Array, sampleRate = 24_000): Float32Array {
-  const margin = Math.round(sampleRate * 0.015);
-  let start = 0;
-  while (start < samples.length && Math.abs(samples[start]) < 0.01) start++;
-  let end = samples.length;
-  while (end > start && Math.abs(samples[end - 1]) < 0.002) end--;
-  return samples.subarray(Math.max(0, start - margin), end);
+export function trimSilence(samples: Float32Array, sampleRate: number): Float32Array {
+  const window = Math.max(1, Math.round(sampleRate * 0.01));
+  const levels: number[] = [];
+  for (let i = 0; i < samples.length; i += window) {
+    let sum = 0;
+    const end = Math.min(samples.length, i + window);
+    for (let j = i; j < end; j++) sum += samples[j] * samples[j];
+    levels.push(Math.sqrt(sum / (end - i)));
+  }
+  const loudest = Math.max(0, ...levels);
+  if (!loudest) return samples;
+  const threshold = loudest * 10 ** (SILENCE_DB / 20);
+  const first = levels.findIndex((level) => level >= threshold);
+  const last = levels.findLastIndex((level) => level >= threshold);
+  const start = Math.max(0, first * window - window);
+  const end = Math.min(samples.length, (last + 1) * window + 2 * window);
+  return samples.subarray(start, end);
 }
 
 /** Encode des échantillons mono en WAV PCM 16 bits. */

@@ -7,6 +7,7 @@ import {
   PLAYER_PRESET,
   type VoicePreset,
 } from "@/components/duel/voicePresets";
+import { splitSwears } from "@/lib/censored";
 import { GOOGLE_TTS_MAX } from "@/lib/tts";
 
 // Les voix du battle : chaque review lancée est lue à voix haute, d'abord par
@@ -93,11 +94,37 @@ type Style = { voice: SpeechSynthesisVoice | null; pitch: number; rate: number; 
 /** Un morceau de réplique ; `swear` : un gros mot, lu au ralenti. */
 export type SpeechPart = { text: string; swear?: boolean };
 
+/**
+ * Les morceaux d'une réplique tels que la voix les lit. Censurée, chaque gros
+ * mot devient un bip (`null`) : les séries de cœurs comme ceux écrits en clair.
+ */
+export function quoteParts(text: string, language: string, censored: boolean): (SpeechPart | null)[] {
+  return splitSwears(text, language).map((s) => (s.swear && censored ? null : { text: s.text, swear: s.swear }));
+}
+
+/** Un événement de lecture, pour le banc de débogage de /sounds. */
+export type VoiceDebugEvent = {
+  at: number;
+  engine: "browser" | "google";
+  event: string;
+  part?: number;
+  text?: string;
+  swear?: boolean;
+  detail?: string;
+};
+
+/** Réglages de débogage : moteur et timbre imposés, journal des événements. */
+export type VoiceDebug = {
+  engine?: "browser" | "google";
+  preset?: VoicePreset;
+  log: (event: Omit<VoiceDebugEvent, "at">) => void;
+};
+
 // Le ralenti comique des gros mots : une bande qu'on freine, plus lente et
 // plus grave. Web Speech ne sait que baisser le débit et la hauteur ; la voix
 // de Google, elle, est vraiment rejouée plus lentement, hauteur comprise.
-const SWEAR_TAPE = 0.68;
-const SWEAR_RATE = 0.55;
+const SWEAR_TAPE = 0.72;
+const SWEAR_RATE = 0.6;
 
 /** La voix par défaut : la synthèse vocale du navigateur. */
 class BrowserVoices {
@@ -105,6 +132,8 @@ class BrowserVoices {
   /** Les voix que l'ordinateur peut prendre : toutes, sauf celle du joueur quand l'OS en propose d'autres. */
   private cpuPool: SpeechSynthesisVoice[] = [];
   private lastCpuVoice: SpeechSynthesisVoice | null = null;
+  /** Le journal de débogage, quand /sounds en demande un. */
+  log: VoiceDebug["log"] | null = null;
   private steamLanguage = "english";
   private lang = "en-US";
   /** Change à chaque lecture : les morceaux d'une réplique coupée ne sont plus lus. */
@@ -185,7 +214,7 @@ class BrowserVoices {
       while (end < parts.length && parts[end] !== null) end++;
       const run = parts.slice(start, end) as SpeechPart[];
       const queued = run.map((part) =>
-        part.text.trim() ? this.enqueue(part.text, part.swear ? swearStyle : style) : null,
+        part.text.trim() ? this.enqueue(part, part.swear ? swearStyle : style, start + run.indexOf(part)) : null,
       );
       for (let i = 0; i < queued.length; i++) {
         const item = queued[i];
@@ -208,8 +237,13 @@ class BrowserVoices {
    * une voix muette. À appeler dans l'ordre : chaque attente démarre quand la
    * précédente est finie.
    */
-  private enqueue(text: string, { voice, pitch, rate, volume }: Style): { finished: () => Promise<boolean> } {
+  private enqueue(
+    { text, swear }: SpeechPart,
+    { voice, pitch, rate, volume }: Style,
+    part: number,
+  ): { finished: () => Promise<boolean> } {
     const synth = window.speechSynthesis;
+    const log = (event: string, detail?: string) => this.log?.({ engine: "browser", event, part, text, swear, detail });
     const utterance = new SpeechSynthesisUtterance(text.replace(/…$/, ""));
     if (voice) utterance.voice = voice;
     utterance.lang = voice?.lang ?? this.lang;
@@ -219,10 +253,20 @@ class BrowserVoices {
     let started = false;
     let settle: (ok: boolean) => void = () => {};
     const ended = new Promise<boolean>((resolve) => (settle = resolve));
-    utterance.onstart = () => (started = true);
-    utterance.onend = () => settle(true);
+    utterance.onstart = () => {
+      started = true;
+      log("start", `${voice?.name ?? "default voice"} · rate ${rate.toFixed(2)} · pitch ${pitch.toFixed(2)}`);
+    };
+    utterance.onend = () => {
+      log("end");
+      settle(true);
+    };
     // Une lecture coupée (`cancel`, réplique suivante) n'est pas un échec.
-    utterance.onerror = (event) => settle(event.error === "interrupted" || event.error === "canceled");
+    utterance.onerror = (event) => {
+      log("error", event.error);
+      settle(event.error === "interrupted" || event.error === "canceled");
+    };
+    log("queued");
     synth.speak(utterance);
     return {
       finished: () =>
@@ -234,7 +278,11 @@ class BrowserVoices {
           };
           const cap = setTimeout(() => done(true), Math.min(12_000, 1200 + (text.length * 75) / rate));
           // Un morceau qui n'a pas commencé 1,5 s après son tour ne commencera pas.
-          const watchdog = setTimeout(() => !started && done(false), 1500);
+          const watchdog = setTimeout(() => {
+            if (started) return;
+            log("watchdog", "never started");
+            done(false);
+          }, 1500);
           void ended.then(done);
         }),
     };
@@ -291,6 +339,8 @@ export class DuelVoices {
   /** Change à chaque lecture : les morceaux d'une réplique coupée ne sont plus lus. */
   private seq = 0;
   private urls: string[] = [];
+  /** Le banc de débogage de /sounds : moteur et timbre imposés, journal des événements. */
+  debug: VoiceDebug | null = null;
 
   static supported(): boolean {
     const google = typeof Audio !== "undefined" && typeof OfflineAudioContext !== "undefined";
@@ -347,8 +397,15 @@ export class DuelVoices {
   async speakParts(parts: (SpeechPart | null)[], role: VoiceRole, bleep: () => Promise<void>): Promise<void> {
     this.cancel();
     const seq = this.seq;
-    const preset = this.presetFor(role);
-    const failedAt = await this.browser.speakParts(parts, role, preset, bleep);
+    const preset = this.debug?.preset ?? this.presetFor(role);
+    this.browser.log = this.debug?.log ?? null;
+    const engine = this.debug?.engine;
+    const failedAt = engine === "google" ? 0 : await this.browser.speakParts(parts, role, preset, bleep);
+    if (engine === "browser") {
+      if (failedAt !== null) this.debug?.log({ engine: "browser", event: "failed", part: failedAt, detail: "no Google fallback in this mode" });
+      return;
+    }
+    if (failedAt !== null) this.debug?.log({ engine: "google", event: "fallback", part: failedAt });
     if (failedAt !== null && seq === this.seq) await this.speakGoogle(parts.slice(failedAt), preset, bleep, seq);
   }
 
@@ -359,17 +416,31 @@ export class DuelVoices {
     bleep: () => Promise<void>,
     seq: number,
   ): Promise<void> {
-    if (typeof OfflineAudioContext === "undefined" || !this.el) return;
+    const log = (event: string, piece?: { text: string; swear?: boolean }, detail?: string, part?: number) =>
+      this.debug?.log({ engine: "google", event, part, text: piece?.text, swear: piece?.swear, detail });
+    if (typeof OfflineAudioContext === "undefined" || !this.el) {
+      log("unavailable", undefined, "no OfflineAudioContext or audio element not unlocked");
+      return;
+    }
     const pieces = parts.flatMap((part) =>
       part === null ? [null] : chunkText(part.text).map((text) => ({ text, swear: part.swear })),
     );
     let voices: (RenderedVoice | null)[];
     try {
       voices = await withTimeout(
-        Promise.all(pieces.map((piece) => (piece === null ? null : this.render(piece.text, preset)))),
+        Promise.all(
+          pieces.map(async (piece, i) => {
+            if (piece === null) return null;
+            log("fetch", piece, undefined, i);
+            const voice = await this.render(piece.text, preset);
+            log("rendered", piece, `${voice.duration.toFixed(2)} s raw → ${voice.renderedDuration.toFixed(2)} s rendered`, i);
+            return voice;
+          }),
+        ),
         GOOGLE_TIMEOUT_MS,
       );
-    } catch {
+    } catch (error) {
+      log("failed", undefined, error instanceof Error ? error.message : String(error));
       return;
     }
     const urls = voices.flatMap((voice) => (voice ? [voice.url] : []));
@@ -385,8 +456,19 @@ export class DuelVoices {
     for (let i = 0; i < voices.length; i++) {
       if (seq !== this.seq) return;
       const voice = voices[i];
-      if (!voice) await bleep();
-      else if (!(await this.play(voice, speed, preset.volume ?? 1, Boolean(pieces[i]?.swear)))) return;
+      const piece = pieces[i];
+      if (!voice || !piece) {
+        await bleep();
+        continue;
+      }
+      const swear = Boolean(piece.swear);
+      const rate = swear ? SWEAR_TAPE : voice.rateFor(speed);
+      log("play", piece, `playbackRate ${rate.toFixed(2)}${swear ? " (tape)" : ` · speed ×${speed.toFixed(2)}`}`, i);
+      this.el.onplaying = () => log("start", piece, undefined, i);
+      const ok = await this.play(voice, speed, preset.volume ?? 1, swear);
+      this.el.onplaying = null;
+      log(ok ? "end" : "error", piece, undefined, i);
+      if (!ok) return;
     }
   }
 

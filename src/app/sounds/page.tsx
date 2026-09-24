@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Nav } from "@/components/Nav";
+import { VoiceDebug } from "@/components/VoiceDebug";
 import { VoiceLab } from "@/components/VoiceLab";
 
 // Banc d'écoute des voix du battle : hauteur, effets et vitesse, réglés à
@@ -21,6 +22,7 @@ export default function SoundsPage() {
           Tweak, listen, and save the combinations worth keeping.
         </p>
         <VoiceLab />
+        <VoiceDebug />
       </main>
     </div>
   );

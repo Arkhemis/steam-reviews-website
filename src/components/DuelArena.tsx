@@ -4,10 +4,10 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { type ReactNode, useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { BLEEP_MS, DuelAudio, type Sfx } from "@/components/duel/sound";
-import { DuelVoices, warmUpVoices } from "@/components/duel/voice";
+import { DuelVoices, quoteParts, warmUpVoices } from "@/components/duel/voice";
 import { GameSearchCombobox } from "@/components/GameSearchCombobox";
 import { battleHref, DEFAULT_OPPONENTS, RIVALRIES, type Side } from "@/lib/battle";
-import { splitCensored, splitSwears } from "@/lib/censored";
+import { splitCensored } from "@/lib/censored";
 import {
   aiMove,
   BOMB_MULTIPLIER,
@@ -756,9 +756,7 @@ export function DuelArena({ left, right, language, languages, langParam }: Props
         // Les gros mots passent au ralenti ; censurée, la voix s'interrompt sur
         // un bip à la place de chaque série de cœurs.
         const said = voices.speakParts(
-          splitSwears(quote.text, language).map((s) =>
-            s.hearts && censorship.current ? null : { text: s.text, swear: s.swear },
-          ),
+          quoteParts(quote.text, language, censorship.current),
           role,
           () => {
             audio?.play("bleep");
