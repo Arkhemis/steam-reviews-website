@@ -18,6 +18,13 @@ describe("splitCensored", () => {
     ]);
   });
 
+  it("traite les gros mots laissés en clair comme ceux que Steam a censurés", () => {
+    expect(splitCensored("Rockstar ain't cooking shit", "english")).toEqual([
+      { text: "Rockstar ain't cooking ", censored: false },
+      { text: "shit", censored: true, hearts: "♥♥♥♥" },
+    ]);
+  });
+
   it("laisse un texte sans cœurs intact", () => {
     expect(splitCensored("Great game", "english")).toEqual([{ text: "Great game", censored: false }]);
   });
@@ -59,7 +66,7 @@ describe("splitSwears", () => {
   it("marque les cœurs remplacés", () => {
     expect(splitSwears("they ♥♥♥♥♥♥♥ nerfed it", "english")).toEqual([
       { text: "they ", swear: false },
-      { text: "fucking", swear: true, hearts: "♥♥♥♥♥♥♥" },
+      { text: "fucking", swear: true },
       { text: " nerfed it", swear: false },
     ]);
   });
@@ -79,6 +86,15 @@ describe("splitSwears", () => {
     expect(splitSwears("这是狗屎游戏", "schinese")).toEqual([
       { text: "这是", swear: false },
       { text: "狗屎", swear: true },
+      { text: "游戏", swear: false },
+    ]);
+  });
+
+  it("ne voit pas de juron anglais au milieu d'un mot latin, même sans espaces", () => {
+    expect(splitSwears("这是classic游戏", "schinese")).toEqual([{ text: "这是classic游戏", swear: false }]);
+    expect(splitSwears("这是shit游戏", "schinese")).toEqual([
+      { text: "这是", swear: false },
+      { text: "shit", swear: true },
       { text: "游戏", swear: false },
     ]);
   });

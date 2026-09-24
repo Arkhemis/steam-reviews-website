@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { autoSpeed, decodeVoice, EFFECTS, renderVoice, type VoiceEffect } from "@/components/duel/voiceFx";
 import {
   BASE_SPEED,
@@ -80,6 +80,21 @@ function readSaved(): string {
   }
 }
 
+/** Les combinaisons gardées ; un stockage illisible ou un effet inconnu est ignoré. */
+function parseSaved(raw: string): VoicePreset[] {
+  let data: unknown;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(data)) return [];
+  return data.filter(
+    (p): p is VoicePreset =>
+      typeof p === "object" && p !== null && typeof p.label === "string" && Object.hasOwn(EFFECTS, p.effect),
+  );
+}
+
 function writeSaved(presets: VoicePreset[]): void {
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(presets));
@@ -140,10 +155,23 @@ export function VoiceLab() {
   const run = useRef(0);
 
   const savedRaw = useSyncExternalStore(subscribeSaved, readSaved, () => "[]");
-  const saved = useMemo(() => JSON.parse(savedRaw) as VoicePreset[], [savedRaw]);
+  const saved = useMemo(() => parseSaved(savedRaw), [savedRaw]);
 
   const set = (patch: Partial<Settings>) => setSettings((was) => ({ ...was, ...patch }));
   const load = (preset: VoicePreset) => set({ volume: 1, ...preset });
+
+  // En quittant la page : plus de lecture, et un rendu en retard ne démarre rien.
+  useEffect(
+    () => () => {
+      run.current++;
+      const el = audio.current;
+      if (!el) return;
+      el.pause();
+      if (el.src.startsWith("blob:")) URL.revokeObjectURL(el.src);
+      el.removeAttribute("src");
+    },
+    [],
+  );
 
   const stop = useCallback(() => {
     run.current++;

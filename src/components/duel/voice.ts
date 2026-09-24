@@ -89,6 +89,16 @@ export function speechPitch(factor: number): number {
 /** Débit d'une voix de synthèse à vitesse 1, pour estimer la durée d'une réplique. */
 const CHARS_PER_SECOND = 14;
 
+const CJK = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/gu;
+
+/**
+ * La longueur d'un texte en caractères latins équivalents : un idéogramme, un
+ * kana ou une syllabe hangûl se lit environ trois fois moins vite qu'une lettre.
+ */
+function spokenLength(text: string): number {
+  return text.length + 2 * (text.match(CJK)?.length ?? 0);
+}
+
 type Style = { voice: SpeechSynthesisVoice | null; pitch: number; rate: number; volume: number };
 
 /** Un morceau de réplique ; `swear` : un gros mot, lu au ralenti. */
@@ -192,7 +202,7 @@ class BrowserVoices {
     const synth = window.speechSynthesis;
     synth.cancel();
     const seq = ++this.seq;
-    const chars = parts.reduce((sum, part) => sum + (part?.text.length ?? 0), 0);
+    const chars = parts.reduce((sum, part) => sum + (part ? spokenLength(part.text) : 0), 0);
     const style: Style = {
       voice: role === "player" ? this.playerVoice : this.nextCpuVoice(),
       pitch: speechPitch(preset.pitch),
@@ -276,7 +286,7 @@ class BrowserVoices {
             clearTimeout(watchdog);
             resolve(ok);
           };
-          const cap = setTimeout(() => done(true), Math.min(12_000, 1200 + (text.length * 75) / rate));
+          const cap = setTimeout(() => done(true), Math.min(12_000, 1200 + (spokenLength(text) * 75) / rate));
           // Un morceau qui n'a pas commencé 1,5 s après son tour ne commencera pas.
           const watchdog = setTimeout(() => {
             if (started) return;
@@ -425,22 +435,22 @@ export class DuelVoices {
     const pieces = parts.flatMap((part) =>
       part === null ? [null] : chunkText(part.text).map((text) => ({ text, swear: part.swear })),
     );
+    const renders = pieces.map(async (piece, i) => {
+      if (piece === null) return null;
+      log("fetch", piece, undefined, i);
+      const voice = await this.render(piece.text, preset);
+      log("rendered", piece, `${voice.duration.toFixed(2)} s raw → ${voice.renderedDuration.toFixed(2)} s rendered`, i);
+      return voice;
+    });
     let voices: (RenderedVoice | null)[];
     try {
-      voices = await withTimeout(
-        Promise.all(
-          pieces.map(async (piece, i) => {
-            if (piece === null) return null;
-            log("fetch", piece, undefined, i);
-            const voice = await this.render(piece.text, preset);
-            log("rendered", piece, `${voice.duration.toFixed(2)} s raw → ${voice.renderedDuration.toFixed(2)} s rendered`, i);
-            return voice;
-          }),
-        ),
-        GOOGLE_TIMEOUT_MS,
-      );
+      voices = await withTimeout(Promise.all(renders), GOOGLE_TIMEOUT_MS);
     } catch (error) {
       log("failed", undefined, error instanceof Error ? error.message : String(error));
+      // Les rendus qui aboutissent quand même ne seront pas lus : on libère leurs fichiers.
+      void Promise.allSettled(renders).then((results) =>
+        results.forEach((result) => result.status === "fulfilled" && result.value && URL.revokeObjectURL(result.value.url)),
+      );
       return;
     }
     const urls = voices.flatMap((voice) => (voice ? [voice.url] : []));
