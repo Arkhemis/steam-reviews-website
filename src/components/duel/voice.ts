@@ -90,6 +90,15 @@ const CHARS_PER_SECOND = 14;
 
 type Style = { voice: SpeechSynthesisVoice | null; pitch: number; rate: number; volume: number };
 
+/** Un morceau de réplique ; `swear` : un gros mot, lu au ralenti. */
+export type SpeechPart = { text: string; swear?: boolean };
+
+// Le ralenti comique des gros mots : une bande qu'on freine, plus lente et
+// plus grave. Web Speech ne sait que baisser le débit et la hauteur ; la voix
+// de Google, elle, est vraiment rejouée plus lentement, hauteur comprise.
+const SWEAR_TAPE = 0.6;
+const SWEAR_RATE = 0.45;
+
 /** La voix par défaut : la synthèse vocale du navigateur. */
 class BrowserVoices {
   private playerVoice: SpeechSynthesisVoice | null = null;
@@ -136,13 +145,14 @@ class BrowserVoices {
   }
 
   /**
-   * Lit une réplique en morceaux, avec la même voix d'un bout à l'autre ;
-   * entre deux morceaux marqués `null`, `bleep` joue le bip de censure. Rend
+   * Lit une réplique en morceaux, avec la même voix d'un bout à l'autre, les
+   * gros mots au ralenti ; entre deux morceaux marqués `null`, `bleep` joue le
+   * bip de censure. Rend
    * `null` si la réplique a été lue (ou coupée par une autre), sinon l'indice
    * du morceau que la synthèse n'a pas pu lire : la suite revient à Google.
    */
   async speakParts(
-    parts: (string | null)[],
+    parts: (SpeechPart | null)[],
     role: VoiceRole,
     preset: VoicePreset,
     bleep: () => Promise<void>,
@@ -153,18 +163,21 @@ class BrowserVoices {
     const synth = window.speechSynthesis;
     synth.cancel();
     const seq = ++this.seq;
-    const chars = parts.reduce((sum, part) => sum + (part?.length ?? 0), 0);
+    const chars = parts.reduce((sum, part) => sum + (part?.text.length ?? 0), 0);
     const style: Style = {
       voice: role === "player" ? this.playerVoice : this.nextCpuVoice(),
       pitch: speechPitch(preset.pitch),
       rate: autoSpeed(chars / CHARS_PER_SECOND, MAX_NORMAL_S, MAX_SPEED, BASE_SPEED),
       volume: preset.volume ?? 1,
     };
+    const swearStyle: Style = { ...style, pitch: speechPitch(preset.pitch * SWEAR_TAPE), rate: style.rate * SWEAR_RATE };
     for (let i = 0; i < parts.length; i++) {
       if (seq !== this.seq) return null;
       const part = parts[i];
       if (part === null) await bleep();
-      else if (part.trim() && !(await this.utter(part, style))) return seq === this.seq ? i : null;
+      else if (part.text.trim() && !(await this.utter(part.text, part.swear ? swearStyle : style))) {
+        return seq === this.seq ? i : null;
+      }
     }
     return null;
   }
@@ -298,16 +311,17 @@ export class DuelVoices {
    * à une voix muette.
    */
   speak(text: string, role: VoiceRole): Promise<void> {
-    return this.speakParts([text], role, () => Promise.resolve());
+    return this.speakParts([{ text }], role, () => Promise.resolve());
   }
 
   /**
-   * Lit une réplique en morceaux, avec le même timbre d'un bout à l'autre ;
-   * entre deux morceaux marqués `null`, `bleep` joue le bip de censure et
+   * Lit une réplique en morceaux, avec le même timbre d'un bout à l'autre, les
+   * gros mots au ralenti ; entre deux morceaux marqués `null`, `bleep` joue le
+   * bip de censure et
    * rend la main à la fin de celui-ci. Une lecture lancée entre-temps (ou
    * `cancel`) interrompt la suite.
    */
-  async speakParts(parts: (string | null)[], role: VoiceRole, bleep: () => Promise<void>): Promise<void> {
+  async speakParts(parts: (SpeechPart | null)[], role: VoiceRole, bleep: () => Promise<void>): Promise<void> {
     this.cancel();
     const seq = this.seq;
     const preset = this.presetFor(role);
@@ -317,17 +331,19 @@ export class DuelVoices {
 
   /** La même réplique par Google, retravaillée avec la hauteur et l'effet du preset. */
   private async speakGoogle(
-    parts: (string | null)[],
+    parts: (SpeechPart | null)[],
     preset: VoicePreset,
     bleep: () => Promise<void>,
     seq: number,
   ): Promise<void> {
     if (typeof OfflineAudioContext === "undefined" || !this.el) return;
-    const pieces = parts.flatMap((part) => (part === null ? [null] : chunkText(part)));
+    const pieces = parts.flatMap((part) =>
+      part === null ? [null] : chunkText(part.text).map((text) => ({ text, swear: part.swear })),
+    );
     let voices: (RenderedVoice | null)[];
     try {
       voices = await withTimeout(
-        Promise.all(pieces.map((piece) => (piece === null ? null : this.render(piece, preset)))),
+        Promise.all(pieces.map((piece) => (piece === null ? null : this.render(piece.text, preset)))),
         GOOGLE_TIMEOUT_MS,
       );
     } catch {
@@ -343,18 +359,20 @@ export class DuelVoices {
     // Une seule vitesse pour toute la réplique, d'après sa longueur totale.
     const total = voices.reduce((sum, voice) => sum + (voice?.duration ?? 0), 0);
     const speed = autoSpeed(total, MAX_NORMAL_S, MAX_SPEED, BASE_SPEED);
-    for (const voice of voices) {
+    for (let i = 0; i < voices.length; i++) {
       if (seq !== this.seq) return;
+      const voice = voices[i];
       if (!voice) await bleep();
-      else if (!(await this.play(voice, speed, preset.volume ?? 1))) return;
+      else if (!(await this.play(voice, speed, preset.volume ?? 1, Boolean(pieces[i]?.swear)))) return;
     }
   }
 
-  private play(voice: RenderedVoice, speed: number, volume: number): Promise<boolean> {
+  private play(voice: RenderedVoice, speed: number, volume: number, swear: boolean): Promise<boolean> {
     const el = this.el!;
     el.src = voice.url;
-    el.preservesPitch = true;
-    el.playbackRate = el.defaultPlaybackRate = voice.rateFor(speed);
+    // Un gros mot passe au ralenti de bande : plus lent et plus grave à la fois.
+    el.preservesPitch = !swear;
+    el.playbackRate = el.defaultPlaybackRate = swear ? SWEAR_TAPE : voice.rateFor(speed);
     el.volume = volume;
     return new Promise((resolve) => {
       const done = (ok: boolean) => {

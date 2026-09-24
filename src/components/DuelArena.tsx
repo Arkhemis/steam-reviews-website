@@ -7,7 +7,7 @@ import { BLEEP_MS, DuelAudio, type Sfx } from "@/components/duel/sound";
 import { DuelVoices, warmUpVoices } from "@/components/duel/voice";
 import { GameSearchCombobox } from "@/components/GameSearchCombobox";
 import { battleHref, DEFAULT_OPPONENTS, RIVALRIES, type Side } from "@/lib/battle";
-import { splitCensored, uncensor } from "@/lib/censored";
+import { splitCensored, splitSwears } from "@/lib/censored";
 import {
   aiMove,
   BOMB_MULTIPLIER,
@@ -692,17 +692,18 @@ export function DuelArena({ left, right, language, languages, langParam }: Props
         audio?.duck(true);
         // Une voix coupée par la suivante finit elle aussi : seule la dernière rend le volume.
         const token = ++speechToken.current;
-        // Censurée, la voix s'interrompt sur un bip à la place de chaque insulte.
-        const said = censorship.current
-          ? voices.speakParts(
-              splitCensored(quote.text, language).map((s) => (s.censored ? null : s.text)),
-              role,
-              () => {
-                audio?.play("bleep");
-                return new Promise((done) => later(done, BLEEP_MS));
-              },
-            )
-          : voices.speak(uncensor(quote.text, language), role);
+        // Les gros mots passent au ralenti ; censurée, la voix s'interrompt sur
+        // un bip à la place de chaque série de cœurs.
+        const said = voices.speakParts(
+          splitSwears(quote.text, language).map((s) =>
+            s.hearts && censorship.current ? null : { text: s.text, swear: s.swear },
+          ),
+          role,
+          () => {
+            audio?.play("bleep");
+            return new Promise((done) => later(done, BLEEP_MS));
+          },
+        );
         speech = said.then(() => {
           if (token === speechToken.current) audio?.duck(false);
         });
