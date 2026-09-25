@@ -13,6 +13,7 @@ describe("Nav", () => {
     expect(screen.getByRole("link", { name: "Games" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Charts" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Language map" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "My library" })).toHaveAttribute("href", "/library");
     expect(screen.getByRole("link", { name: "Battle" })).toBeInTheDocument();
   });
 
