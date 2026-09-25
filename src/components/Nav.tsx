@@ -17,6 +17,7 @@ const SECTIONS = [
   { key: "games", href: "/games", label: "Games" },
   { key: "charts", href: "/charts", label: "Charts" },
   { key: "map", href: "/map", label: "Language map" },
+  { key: "library", href: "/library", label: "My library" },
 ] as const;
 
 type NavProps = {

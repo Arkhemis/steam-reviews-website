@@ -627,6 +627,56 @@ export async function getGameReviewSummary(appId: number): Promise<GameReviewSum
   }
 }
 
+/**
+ * Les stats des jeux d'une bibliothèque Steam, par `app_id`. Les jeux absents
+ * du catalogue (outils, démos, jeux sans avis chargés) n'y sont pas.
+ */
+export async function getGameStatsByAppIds(appIds: number[]): Promise<Map<number, GameStats>> {
+  if (appIds.length === 0) return new Map();
+  const { rows } = await pool.query<GameStatsRow>(
+    `SELECT ${GAME_STATS_COLUMNS} FROM marts.game_stats WHERE steam_app_id = ANY($1::bigint[])`,
+    [appIds],
+  );
+  return new Map(rows.map((row) => [Number(row.steam_app_id), mapGameStatsRow(row)]));
+}
+
+/** Les résumés LLM disponibles parmi ces jeux, par `app_id` ; cf. `getGameReviewSummary`. */
+export async function getGameReviewSummaries(appIds: number[]): Promise<Map<number, GameReviewSummary>> {
+  if (appIds.length === 0) return new Map();
+  try {
+    const { rows } = await pool.query<{
+      app_id: string;
+      summary: string;
+      pros: string[];
+      cons: string[];
+      model: string;
+      reviews_used: number;
+      generated_on: string;
+    }>(
+      `SELECT app_id, summary, pros, cons, model, reviews_used, TO_CHAR(generated_at, 'YYYY-MM-DD') AS generated_on
+       FROM raw.game_review_summaries
+       WHERE app_id = ANY($1::bigint[])`,
+      [appIds],
+    );
+    return new Map(
+      rows.map((row) => [
+        Number(row.app_id),
+        {
+          summary: row.summary,
+          pros: row.pros,
+          cons: row.cons,
+          model: row.model,
+          reviewsUsed: row.reviews_used,
+          generatedOn: row.generated_on,
+        },
+      ]),
+    );
+  } catch (error) {
+    if ((error as { code?: string }).code === "42P01") return new Map();
+    throw error;
+  }
+}
+
 type GameEventRow = {
   gid: string;
   started_on: string;
